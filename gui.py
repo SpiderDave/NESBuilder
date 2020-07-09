@@ -144,12 +144,41 @@ class ForLua:
         controls[t.name].update() # make sure things like winfo_height return the value we want
         c=controls[t.name]
         return {"control":c,"height":c.winfo_height(), "width":c.winfo_width()}
+    def makeText(t):
+        this=ForLua
+        
+        b = tk.Text(this.getTab(), text=t.text, borderwidth=1, relief="solid")
+        b.config(fg=color_fg, bg=color_bk2)
+        
+        if this.direction.lower() in ("v","vertical"):
+            x=coalesce(t.x, this.x, 0)
+            y=coalesce(t.y, this.y+this.h, 0)
+        else:
+            x=coalesce(t.x, this.x+this.w, 0)
+            y=coalesce(t.y, this.y, 0)
+        w=coalesce(t.w, this.w, 16 * 10)
+        h=coalesce(t.h, this.h, 16)
+        this.x=x
+        this.y=y
+        this.w=w
+        this.h=h
+        
+        b.insert(tk.END, "text!")
+        b.place(x=x, y=y, height=h, width=w)
+        
+        
+        b.bind( "<Button-1>", makeCmd(t.name, {'foo':42}))
+        controls.update({t.name:b})
+        controls[t.name].update()
+        c=controls[t.name]
+        return controls[t.name]
     def makeLabel(t):
         this=ForLua
         
         #b = tk.Label(root, text=t.text, borderwidth=1, background="white", relief="solid")
         b = tk.Label(this.getTab(), text=t.text, borderwidth=1, background="white", relief="solid")
-        b.config(fg="red", bg="blue")
+        #b.config(fg="red", bg="blue")
+        b.config(fg=color_fg, bg=color_bk2)
         
         #l1 = Label(root, text="This", borderwidth=2, relief="groove")
         

@@ -131,7 +131,7 @@ function init()
     
     -- Import the "LevelExtract" method from "SMBLevelExtract.py" and 
     -- add it to the "Python" table.
-    LevelExtract = Python:importFunction('include.SMBLevelExtract','LevelExtract')
+    --LevelExtract = Python:importFunction('include.SMBLevelExtract','LevelExtract')
 end
 
 function doCommand(ctrl)
@@ -220,7 +220,7 @@ function ButtonLevelExtract_cmd()
             print("Save cancelled.")
         else
             print("file: "..f2)
-            LevelExtract(f,f2)
+            SMBLevelExtract(f,f2)
         end
     end
 end

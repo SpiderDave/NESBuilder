@@ -485,6 +485,17 @@ canvas = Canvas(tab3, width=1, height=1, bg='black')
 canvas.place(x=8,y=8, width=128*3, height=128*3)
 
 
+import include # this is the include folder
+
+def exportToLua(module, n=None):
+    if n is None:
+        n = module.__name__
+    lua_func = lua.eval('function(o) {0} = o return o end'.format(n))
+    lua_func(module)
+
+# This will handle exporting some stuff from python scripts to lua
+include.init(lua)
+
 try:
     f = open("main.lua","r")
     lua.execute(f.read())
@@ -493,7 +504,6 @@ except:
     print("Error: Could not open/execute main.lua")
     sys.exit()
 
-import include # this is the include folder
 config  = lua.eval('config or {}')
 
 lua.execute("if init then init() end")

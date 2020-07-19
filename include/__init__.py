@@ -1,7 +1,11 @@
-#from SMBLevelExtract import LevelExtract
+from . import SMBLevelExtract
 
-#def exportToLua(n):
-#    lua_func = lua.eval('function(o) {0} = o return o end'.format(LevelExtract.__name__))
-#    lua_func(LevelExtract)
+def __exportToLua(lua, module, n=None):
+    if n is None:
+        n = module.__name__
+    lua_func = lua.eval('function(o) {0} = o return o end'.format(n))
+    lua_func(module)
 
-#exportToLua(LevelExtract)
+def init(lua):
+    # export the LevelExtract method to lua as SMBLevelExtract
+    __exportToLua(lua, SMBLevelExtract.LevelExtract, "SMBLevelExtract")

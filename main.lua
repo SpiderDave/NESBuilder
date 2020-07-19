@@ -48,7 +48,13 @@ for i=0,#nespalette do
 end
 
 function init()
+    local x,y
+    local x2,y2
+    
     print("init")
+    
+    Python.incLua("Tserial")
+    util = Python.incLua("util")
     
     Python.setTab("Main")
     
@@ -65,6 +71,10 @@ function init()
         y = y + b.height + pad
     end
     
+    
+    --b=Python.makeText{x=x,y=y, lineHeight=20,lineWidth=80, name="Text1",text="Text1"}
+    
+    
     Python.setTab("Palette")
     Python.setDirection("h")
     
@@ -76,6 +86,10 @@ function init()
         palette[i] = nespalette[p[i]]
     end
     
+    x2=Python.x+pad + 100
+    y2=pad*1.5
+
+    
     top = Python.y + pad*1.5
     left = pad*1.5
     
@@ -84,19 +98,40 @@ function init()
     
     for y = 0,1 do
         for x = 0,3 do
-            Python.makePaletteControl{x=placeX,y=placeY,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name=string.format("Pal%x",y*4+x), palette=palette,text="AA"}
+            Python.makePaletteControl{x=placeX,y=placeY,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name=string.format("Pal%x",y*4+x), palette=palette}
             placeX = Python.x+pad*1.5
         end
         placeX = left
         placeY = Python.y+pad
     end
     
+    
+    b=Python.makeButton{x=x,y=y,name="ButtonLoadPalette",text="Load Palette"}
+    
+    y = y + b.height + pad
+    b=Python.makeButton{x=x,y=y,name="ButtonSavePalette",text="Save Palette"}
+    y = y + b.height + pad
+    b=Python.makeText{x=x,y=y, lineHeight=16,lineWidth=80, name="Text1",text="Text1"}
+    y = y + b.height + pad
+    
+    x=x2
+    y=y2
+    b=Python.makeList{x=x,y=y, name="PaletteList"}
+--    b.insert(1,"test")
+--    b.insert(1,"test2")
+    b.append("palette00")
+    b.append("palette01")
+    b.append("palette02")
+    b.append("palette03")
+    
+    --listbox.insert(END, text)
+    
     f="chr.png"
     Python:loadImageToCanvas(f)
     
     -- Import the "LevelExtract" method from "SMBLevelExtract.py" and 
     -- add it to the "Python" table.
-    Python:importFunction('SMBLevelExtract','LevelExtract')
+    LevelExtract = Python:importFunction('include.SMBLevelExtract','LevelExtract')
 end
 
 function doCommand(ctrl)
@@ -151,15 +186,27 @@ function Button0_cmd()
     --Python.exec("controls['Button0'].place(x=0,y=0)")
     --Python.exec("controls['Button0']['text'] = 'foo'")
     --controls = Python.exec("ForLua.execRet = lambda: controls")
---    controls = Python.eval("controls['Button0']['text']")
---    print(controls)
+    --controls = Python.eval("controls['Button0']['text']")
+    --print(controls)
+    
+    Python.hideControl('Button1')
+    --Python.removeControl('Button4')
+
     
     -- Import the "LevelExtract" method from "SMBLevelExtract.py" and 
     -- add it to the "Python" table.
     --Python:importFunction('SMBLevelExtract','LevelExtract')
-    
     --Python.LevelExtract('smbGreatEd.nes','outputtest.asm')
 end
+
+function Button1_cmd()
+    Python.exec("controls['Text1'].setText('blahhhh')")
+end
+
+function Button2_cmd()
+    print(tkConstants.END)
+end
+
 
 function ButtonLevelExtract_cmd()
     f = Python:openFile({{"NES rom", ".nes"}})
@@ -173,9 +220,77 @@ function ButtonLevelExtract_cmd()
             print("Save cancelled.")
         else
             print("file: "..f2)
-            Python.LevelExtract(f,f2)
+            LevelExtract(f,f2)
         end
     end
+end
+
+function ButtonSavePalette_cmd()
+    local p = {}
+    local i=0
+    local out="PaletteData:\n"
+    for pNum = 0,7 do
+        out=out.."  .db "
+        for cellNum = 0,3 do
+            local c = Python.getControl(string.format("Pal%x_%02x",pNum,cellNum))
+            p[i]=tonumber(c.text,16)
+            i=i+1
+            out=out..string.format("$%s",c.text)
+            if cellNum==3 then
+                out=out.."\n"
+            else
+                out=out..", "
+            end
+        end
+    end
+    out=out.."\n"
+    
+    
+    --Python.exec("controls['Text1'].setText('"..out.."')")
+    --local c = Python.getControl("Text1")
+    Python.setText(Python.getControl("Text1"),out)
+    
+    local data = util.serialize(p)
+    --local data = out
+    util.writeToFile("palette.test.asm",0, data, true)
+    
+end
+
+function ButtonLoadPalette_cmd()
+    local firstWhite = {[0]=0x00,0x01,0x0d,0x0e}
+    local p = util.unserialize(util.getFileContents("palette.test.asm"))
+    local i = 0
+    local out="PaletteData:\n"
+    for pNum = 0,7 do
+        out=out.."  .db "
+        for cellNum = 0,3 do
+            local c = Python.getControl(string.format("Pal%x_%02x",pNum,cellNum))
+            local x = p[i] % 16
+            local y = math.floor(p[i]/16)
+            
+            if x>=firstWhite[y] then
+                c.fg="white"
+            else
+                c.fg="black"
+            end
+            c.bg = string.format("#%02x%02x%02x", nespalette[p[i]][1], nespalette[p[i]][2], nespalette[p[i]][3])
+            c.text = string.format("%02x",p[i])
+            i=i+1
+            out=out..string.format("$%s",c.text)
+            if cellNum==3 then
+                out=out.."\n"
+            else
+                out=out..", "
+            end
+        end
+    end
+    out=out.."\n"
+    
+    
+    --Python.exec("controls['Text1'].setText('"..out.."')")
+    --local c = Python.getControl("Text1")
+    Python.setText(Python.getControl("Text1"),out)
+    
 end
 
 

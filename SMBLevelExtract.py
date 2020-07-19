@@ -2,16 +2,13 @@
 #
 # ToDo:
 #   * Remove all the extra file reading and work from fileData only.
-#   * Put terminator byte on its own line.
 #   * Add comments for world and level for area and level data.
-#   * Support extracting from SMBBase roms.
 #   * Detect number of worlds.
-
 
 import os, sys, datetime
 
-def blah():
-    print('blah!')
+def Error(txt):
+    print("Error: {0}".format(txt))
 
 def LevelExtract(filename, outputFileName):
 
@@ -25,21 +22,14 @@ def LevelExtract(filename, outputFileName):
 
     AreaTypes = ["Water", "Ground", "Underground", "Castle"]
 
-    def ExitWithError(txt):
-        print("Error: {0}".format(txt))
-        return
-
     def PrintAddrVar(v):
         print("{0}={1:05x}".format(v,eval(v)))
 
-#    if len(sys.argv) <2:
-#        ExitWithError("no file specified.")
-
-    #filename = " ".join(sys.argv[1:])
     try:
         file = open(filename, "rb")
     except:
-        ExitWithError("Could not open file ({0}).".format(filename))
+        Error("Could not open file ({0}).".format(filename))
+        return
 
     # read data from .nes file
     fileData = file.read()
@@ -57,13 +47,16 @@ def LevelExtract(filename, outputFileName):
         pass
     elif fileData[0:4] == b'FDS\x1a':
         # fds file with header
-        ExitWithError("FDS not supported.")
+        Error("FDS not supported.")
+        return
     elif fileData[1:1+14] == b'*NINTENDO-HVC*':
         # fds file without header
-        ExitWithError("FDS not supported.")
+        Error("FDS not supported.")
+        return
     else:
         #print(fileData[0:4])
-        ExitWithError("iNES header not found (Is this a .nes file?).")
+        Error("iNES header not found (Is this a .nes file?).")
+        return
 
     # remove the header
     fileData = fileData[0x10:]
@@ -85,47 +78,99 @@ def LevelExtract(filename, outputFileName):
         #print("; Detected: original\n")
         romType = "original"
 
-    # search for StoreStyle subroutine
-    m = re.search(re.escape(unhexlify('8d3307a5e718690285e7a5e8690085e860')), fileData)
+    m = re.search(b'METADATA_START', fileData)
+    if m:
+        metaData = {}
+        l = 0
+        i = m.start()-1
+        
+        while True:
+            i=i+l
+            l = fileData[i]
+            i=i+1
+            key = fileData[i:i+l].decode("utf-8")
 
-    # assume WorldAddrOffsets directly follows it
-    # assume there are 8 entries (one for each world)
-    WorldAddrOffsets = m.start()+0x11
-
-    # This is what bank WorldAddrOffsets was found in
-    prgBank = math.floor(WorldAddrOffsets/0x8000)
+            i=i+l
+            l = fileData[i]
+            i=i+1
+            if l==0:
+                data = True
+            elif l==1:
+                data = int.from_bytes(fileData[i:i+l])
+            elif l==2:
+                data = int.from_bytes(fileData[i:i+l], byteorder='little')
+            else:
+                data = fileData[i:i+l].decode("utf-8")
+            metaData[key] = data
+            if key == 'METADATA_END':
+                break
+        
+        romType = "SMBBase"
 
     # Default number of worlds
     nWorlds = 8
 
-    # search for "sty WorldNumber ldx" (part of HandlePipeEntry)
-    m = re.search(re.escape(unhexlify('8c5f07be')), fileData)
-    if m:
-        AreaAddrOffsets = fileData[m.start()+0x07] + fileData[m.start()+0x08] * 0x100 - 0x8000 + prgBank*0x8000
+    if romType == "SMBBase":
+        WorldAddrOffsets = metaData['WorldAddrOffsets']-0x8000
+        AreaAddrOffsets = metaData['AreaAddrOffsets']-0x8000
+        EnemyAddrHOffsets = metaData['EnemyAddrHOffsets']-0x8000
+        EnemyDataAddrLow = metaData['EnemyDataAddrLow']-0x8000
+        EnemyDataAddrHigh = metaData['EnemyDataAddrHigh']-0x8000
+        AreaDataHOffsets = metaData['AreaDataHOffsets']-0x8000
+        AreaDataAddrLow = metaData['AreaDataAddrLow']-0x8000
+        AreaDataAddrHigh = metaData['AreaDataAddrHigh']-0x8000
+        HalfwayDataOffsets = metaData['HalfwayDataOffsets']-0x8000
+        HalfwayData = metaData['HalfwayData']-0x8000
+        
         nWorlds = AreaAddrOffsets - WorldAddrOffsets
-        if nWorlds not in range(1,255):
-            # Number of worlds doesn't make sense; fall back
-            nWorlds = 8
+        
+        # This is what bank WorldAddrOffsets is in
+        prgBank = math.floor(WorldAddrOffsets/0x8000)
+    else:
+
+        # search for StoreStyle subroutine
+        m = re.search(re.escape(unhexlify('8d3307a5e718690285e7a5e8690085e860')), fileData)
+
+        # assume WorldAddrOffsets directly follows it
+        # assume there are 8 entries (one for each world)
+        WorldAddrOffsets = m.start()+0x11
+
+        # This is what bank WorldAddrOffsets was found in
+        prgBank = math.floor(WorldAddrOffsets/0x8000)
+
+        # search for "sty WorldNumber ldx" (part of HandlePipeEntry)
+        m = re.search(re.escape(unhexlify('8c5f07be')), fileData)
+        if m:
+            AreaAddrOffsets = fileData[m.start()+0x07] + fileData[m.start()+0x08] * 0x100 - 0x8000 + prgBank*0x8000
+            nWorlds = AreaAddrOffsets - WorldAddrOffsets
+            if nWorlds not in range(1,255):
+                # Number of worlds doesn't make sense; fall back
+                nWorlds = 8
+                # Assume AreaAddrOffsets immediately follows WorldAddrOffsets
+                AreaAddrOffsets = WorldAddrOffsets + 8
+        else:
             # Assume AreaAddrOffsets immediately follows WorldAddrOffsets
             AreaAddrOffsets = WorldAddrOffsets + 8
-    else:
-        # Assume AreaAddrOffsets immediately follows WorldAddrOffsets
-        AreaAddrOffsets = WorldAddrOffsets + 8
 
-    # part of GetAreaDataAddrs
-    m = re.search(re.escape(unhexlify('a8ad5007291f8d')), fileData)
+        # part of GetAreaDataAddrs
+        m = re.search(re.escape(unhexlify('a8ad5007291f8d')), fileData)
 
-    # Get all these based on the above
-    EnemyAddrHOffsets = fileData[m.start()+0x0a] + fileData[m.start()+0x0b] * 0x100 - 0x8000 + prgBank*0x8000
-    EnemyDataAddrLow = fileData[m.start()+0x12] + fileData[m.start()+0x13] * 0x100 - 0x8000 + prgBank*0x8000
-    EnemyDataAddrHigh = fileData[m.start()+0x17] + fileData[m.start()+0x18] * 0x100 - 0x8000 + prgBank*0x8000
-    AreaDataHOffsets = fileData[m.start()+0x1f] + fileData[m.start()+0x20] * 0x100 - 0x8000 + prgBank*0x8000
-    AreaDataAddrLow = fileData[m.start()+0x27] + fileData[m.start()+0x28] * 0x100 - 0x8000 + prgBank*0x8000
-    AreaDataAddrHigh = fileData[m.start()+0x2c] + fileData[m.start()+0x2d] * 0x100 - 0x8000 + prgBank*0x8000
+        # Get all these based on the above
+        EnemyAddrHOffsets = fileData[m.start()+0x0a] + fileData[m.start()+0x0b] * 0x100 - 0x8000 + prgBank*0x8000
+        EnemyDataAddrLow = fileData[m.start()+0x12] + fileData[m.start()+0x13] * 0x100 - 0x8000 + prgBank*0x8000
+        EnemyDataAddrHigh = fileData[m.start()+0x17] + fileData[m.start()+0x18] * 0x100 - 0x8000 + prgBank*0x8000
+        AreaDataHOffsets = fileData[m.start()+0x1f] + fileData[m.start()+0x20] * 0x100 - 0x8000 + prgBank*0x8000
+        AreaDataAddrLow = fileData[m.start()+0x27] + fileData[m.start()+0x28] * 0x100 - 0x8000 + prgBank*0x8000
+        AreaDataAddrHigh = fileData[m.start()+0x2c] + fileData[m.start()+0x2d] * 0x100 - 0x8000 + prgBank*0x8000
 
     Halfway = False
 
-    if romType == "GreatEd":
+    if romType == "SMBBase":
+        a = HalfwayData
+        Halfway = []
+        for i in range(0,nWorlds*4):
+            Halfway.append(fileData[a+i]*1)
+    elif romType == "GreatEd":
         a = 0x11bd # assume halfway data is always at this spot.
         Halfway = []
         for i in range(0,nWorlds*2):
@@ -315,16 +360,14 @@ def LevelExtract(filename, outputFileName):
 
                 out+="      .db "
                 for i in range(0, len(data)):
-                    out+="${0:02x}".format(data[i])
+                    if (data[i] == terminator[j]) and (out[-2:]==", "):
+                        out=out[:-2] # remove comma and space
+                        out+="\n      .db ${0:02x}".format(data[i])
+                    else:
+                        out+="${0:02x}".format(data[i])
                     if data[i] == terminator[j]:
                         out+="\n"
                         break
-    #                    if data[i] == terminator[j]:
-    #                        out+="\n      .db ${0:02x}\n\n".format(terminator[j])
-    #                        break
-    #                    else:
-    #                        out+="${0:02x}".format(data[i])
-                        
                     if i == len(data)-1:
                         out+="\n"
                     elif i % 10==9:
@@ -341,3 +384,13 @@ def LevelExtract(filename, outputFileName):
     outputFile.close()
 
     file.close()
+
+if __name__== "__main__":
+    if len(sys.argv) <2:
+        Error("no file specified.")
+        exit()
+
+    filename = " ".join(sys.argv[1:])
+    outputFileName = os.path.join(sys.path[0], 'output.asm')
+    
+    LevelExtract(filename, outputFileName)

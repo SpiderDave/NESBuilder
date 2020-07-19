@@ -20,10 +20,6 @@ import webbrowser
 import os
 script_path = os.path.dirname(os.path.abspath( __file__ ))
 
-from SMBLevelExtract import LevelExtract
-#LevelExtract('smbGreatEd.nes',os.path.join(script_path, 'output.asm'))
-
-
 import importlib
 #mod = importlib.import_module(testName)
 #mod.HelloWorld()
@@ -40,13 +36,25 @@ color_bk_hover='#454560'
 color_fg = '#eef'
 color_bk_menu_highlight='#606080'
 
-try:
-    f = open("main.lua","r")
-    lua.execute(f.read())
-    f.close()
-except:
-    print("Error: Could not open/execute main.lua")
-    sys.exit()
+import pkgutil
+
+# set up our lua function
+lua_func = lua.eval('function(o) {0} = o return o end'.format('tkConstants'))
+# get all the constants from tk.constants but leave out builtins, etc.
+d= dict(enumerate([x for x in dir(tk.constants) if not x.startswith('_')]))
+# flip keys and values
+d = {v:k for k,v in d.items()}
+# export to lua.  the values will still be python
+lua_func(lua.table_from(d))
+
+
+class Text(tk.Text):
+    def setText(self, text):
+        self.clear()
+        self.insert(tk.END, text)
+
+    def clear(self):
+        self.delete("1.0", tk.END)
 
 # Make stuff in this class available to lua
 # so we can do Python stuff rom lua.
@@ -57,6 +65,9 @@ class ForLua:
     h=16
     direction="v"
     tab="Main"
+    def incLua(n):
+        filedata = pkgutil.get_data( 'include', n+'.lua' )
+        return lua.execute(filedata)
     def getTab(tab=None):
         return tabs.get(coalesce(tab, ForLua.tab))
     def setDirection(d):
@@ -90,6 +101,10 @@ class ForLua:
         this=ForLua
         m = importlib.import_module(mod)
         setattr(this, f, getattr(m, f))
+        
+        
+        #return getattr(this,f)
+        return getattr(m,f)
         
     def _levelExtract(self, f, out):
         LevelExtract(f,os.path.join(script_path, out))
@@ -130,6 +145,18 @@ class ForLua:
                 return controls[n]
             elif "_"+n in controls:
                 return controls["_"+n]
+    def removeControl(c):
+        controls[c].destroy()
+    def hideControl(c):
+        controls[c].foobar ='baz'
+        x = controls[c].winfo_x()
+        if x<0:
+            x=x+1000
+        else:
+            x=x-1000
+        controls[c].place(x=x)
+        print(controls[c].foobar)
+        
     def makeButton(t):
         this=ForLua
         w=20
@@ -144,10 +171,36 @@ class ForLua:
         controls[t.name].update() # make sure things like winfo_height return the value we want
         c=controls[t.name]
         return {"control":c,"height":c.winfo_height(), "width":c.winfo_width()}
+    def setText(c,txt):
+        c.setText(txt)
+    def makeList(t):
+        this=ForLua
+        if this.direction.lower() in ("v","vertical"):
+            x=coalesce(t.x, this.x, 0)
+            y=coalesce(t.y, this.y+this.h, 0)
+        else:
+            x=coalesce(t.x, this.x+this.w, 0)
+            y=coalesce(t.y, this.y, 0)
+        w=coalesce(t.w, this.w, 16 * 10)
+        h=coalesce(t.h, this.h, 16)
+        this.x=x
+        this.y=y
+        this.w=w
+        this.h=h
+
+        control = tk.Listbox(this.getTab())
+        control.config(fg=color_fg, bg=color_bk2)
+        control.place(x=x, y=y)
+        control.bind( "<Button-1>", makeCmd(t.name,{}))
+        
+        return lua.table(control=control, 
+               insert=control.insert,
+               append=lambda x:control.insert(tk.END,x)),
     def makeText(t):
         this=ForLua
         
-        b = tk.Text(this.getTab(), text=t.text, borderwidth=1, relief="solid")
+        #b = tk.Text(this.getTab(), borderwidth=1, relief="solid",height=t.lineHeight,width=t.lineWidth)
+        b = Text(this.getTab(), borderwidth=1, relief="solid",height=t.lineHeight,width=t.lineWidth)
         b.config(fg=color_fg, bg=color_bk2)
         
         if this.direction.lower() in ("v","vertical"):
@@ -163,8 +216,13 @@ class ForLua:
         this.w=w
         this.h=h
         
-        b.insert(tk.END, "text!")
-        b.place(x=x, y=y, height=h, width=w)
+        b.insert(tk.END, t.text)
+        #b.place(x=x, y=y, height=h, width=w)
+        b.place(x=x, y=y)
+        if not t.lineHeight:
+            b.place(height=h)
+        if not t.lineWidth:
+            b.place(width=w)
         
         
         b.bind( "<Button-1>", makeCmd(t.name, {'foo':42}))
@@ -257,9 +315,8 @@ lua_func(ForLua)
 
 #lua.execute("if init then init() end")
 
-config  = lua.eval('config or {}')
-
 def coalesce(*arg): return next((a for a in arg if a is not None), None)
+
 
 def makeCmd(buttonName, *args):
     if args and (type(args[0]) is dict):
@@ -306,8 +363,9 @@ def onExit():
 def hello():
     pass
 
+
 root = Tk()
-root.geometry("{0}x{1}".format(coalesce(config.width, 800), coalesce(config.height, 400)))
+#root.geometry("{0}x{1}".format(coalesce(config.width, 800), coalesce(config.height, 400)))
 root.protocol( "WM_DELETE_WINDOW", onExit )
 root.configure(bg=color_bk)
 root.iconbitmap(sys.executable)
@@ -427,6 +485,18 @@ canvas = Canvas(tab3, width=1, height=1, bg='black')
 canvas.place(x=8,y=8, width=128*3, height=128*3)
 
 
+try:
+    f = open("main.lua","r")
+    lua.execute(f.read())
+    f.close()
+except:
+    print("Error: Could not open/execute main.lua")
+    sys.exit()
+
+import include # this is the include folder
+config  = lua.eval('config or {}')
+
 lua.execute("if init then init() end")
 
+root.geometry("{0}x{1}".format(coalesce(config.width, 800), coalesce(config.height, 400)))
 root.mainloop()

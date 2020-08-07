@@ -64,6 +64,9 @@ function init()
 
     b=Python.makeButton{x=x,y=y,name="ButtonLevelExtract",text="Extract Level"}
     y = y + b.height + pad
+    
+    b=Python.makeButton{x=x,y=y,name="MakeCHR",text="Make CHR"}
+    y = y + b.height + pad
 
 
     for i=0,4 do
@@ -135,8 +138,10 @@ function init()
 end
 
 function doCommand(ctrl)
-    if ctrl then
+    if type(ctrl) == 'string' then
         print("doCommand "..ctrl)
+    else
+        print("doCommand "..ctrl.name)
     end
 end
 
@@ -179,8 +184,25 @@ function Pal_cmd(name, dummy,t)
     end
 end
 
+function MakeCHR_cmd()
 
-function Button0_cmd()
+    f = Python:openFile({{"Images", ".png"}})
+    if f == "" then
+        print("Open cancelled.")
+    else
+        print("file: "..f)
+        
+        f2 = Python:saveFileAs({{"CHR", ".chr"}},'output.chr')
+        if f2 == "" then
+            print("Save cancelled.")
+        else
+            print("file: "..f2)
+            Python:imageToCHR(f,f2,Python:getNESColors('0f211101'))
+        end
+    end
+end
+
+function Button2_cmd()
     --Python.exec("print('hello world!')")
     --Python.exec("root.geometry('400x400')")
     --Python.exec("controls['Button0'].place(x=0,y=0)")
@@ -200,13 +222,15 @@ function Button0_cmd()
 end
 
 function Button1_cmd()
-    Python.exec("controls['Text1'].setText('blahhhh')")
+    --Python.exec("controls['Text1'].setText('blahhhh')")
+    c = Python.getControl('PaletteList')
+    print(type(c))
+    for k,v in pairs(c) do
+        print(k)
+    end
+    c.set(1)
+    print(c.get() or 'none')
 end
-
-function Button2_cmd()
-    print(tkConstants.END)
-end
-
 
 function ButtonLevelExtract_cmd()
     f = Python:openFile({{"NES rom", ".nes"}})
@@ -226,6 +250,9 @@ function ButtonLevelExtract_cmd()
 end
 
 function ButtonSavePalette_cmd()
+    c = Python.getControl('PaletteList')
+    filename = string.format("%s.dat",c.get())
+
     local p = {}
     local i=0
     local out="PaletteData:\n"
@@ -252,13 +279,16 @@ function ButtonSavePalette_cmd()
     
     local data = util.serialize(p)
     --local data = out
-    util.writeToFile("palette.test.asm",0, data, true)
+    util.writeToFile(filename,0, data, true)
     
 end
 
 function ButtonLoadPalette_cmd()
+    c = Python.getControl('PaletteList')
+    filename = string.format("%s.dat",c.get())
+
     local firstWhite = {[0]=0x00,0x01,0x0d,0x0e}
-    local p = util.unserialize(util.getFileContents("palette.test.asm"))
+    local p = util.unserialize(util.getFileContents(filename))
     local i = 0
     local out="PaletteData:\n"
     for pNum = 0,7 do
@@ -296,6 +326,24 @@ end
 
 function Label1_cmd(name, label)
     print(name)
+end
+
+
+function PaletteList_cmd(t)
+--    print(t.getSelection())
+--    print(type(t.getSelection()))
+--    n = t.getSelection()
+--    print(tonumber(string.format("%d",n)))
+--    print(t.test)
+    print(t.get())
+--    print(type(t))
+--    for k,v in pairs(t) do
+--        print(k)
+--    end
+--    print(t.control.fg)
+--    print('************')
+    --print(t.control)
+--    t.append('test')
 end
 
 function About_cmd()

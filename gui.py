@@ -17,12 +17,21 @@ from PIL import ImageOps
 import math
 import webbrowser
 
+from binascii import hexlify, unhexlify
+
 import os
 script_path = os.path.dirname(os.path.abspath( __file__ ))
 
 import importlib
 #mod = importlib.import_module(testName)
 #mod.HelloWorld()
+
+# import our include folder
+import include 
+
+# Handle exporting some stuff from python scripts to lua
+include.init(lua)
+
 
 controls={}
 
@@ -55,6 +64,25 @@ class Text(tk.Text):
 
     def clear(self):
         self.delete("1.0", tk.END)
+
+nesPalette=[
+[0x74,0x74,0x74],[0x24,0x18,0x8c],[0x00,0x00,0xa8],[0x44,0x00,0x9c],
+[0x8c,0x00,0x74],[0xa8,0x00,0x10],[0xa4,0x00,0x00],[0x7c,0x08,0x00],
+[0x40,0x2c,0x00],[0x00,0x44,0x00],[0x00,0x50,0x00],[0x00,0x3c,0x14],
+[0x18,0x3c,0x5c],[0x00,0x00,0x00],[0x00,0x00,0x00],[0x00,0x00,0x00],
+[0xbc,0xbc,0xbc],[0x00,0x70,0xec],[0x20,0x38,0xec],[0x80,0x00,0xf0],
+[0xbc,0x00,0xbc],[0xe4,0x00,0x58],[0xd8,0x28,0x00],[0xc8,0x4c,0x0c],
+[0x88,0x70,0x00],[0x00,0x94,0x00],[0x00,0xa8,0x00],[0x00,0x90,0x38],
+[0x00,0x80,0x88],[0x00,0x00,0x00],[0x00,0x00,0x00],[0x00,0x00,0x00],
+[0xfc,0xfc,0xfc],[0x3c,0xbc,0xfc],[0x5c,0x94,0xfc],[0xcc,0x88,0xfc],
+[0xf4,0x78,0xfc],[0xfc,0x74,0xb4],[0xfc,0x74,0x60],[0xfc,0x98,0x38],
+[0xf0,0xbc,0x3c],[0x80,0xd0,0x10],[0x4c,0xdc,0x48],[0x58,0xf8,0x98],
+[0x00,0xe8,0xd8],[0x78,0x78,0x78],[0x00,0x00,0x00],[0x00,0x00,0x00],
+[0xfc,0xfc,0xfc],[0xa8,0xe4,0xfc],[0xc4,0xd4,0xfc],[0xd4,0xc8,0xfc],
+[0xfc,0xc4,0xfc],[0xfc,0xc4,0xd8],[0xfc,0xbc,0xb0],[0xfc,0xd8,0xa8],
+[0xfc,0xe4,0xa0],[0xe0,0xfc,0xa0],[0xa8,0xf0,0xbc],[0xb0,0xfc,0xcc],
+[0x9c,0xfc,0xf0],[0xc4,0xc4,0xc4],[0x00,0x00,0x00],[0x00,0x00,0x00],
+]
 
 # Make stuff in this class available to lua
 # so we can do Python stuff rom lua.
@@ -128,6 +156,57 @@ class ForLua:
             #canvas.place(x=canvas.x, y=canvas.y)
         except:
             print("error loading image")
+    def getNESColors(self, c):
+        if type(c) is str:
+            c = [nesPalette[x] for x in unhexlify(c.strip())]
+            if len(c) == 1:
+                c = c[0]
+            return c
+            
+    def imageToCHR(self, f, outputfile="output.chr", colors=False):
+        print('imageToCHR')
+        
+        #colors = [[0,0,0],[60,188,252],[0,112,236],[36,24,140]]
+        
+        try:
+            with Image.open(f) as im:
+                px = im.load()
+        except:
+            print("error loading image")
+            return
+        
+        #nTiles = 0x200
+        
+        width, height = im.size
+        
+        w = math.floor(width/8)*8
+        h = math.floor(height/8)*8
+        nTiles = int(w/8 * h/8)
+        
+        #w = min(16, nTiles)*8
+        #h = max(8,math.floor(nTiles/16)*8)
+        
+#        xo=0
+#        yo=0
+        
+        out = []
+        for t in range(nTiles):
+            tile = [[]]*16
+            for y in range(8):
+                tile[y] = 0
+                tile[y+8] = 0
+                for x in range(8):
+                    for i in range(4):
+                        if list(px[x+(t*8) % w, y + math.floor(t/(w/8))*8]) == colors[i]:
+                            tile[y] += (2**(7-x)) * (i%2)
+                            tile[y+8] += (2**(7-x)) * (math.floor(i/2))
+            
+            for i in range(16):
+                out.append(tile[i])
+        print('Tile data written to {0}.'.format(outputfile))
+        f=open(outputfile,"wb")
+        f.write(bytes(out))
+        f.close()
 
     def Quit():
         onExit()
@@ -191,11 +270,37 @@ class ForLua:
         control = tk.Listbox(this.getTab())
         control.config(fg=color_fg, bg=color_bk2)
         control.place(x=x, y=y)
-        control.bind( "<Button-1>", makeCmd(t.name,{}))
         
-        return lua.table(control=control, 
-               insert=control.insert,
-               append=lambda x:control.insert(tk.END,x)),
+        def get(index=False):
+            selection = control.curselection()
+            if not selection:
+                return
+            index = index or selection[0]
+            return control.get(index)
+        def set(index=0):
+            control.select_clear(0, "end")
+            control.selection_set(index)
+            control.see(index)
+            control.activate(index)
+        
+        # This is a lua table used for the callback and
+        # also as a return value for this method.
+        t=lua.table(name=t.name,
+                    control=control,
+                    insert=control.insert,
+                    append=lambda x:control.insert(tk.END,x),
+                    getSelection = lambda:control.curselection(),
+                    get = get,
+                    set = set,
+                    )
+
+        controls.update({t.name:t})
+
+        #control.bind( "<Button-1>", makeCmdNew(t))
+        control.bind( "<ButtonRelease-1>", makeCmdNew(t))
+        
+        
+        return t
     def makeText(t):
         this=ForLua
         
@@ -323,6 +428,19 @@ def makeCmd(buttonName, *args):
         #return lambda *x:doCommand(buttonName, args.update(x))
         return lambda *x:doCommand(buttonName, x,args)
     return lambda *x:doCommand(buttonName, x)
+
+def makeCmdNew(*args):
+    return lambda *x:doCommandNew(args)
+
+# a single lua table is passed
+def doCommandNew(*args):
+    args = args[0][0]
+    lua_func = lua.eval('function(o) if doCommand then doCommand(o) end end'.format(args.name))
+    lua_func(args)
+    lua_func = lua.eval('function(o) if {0}_command then {0}_command(o) end end'.format(args.name))
+    lua_func(args)
+    lua_func = lua.eval('function(o) if {0}_cmd then {0}_cmd(o) end end'.format(args.name))
+    lua_func(args)
 
 def doCommand(ctrl, *args):
     # process the tkinter event
@@ -483,18 +601,6 @@ canvas = Canvas(tab3, width=1, height=1, bg='black')
 #c.bind("<Button-1>", makeCmd(t.name, {'foo':42}))
 # store x and y so we can use them to place when image is loaded
 canvas.place(x=8,y=8, width=128*3, height=128*3)
-
-
-import include # this is the include folder
-
-def exportToLua(module, n=None):
-    if n is None:
-        n = module.__name__
-    lua_func = lua.eval('function(o) {0} = o return o end'.format(n))
-    lua_func(module)
-
-# This will handle exporting some stuff from python scripts to lua
-include.init(lua)
 
 try:
     f = open("main.lua","r")

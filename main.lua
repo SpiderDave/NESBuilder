@@ -494,12 +494,14 @@ function Open_cmd()
 end
 
 function Save_cmd()
-    f = Python:saveFileAs()
-    if f == "" then
-        print("Save cancelled.")
-    else
-        print("file: "..f)
-    end
+    SaveProject_cmd()
+    print(string.format("Project saved (%s)",data.projectID))
+--    f = Python:saveFileAs(nil)
+--    if f == "" then
+--        print("Save cancelled.")
+--    else
+--        print("file: "..f)
+--    end
 end
 
 

@@ -7,12 +7,15 @@ lua = LuaRuntime(unpack_returned_tuples=True)
 
 from tkinter import filedialog
 from tkinter import messagebox
+from tkinter import messagebox as msg
 import tkinter as tk
 from tkinter import ttk
 from tkinter import *
 #from tkinter.ttk import *
 from PIL import ImageTk, Image, ImageDraw
 from PIL import ImageOps
+
+#from textwrap import dedent
 
 import math
 import webbrowser
@@ -96,6 +99,13 @@ class ForLua:
     h=16
     direction="v"
     tab="Main"
+    def askyesnocancel(self, title, message):
+        q = messagebox.askyesnocancel(title, message)
+        print(q)
+        return q
+        #return messagebox.askyesnocancel(title, message)
+    def messageBox(self, title, message):
+        return messagebox.askyesno(title, message)
     def incLua(n):
         filedata = pkgutil.get_data( 'include', n+'.lua' )
         return lua.execute(filedata)
@@ -173,9 +183,17 @@ class ForLua:
             c=c.replace(' ','').strip()
             c = [nesPalette[x] for x in unhexlify(c)]
             if len(c) == 1:
-                c = c[0]
+                return c[0]
             return c
-            
+        else:
+            c = [nesPalette[v] for i,v in sorted(c.items())]
+            if len(c) == 1:
+                return c[0]
+            return c
+    def makeTable(self, t):
+        print(t)
+        t = lua.table(t)
+        return t
     def imageToCHR(self, f, outputfile="output.chr", colors=False):
         print('imageToCHR')
         
@@ -384,12 +402,26 @@ class ForLua:
         w=coalesce(t.cellWidth, 30)
         h=coalesce(t.cellHeight, 30)
         
-        frame = tk.Frame(this.getTab(), width=pw*(w+1)+1, height=ph*(h+1)+1, name="_{0}_frame".format(t.name))
-        frame.place(x=t.x,y=t.y)
+        control = tk.Frame(this.getTab(), width=pw*(w+1)+1, height=ph*(h+1)+1, name="_{0}_frame".format(t.name))
+        control.place(x=t.x,y=t.y)
+        
+        control.cellNum = 0
+        
+        def cellClick(ev):
+            control.cellNum = ev.widget.index
+            ev.index = ev.widget.index
+            #control.cellEvent = ev
+            
+            # This stuff is just taking a ride on the event
+            # but will be on the main table
+            ev.extra = dict(cellEvent = ev, cellNum = ev.widget.index)
+            
+            ev.widget.parent.cmd(ev)
         
         #t.name="Palette"
-        for x in range(0,pw):
-            for y in range(0,ph):
+        control.allCells = []
+        for y in range(0,ph):
+            for x in range(0,pw):
                 i=y*0x10+x
                 bg = "#{0:02x}{1:02x}{2:02x}".format(t.palette[i][1],t.palette[i][2],t.palette[i][3])
         
@@ -399,27 +431,79 @@ class ForLua:
                 fg = 'white' if x>=(0x00,0x01,0x0d,0x0e)[y] else 'black'
                 
                 if config.upperHex:
-                    l = tk.Label(frame, text="{0:02X}".format(t.palette[i].index), borderwidth=0, bg=bg, fg=fg, relief="solid")
+                    l = tk.Label(control, text="{0:02X}".format(t.palette[i].index), borderwidth=0, bg=bg, fg=fg, relief="solid")
                 else:
-                    l = tk.Label(frame, text="{0:02x}".format(t.palette[i].index), borderwidth=0, bg=bg, fg=fg, relief="solid")
+                    l = tk.Label(control, text="{0:02x}".format(t.palette[i].index), borderwidth=0, bg=bg, fg=fg, relief="solid")
                 
                 l.place(x=1+x*(w+1), y=1+y*(h+1), height=h, width=w)
                 
+                #l.bind("<Button>", makeCmd(t.name, {'cellNum':i,'cellName':n}))
+                #l.bind("<Button>", cellClick)
+                l.bind("<Button>", cellClick)
                 
-                
-                
-                l.bind("<Button>", makeCmd(t.name, {'cellNum':i,'cellName':n}))
+                l.index=i
+                l.parent = control
                 
                 controls.update({n:l})
                 controls[n].update()
                 #print(n)
-
+                control.allCells.append(l)
         this.x = t.x+pw*(w+1)+1
         this.y = t.y+ph*(h+1)+1
         this.w=pw*(w+1)+1
         this.h=ph*(h+1)+1
+        def set(index, p):
+            cell = control.allCells[index]
+            colorIndex = p
+            
+            # These values are the first white text of each row
+            fg = 'white' if (colorIndex % 16)>=(0x00,0x01,0x0d,0x0e)[math.floor(colorIndex/16)] else 'black'
+            
+            c = '#{0:02x}{1:02x}{2:02x}'.format(nesPalette[colorIndex][0],nesPalette[colorIndex][1],nesPalette[colorIndex][2])
+            text="{0:02X}".format(colorIndex)
+            cell.config(bg=c, fg=fg, text=text)
+        def setAll(p):
+            for i, cell in enumerate(control.allCells):
+                colorIndex = p[i+1]
+                
+                # These values are the first white text of each row
+                fg = 'white' if (colorIndex % 16)>=(0x00,0x01,0x0d,0x0e)[math.floor(colorIndex/16)] else 'black'
+                
+                c = '#{0:02x}{1:02x}{2:02x}'.format(nesPalette[colorIndex][0],nesPalette[colorIndex][1],nesPalette[colorIndex][2])
+                text="{0:02X}".format(colorIndex)
+                cell.config(bg=c, fg=fg, text=text)
+        def setAllRGB(p):
+            base = 0
+            if not p[0]:
+                base = 1
+            for i, cell in enumerate(control.allCells):
+                c = '#{0:02x}{1:02x}{2:02x}'.format(p[i+base][0],p[i+base][1],p[i+base][2])
+                cell.config(bg=c)
+        def getCellNum():
+            return control.cellNum
+        def getCellEvent():
+            # This is a way to get the event for each cell from the parent frame
+            print(control.cellEvent)
+            control.cellEvent.index = control.cellNum
+            return control.cellEvent
+        
+        # This is a lua table used for the callback and
+        # also as a return value for this method.
+        t=lua.table(name=t.name,
+                    control=control,
+                    getCellNum = getCellNum,
+                    getCellEvent = getCellEvent,
+                    set = set,
+                    setAll = setAll,
+                    )
 
-        # This should probably return a frame object
+        controls.update({t.name:t})
+
+        #control.bind( "<Button-1>", makeCmdNew(t))
+        control.cmd = makeCmdNew(t)
+        control.bind( "<ButtonRelease-1>", control.cmd)
+        
+        return t
 
 
 # Return it from eval so we can execute it with a 
@@ -445,11 +529,18 @@ def makeCmd(buttonName, *args):
     return lambda *x:doCommand(buttonName, x)
 
 def makeCmdNew(*args):
-    return lambda *x:doCommandNew(args)
+    return lambda x:doCommandNew(args, ev = x)
 
 # a single lua table is passed
-def doCommandNew(*args):
+def doCommandNew(*args, ev):
     args = args[0][0]
+    try:
+        for k,v in ev.extra.items():
+            args[k]=v
+        ev.extra = False
+    except:
+        pass
+    args.event = ev # store the event in the table
     lua_func = lua.eval('function(o) if doCommand then doCommand(o) end end'.format(args.name))
     lua_func(args)
     lua_func = lua.eval('function(o) if {0}_command then {0}_command(o) end end'.format(args.name))
@@ -511,11 +602,13 @@ tab_parent = ttk.Notebook(root)
 s = ttk.Style()
 s.configure('new.TFrame', background=color_bk)
 
+tabLaunch = ttk.Frame(tab_parent, style='new.TFrame')
 tab1 = ttk.Frame(tab_parent, style='new.TFrame')
 tab2 = ttk.Frame(tab_parent, style='new.TFrame')
 tab3 = ttk.Frame(tab_parent, style='new.TFrame')
-tabs={'Main':tab1,'Palette':tab2,'Image':tab3}
+tabs={'Launch':tabLaunch,'Main':tab1,'Palette':tab2,'Image':tab3}
 
+tab_parent.add(tabLaunch, text="Launcher")
 tab_parent.add(tab1, text="Main")
 tab_parent.add(tab2, text="Palette")
 tab_parent.add(tab3, text="CHR")
@@ -525,8 +618,8 @@ tab_parent.pack(expand=1, fill='both')
 menubar = Menu(root)
 
 filemenu = Menu(menubar, tearoff=0)
-filemenu.add_command(label="Open", command=lambda: doCommand("Open"))
-filemenu.add_command(label="Save", command=lambda: doCommand("Save"))
+filemenu.add_command(label="Open Project", command=lambda: doCommand("Open"))
+filemenu.add_command(label="Save Project", command=lambda: doCommand("Save"))
 filemenu.add_separator()
 filemenu.add_command(label="Exit", command=lambda: doCommand("Quit"))
 menubar.add_cascade(label="File", menu=filemenu)
@@ -626,6 +719,24 @@ except:
     sys.exit()
 
 config  = lua.eval('config or {}')
+config.title = config.title or "SpideyGUI"
+root.title(config.title)
+
+#image = Image.open("logo.png")
+#logo = ImageTk.PhotoImage(image)
+#b = tk.Label(tabs.get('Launch'), text='???', borderwidth=1, background="white", relief="solid", image = logo)
+#b.image = logo # keep a reference!
+#b.place(x=8, y=8)
+
+b = tk.Label(tabs.get('Launch'), text=config.title, borderwidth=0, foreground=color_fg, background=color_bk)
+b.config(font=(False, 24))
+b.place(x=8, y=8)
+
+if config.launchText:
+    txt = config.launchText.strip()
+    b = tk.Label(tabs.get('Launch'), text=txt, borderwidth=0, foreground=color_fg, background=color_bk, justify=tk.LEFT)
+    b.config(font=("Verdana", 12))
+    b.place(x=8, y=48)
 
 lua.execute("if init then init() end")
 

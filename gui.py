@@ -11,7 +11,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import *
 #from tkinter.ttk import *
-from PIL import ImageTk, Image
+from PIL import ImageTk, Image, ImageDraw
 from PIL import ImageOps
 
 import math
@@ -84,6 +84,9 @@ nesPalette=[
 [0x9c,0xfc,0xf0],[0xc4,0xc4,0xc4],[0x00,0x00,0x00],[0x00,0x00,0x00],
 ]
 
+def fixPath(p):
+    return p.replace("/",os.sep).replace('\\',os.sep)
+
 # Make stuff in this class available to lua
 # so we can do Python stuff rom lua.
 class ForLua:
@@ -105,6 +108,15 @@ class ForLua:
     def fileTest(self):
         filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("jpeg files","*.jpg"),("all files","*.*")))
         return filename
+    def makeDir(self,dir):
+        dir = fixPath(script_path + "/" + dir)
+        print(dir)
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+    def openFolder(self, initial=None):
+        initial = fixPath(script_path + "/" + initial)
+        foldername =  filedialog.askdirectory(initialdir = initial, title = "Select folder")
+        return foldername, os.path.split(foldername)[1]
     def openFile(self, filetypes, initial=None):
         types = list()
         if filetypes:
@@ -143,12 +155,12 @@ class ForLua:
         
             with Image.open(f) as im:
                 px = im.load()
-    #        for y in range(5,10):
-    #            for x in range(5,10):
-    #                px[x,y] = (255,255,255)
+
+#            draw = ImageDraw.Draw(im)
+#            draw.line((0, 0) + im.size, fill=128)
+#            draw.line((0, im.size[1], im.size[0], 0), fill=128)
 
             displayImage = ImageOps.scale(im, 3.0, resample=Image.NEAREST)
-
             #canvas.image = ImageTk.PhotoImage(file=f) # Keep a reference
             canvas.image = ImageTk.PhotoImage(displayImage)
             canvas.create_image(0, 0, image=canvas.image, anchor=NW)
@@ -158,7 +170,8 @@ class ForLua:
             print("error loading image")
     def getNESColors(self, c):
         if type(c) is str:
-            c = [nesPalette[x] for x in unhexlify(c.strip())]
+            c=c.replace(' ','').strip()
+            c = [nesPalette[x] for x in unhexlify(c)]
             if len(c) == 1:
                 c = c[0]
             return c
@@ -175,19 +188,11 @@ class ForLua:
             print("error loading image")
             return
         
-        #nTiles = 0x200
-        
         width, height = im.size
         
         w = math.floor(width/8)*8
         h = math.floor(height/8)*8
         nTiles = int(w/8 * h/8)
-        
-        #w = min(16, nTiles)*8
-        #h = max(8,math.floor(nTiles/16)*8)
-        
-#        xo=0
-#        yo=0
         
         out = []
         for t in range(nTiles):
@@ -271,6 +276,11 @@ class ForLua:
         control.config(fg=color_fg, bg=color_bk2)
         control.place(x=x, y=y)
         
+        def getIndex():
+            selection = control.curselection()
+            if not selection:
+                return
+            return selection[0]
         def get(index=False):
             selection = control.curselection()
             if not selection:
@@ -292,13 +302,13 @@ class ForLua:
                     getSelection = lambda:control.curselection(),
                     get = get,
                     set = set,
+                    getIndex = getIndex,
                     )
 
         controls.update({t.name:t})
 
         #control.bind( "<Button-1>", makeCmdNew(t))
         control.bind( "<ButtonRelease-1>", makeCmdNew(t))
-        
         
         return t
     def makeText(t):
@@ -418,6 +428,11 @@ class ForLua:
 lua_func = lua.eval('function(o) {0} = o return o end'.format('Python'))
 lua_func(ForLua)
 
+
+lua_func = lua.eval('function(o) {0} = o return o end'.format('nesPalette'))
+lua_func(lua.table(nesPalette))
+
+
 #lua.execute("if init then init() end")
 
 def coalesce(*arg): return next((a for a in arg if a is not None), None)
@@ -503,7 +518,7 @@ tabs={'Main':tab1,'Palette':tab2,'Image':tab3}
 
 tab_parent.add(tab1, text="Main")
 tab_parent.add(tab2, text="Palette")
-tab_parent.add(tab3, text="Image")
+tab_parent.add(tab3, text="CHR")
 tab_parent.pack(expand=1, fill='both')
 
 

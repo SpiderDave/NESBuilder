@@ -1,9 +1,11 @@
 local util = {}
 
 util.serialize = function(t)
+    if not t then return end
     return Tserial.pack(t)
 end
 util.unserialize = function(s)
+    if not s then return end
     return Tserial.unpack(s)
 end
 
@@ -28,6 +30,11 @@ function util.getFileContents(path)
     local ret=io.read("*a")
     io.close(file)
     return ret
+end
+
+function util.fileExists(name)
+   local f=io.open(name,"r")
+   if f~=nil then io.close(f) return true else return false end
 end
 
 return util

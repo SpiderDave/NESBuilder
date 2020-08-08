@@ -22,7 +22,14 @@ end
 
 data = {selectedColor = {}}
 data.palettes = {}
+data.projectID = "project1" -- this determines the folder that it will load the project data from
+data.projectID = "skeleton2"
+data.folders = {
+    projects = "projects/",
+}
 
+
+data.project = {}
 
 nespalette={[0]=
 {0x74,0x74,0x74},{0x24,0x18,0x8c},{0x00,0x00,0xa8},{0x44,0x00,0x9c},
@@ -56,16 +63,28 @@ function init()
     Python.incLua("Tserial")
     util = Python.incLua("util")
     
+    -- make sure projects folder exists
+    Python:makeDir(data.folders.projects)
+    
     Python.setTab("Main")
     
     pad=6
     x=pad*1.5
     y=pad*1.5
 
+    b=Python.makeButton{x=x,y=y,name="LoadProject",text="Load Project"}
+    y = y + b.height + pad
+    
+    b=Python.makeButton{x=x,y=y,name="SaveProject",text="Save Project"}
+    y = y + b.height + pad
+    
+    b=Python.makeButton{x=x,y=y,name="BuildProject",text="Build Project"}
+    y = y + b.height + pad
+    
     b=Python.makeButton{x=x,y=y,name="ButtonLevelExtract",text="Extract Level"}
     y = y + b.height + pad
     
-    b=Python.makeButton{x=x,y=y,name="MakeCHR",text="Make CHR"}
+    b=Python.makeButton{x=x,y=y,name="ButtonMakeCHR",text="Make CHR"}
     y = y + b.height + pad
 
 
@@ -108,7 +127,8 @@ function init()
         placeY = Python.y+pad
     end
     
-    
+    x=placeX
+    y=placeY
     b=Python.makeButton{x=x,y=y,name="ButtonLoadPalette",text="Load Palette"}
     
     y = y + b.height + pad
@@ -129,12 +149,31 @@ function init()
     
     --listbox.insert(END, text)
     
-    f="chr.png"
-    Python:loadImageToCanvas(f)
+    Python.setTab("Image")
+    p = {[0]=0x0f,0x21,0x11,0x01}
+    palette = {}
+    for i=0,#p do
+        palette[i] = nespalette[p[i]]
+    end
+
+    x=pad
+    y=pad+128*3+pad*1.5
+    c=Python.makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="CHRPalette", palette=palette}
+    
+    y = y + 32 + pad
+    b=Python.makeButton{x=x,y=y,name="OpenCHR",text="Load CHR"}
+    y = y + b.height + pad
+    
+    
+    
+--    f="chr.png"
+--    Python:loadImageToCanvas(f)
     
     -- Import the "LevelExtract" method from "SMBLevelExtract.py" and 
     -- add it to the "Python" table.
     --LevelExtract = Python:importFunction('include.SMBLevelExtract','LevelExtract')
+    
+    LoadProject_cmd()
 end
 
 function doCommand(ctrl)
@@ -152,11 +191,12 @@ function Palette_cmd(name, dummy,t)
         data.selectedColor.fg = t.cell.fg
         data.selectedColor.text = t.cell.text
         print(string.format("Selected palette %02x",t.cellNum))
+        --print(string.format("Selected color %s",data.selectedColor.text))
     end
 end
 
 
-f = function(name, dummy,t)
+f = function(name, dummy, t)
     t.cell = Python.getControl(t.cellName)
     t.palNum = tonumber(string.sub(name, -1))
     Pal_cmd(name,dummy,t)
@@ -184,8 +224,12 @@ function Pal_cmd(name, dummy,t)
     end
 end
 
-function MakeCHR_cmd()
+function CHRPalette_cmd(name, dummy,t)
+    print(string.format("Selected palette %02x",t.cellNum))
+    data.drawColorIndex = t.cellNum
+end
 
+function ButtonMakeCHR_cmd()
     f = Python:openFile({{"Images", ".png"}})
     if f == "" then
         print("Open cancelled.")
@@ -200,6 +244,31 @@ function MakeCHR_cmd()
             Python:imageToCHR(f,f2,Python:getNESColors('0f211101'))
         end
     end
+end
+
+function Button0_cmd()
+    --print(nesPalette[1][1])
+    --print(#nesPalette)
+    --print(Python.eval('nesPalette')[0][0])
+    
+    --dict([(x,y) for x,y in enumerate(p)])
+    --t = Python.eval('lua.table_from(nesPalette)')
+    --t = Python.eval('lua.table_from(dict([(x,y) for x,y in enumerate(nesPalette)]))')
+    --t = Python.eval('lua.table_from(dict([(x,y) for x,y in enumerate(nesPalette)]))')
+    --print(type(t[0]))
+    
+    --t = Python.eval('lua.table({{0:42},1,2,3})')
+    t=Python.eval('nesPalette')
+    
+    for k,v in python.enumerate(t) do
+        print(math.floor(v[0]))
+    end
+    
+--    for k,v in pairs(t) do
+--        print(string.format("%s, %s %s",k,v, type(v)))
+--    end
+    
+    
 end
 
 function Button2_cmd()
@@ -249,9 +318,49 @@ function ButtonLevelExtract_cmd()
     end
 end
 
+function LoadProject_cmd()
+    projectFolder = data.projectID.."/"
+    
+    filename = data.folders.projects..projectFolder.."project.dat"
+    data.project = util.unserialize(util.getFileContents(filename))
+    
+    if not data.project then
+        data.project = {}
+    end
+    
+    
+    data.project.folder = projectFolder
+    
+    c = Python.getControl('PaletteList')
+    c.set(data.project.paletteIndex or 0)
+    ButtonLoadPalette_cmd()
+
+    f=data.folders.projects..projectFolder.."chr.png"
+    Python:loadImageToCanvas(f)
+
+end
+
+function BuildProject_cmd()
+    -- save CHR image to .chr
+    -- for now it just loads the chr.png
+    f = data.folders.projects..data.project.folder.."chr.png"
+    f2 = data.folders.projects..data.project.folder.."chr.chr"
+    Python:imageToCHR(f,f2,Python:getNESColors('0f211101'))
+end
+
+function SaveProject_cmd()
+    c = Python.getControl('PaletteList')
+    data.project.paletteIndex = c.getIndex()
+
+    Python:makeDir(data.folders.projects..data.project.folder)
+
+    filename = data.folders.projects..data.project.folder.."project.dat"
+    util.writeToFile(filename,0, util.serialize(data.project), true)
+end
+
 function ButtonSavePalette_cmd()
     c = Python.getControl('PaletteList')
-    filename = string.format("%s.dat",c.get())
+    filename = data.folders.projects..projectFolder..string.format("%s.dat",c.get())
 
     local p = {}
     local i=0
@@ -285,42 +394,43 @@ end
 
 function ButtonLoadPalette_cmd()
     c = Python.getControl('PaletteList')
-    filename = string.format("%s.dat",c.get())
-
-    local firstWhite = {[0]=0x00,0x01,0x0d,0x0e}
+    filename = data.folders.projects..projectFolder..string.format("%s.dat",c.get())
     local p = util.unserialize(util.getFileContents(filename))
-    local i = 0
-    local out="PaletteData:\n"
-    for pNum = 0,7 do
-        out=out.."  .db "
-        for cellNum = 0,3 do
-            local c = Python.getControl(string.format("Pal%x_%02x",pNum,cellNum))
-            local x = p[i] % 16
-            local y = math.floor(p[i]/16)
-            
-            if x>=firstWhite[y] then
-                c.fg="white"
-            else
-                c.fg="black"
-            end
-            c.bg = string.format("#%02x%02x%02x", nespalette[p[i]][1], nespalette[p[i]][2], nespalette[p[i]][3])
-            c.text = string.format("%02x",p[i])
-            i=i+1
-            out=out..string.format("$%s",c.text)
-            if cellNum==3 then
-                out=out.."\n"
-            else
-                out=out..", "
+    
+    if p then
+    
+        local firstWhite = {[0]=0x00,0x01,0x0d,0x0e}
+        local i = 0
+        local out="PaletteData:\n"
+        for pNum = 0,7 do
+            out=out.."  .db "
+            for cellNum = 0,3 do
+                local c = Python.getControl(string.format("Pal%x_%02x",pNum,cellNum))
+                local x = p[i] % 16
+                local y = math.floor(p[i]/16)
+                
+                if x>=firstWhite[y] then
+                    c.fg="white"
+                else
+                    c.fg="black"
+                end
+                c.bg = string.format("#%02x%02x%02x", nespalette[p[i]][1], nespalette[p[i]][2], nespalette[p[i]][3])
+                c.text = string.format("%02x",p[i])
+                i=i+1
+                out=out..string.format("$%s",c.text)
+                if cellNum==3 then
+                    out=out.."\n"
+                else
+                    out=out..", "
+                end
             end
         end
+        out=out.."\n"
+        
+        --Python.exec("controls['Text1'].setText('"..out.."')")
+        --local c = Python.getControl("Text1")
+        Python.setText(Python.getControl("Text1"),out)
     end
-    out=out.."\n"
-    
-    
-    --Python.exec("controls['Text1'].setText('"..out.."')")
-    --local c = Python.getControl("Text1")
-    Python.setText(Python.getControl("Text1"),out)
-    
 end
 
 
@@ -335,7 +445,13 @@ function PaletteList_cmd(t)
 --    n = t.getSelection()
 --    print(tonumber(string.format("%d",n)))
 --    print(t.test)
+    
+    -- display the palette list item
     print(t.get())
+    
+    -- load the current palette
+    ButtonLoadPalette_cmd()
+    
 --    print(type(t))
 --    for k,v in pairs(t) do
 --        print(k)
@@ -354,13 +470,26 @@ function Quit_cmd()
     Python.Quit()
 end
 
-function Open_cmd()
+function OpenCHR_cmd()
     f = Python:openFile(nil)
     if f == "" then
         print("Open cancelled.")
     else
         print("file: "..f)
         Python:loadImageToCanvas(f)
+    end
+end
+
+function Open_cmd()
+    --f = Python:openFile(nil)
+    f, projectID = Python:openFolder("projects")
+    if f == "" then
+        print("Open cancelled.")
+    else
+        print("file: "..f)
+        --Python:loadImageToCanvas(f)
+        data.projectID = projectID
+        LoadProject_cmd()
     end
 end
 

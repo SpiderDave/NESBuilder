@@ -1,5 +1,5 @@
 config = {
-    title="SpiderDave's NES Tool that needs a name.",
+    title="NES Spider",
     width=800,
     height=600,
     upperHex=false,
@@ -10,6 +10,25 @@ To open a project select "Open Project" from the "File" menu.
 To create a new project, do the same as above, but create a new folder.
 
 Many things do not work yet.
+
+Working:
+    * loading, saving projects
+    * Build Project
+    * About
+    * Extract Level - SMB Level Extractor
+    * Make CHR - Makes chr from a .png with set colors for now
+      (use chr.png to test)
+
+Not working:
+    * Most of the CHR tab
+    * Cut, Copy, Paste
+
+ToDo:
+    * Show palette index
+    * Ability to remove palettes
+    * Palette sets and extra labels
+    * More error handling
+    * Replace this page with launcher
 ]]
 }
 
@@ -88,11 +107,11 @@ function init()
     x=pad*1.5
     y=pad*1.5
 
-    b=Python.makeButton{x=x,y=y,name="LoadProject",text="Load Project"}
-    y = y + b.height + pad
+--    b=Python.makeButton{x=x,y=y,name="LoadProject",text="Load Project"}
+--    y = y + b.height + pad
     
-    b=Python.makeButton{x=x,y=y,name="SaveProject",text="Save Project"}
-    y = y + b.height + pad
+--    b=Python.makeButton{x=x,y=y,name="SaveProject",text="Save Project"}
+--    y = y + b.height + pad
     
     b=Python.makeButton{x=x,y=y,name="BuildProject",text="Build Project"}
     y = y + b.height + pad
@@ -103,12 +122,10 @@ function init()
     b=Python.makeButton{x=x,y=y,name="ButtonMakeCHR",text="Make CHR"}
     y = y + b.height + pad
 
-
-    for i=0,4 do
-        b=Python.makeButton{x=x,y=y,name="Button"..i,text="Button"..i}
-        y = y + b.height + pad
-    end
-    
+--    for i=0,4 do
+--        b=Python.makeButton{x=x,y=y,name="Button"..i,text="Button"..i}
+--        y = y + b.height + pad
+--    end
     
     --b=Python.makeText{x=x,y=y, lineHeight=20,lineWidth=80, name="Text1",text="Text1"}
     
@@ -155,21 +172,17 @@ function init()
     y = y + 32 + pad
     
     
+--    b=Python.makeText{x=x,y=y, lineHeight=16,lineWidth=80, name="Text1",text="Text1"}
+--    y = y + b.height + pad
     
-    b=Python.makeText{x=x,y=y, lineHeight=16,lineWidth=80, name="Text1",text="Text1"}
-    y = y + b.height + pad
+--    x=x2
+--    y=y2
+--    b=Python.makeList{x=x,y=y, name="PaletteList"}
+--    b.append("palette00")
+--    b.append("palette01")
+--    b.append("palette02")
+--    b.append("palette03")
     
-    x=x2
-    y=y2
-    b=Python.makeList{x=x,y=y, name="PaletteList"}
---    b.insert(1,"test")
---    b.insert(1,"test2")
-    b.append("palette00")
-    b.append("palette01")
-    b.append("palette02")
-    b.append("palette03")
-    
-    --listbox.insert(END, text)
     
     Python.setTab("Image")
     p = {[0]=0x0f,0x21,0x11,0x01}
@@ -213,9 +226,20 @@ function Palette_cmd(t)
     end
 end
 
-function CHRPalette_cmd(name, dummy,t)
-    print(string.format("Selected palette %02x",t.cellNum))
-    data.drawColorIndex = t.cellNum
+function CHRPalette_cmd(t)
+
+    if t.event.num == 1 then
+        print(string.format("Selected palette %02x",t.cellNum))
+        data.selectedColor = t.cellNum
+        --data.drawColorIndex = t.cellNum
+    elseif t.event.num == 3 then
+        print(string.format("Set palette %02x",data.selectedColor or 0x0f))
+        t.set(t.cellNum, data.selectedColor)
+        --p=data.project.palettes[data.project.palettes.index]
+        --p[t.cellNum+1] = data.selectedColor
+        --t.setAll(p)
+        data.project.changed = true
+    end
 end
 
 function ButtonMakeCHR_cmd()
@@ -252,7 +276,8 @@ function ButtonPrevPalette_cmd()
     c = Python.getControl('PaletteEntry')
     
     data.project.palettes.index = data.project.palettes.index-1
-    if data.project.palettes.index < 0 then data.project.palettes.index=#data.project.palettes end
+    --if data.project.palettes.index < 0 then data.project.palettes.index=#data.project.palettes end
+    if data.project.palettes.index < 0 then data.project.palettes.index= 0 end
     print(data.project.palettes.index)
     
     PaletteEntryUpdate()
@@ -262,81 +287,12 @@ function ButtonNextPalette_cmd()
     c = Python.getControl('PaletteEntry')
     
     data.project.palettes.index = data.project.palettes.index+1
-    if data.project.palettes.index > #data.project.palettes then data.project.palettes.index=0 end
+    --if data.project.palettes.index > #data.project.palettes then data.project.palettes.index=0 end
+    if data.project.palettes.index > #data.project.palettes then data.project.palettes.index = #data.project.palettes end
+    if data.project.palettes.index > 255 then data.project.palettes.index = 255 end
     print(data.project.palettes.index)
     
     PaletteEntryUpdate()
-end
-
-function Button0_cmd()
-    q= Python:askyesnocancel("", string.format('Save changes to "%s"?',data.projectID))
-    
-    if q==true then
-        print("yes")
-    elseif q==false then
-        print("no")
-    elseif q==nil then
-        print("cancel")
-    end
-    
-    
---    if Python:messageBox("", "Are you sure you want to Load?") then
---        print("yes")
---    else
---        print("no")
---    end
-    --print(nesPalette[1][1])
-    --print(#nesPalette)
-    --print(Python.eval('nesPalette')[0][0])
-    
-    --dict([(x,y) for x,y in enumerate(p)])
-    --t = Python.eval('lua.table_from(nesPalette)')
-    --t = Python.eval('lua.table_from(dict([(x,y) for x,y in enumerate(nesPalette)]))')
-    --t = Python.eval('lua.table_from(dict([(x,y) for x,y in enumerate(nesPalette)]))')
-    --print(type(t[0]))
-    
-    --t = Python.eval('lua.table({{0:42},1,2,3})')
-    --t=Python.eval('nesPalette')
-    
---    for k,v in python.enumerate(t) do
---        print(math.floor(v[0]))
---    end
-    
---    for k,v in pairs(t) do
---        print(string.format("%s, %s %s",k,v, type(v)))
---    end
-    
-    
-end
-
-function Button2_cmd()
-    --Python.exec("print('hello world!')")
-    --Python.exec("root.geometry('400x400')")
-    --Python.exec("controls['Button0'].place(x=0,y=0)")
-    --Python.exec("controls['Button0']['text'] = 'foo'")
-    --controls = Python.exec("ForLua.execRet = lambda: controls")
-    --controls = Python.eval("controls['Button0']['text']")
-    --print(controls)
-    
-    Python.hideControl('Button1')
-    --Python.removeControl('Button4')
-
-    
-    -- Import the "LevelExtract" method from "SMBLevelExtract.py" and 
-    -- add it to the "Python" table.
-    --Python:importFunction('SMBLevelExtract','LevelExtract')
-    --Python.LevelExtract('smbGreatEd.nes','outputtest.asm')
-end
-
-function Button1_cmd()
-    --Python.exec("controls['Text1'].setText('blahhhh')")
-    c = Python.getControl('PaletteList')
-    print(type(c))
-    for k,v in pairs(c) do
-        print(k)
-    end
-    c.set(1)
-    print(c.get() or 'none')
 end
 
 function ButtonLevelExtract_cmd()
@@ -373,25 +329,31 @@ function LoadProject_cmd()
     data.project.palettes = data.project.palettes or util.deepCopy(data.palettes)
     
     -- update palette entry
+    data.project.palettes.index = 0
     PaletteEntryUpdate()
     
     data.project.changed = false
     
-    c = Python.getControl('PaletteList')
-    c.set(data.project.paletteIndex or 0)
+--    c = Python.getControl('PaletteList')
+--    c.set(data.project.paletteIndex or 0)
     
     f=data.folders.projects..projectFolder.."chr.png"
     Python:loadImageToCanvas(f)
 end
 
+function Build_cmd()
+    BuildProject_cmd()
+end
+
 function BuildProject_cmd()
+    -- make sure folder exists for this project
+    Python:makeDir(data.folders.projects..data.project.folder)
+
     -- save CHR image to .chr
     -- for now it just loads the chr.png
     f = data.folders.projects..data.project.folder.."chr.png"
     f2 = data.folders.projects..data.project.folder.."chr.chr"
     Python:imageToCHR(f,f2,Python:getNESColors('0f211101'))
-
-
 
     c = Python.getControl('PaletteList')
     filename = data.folders.projects..projectFolder.."palettes.asm"
@@ -406,7 +368,7 @@ function BuildProject_cmd()
                 out=out.."    .db "
             elseif palNum % 4 == 0 then
                 out=out.."\n    .db "
-            --#elseif palNum~=#data.project.palettes then
+            --elseif palNum~=#data.project.palettes then
             else
                 out=out..", "
             end
@@ -431,36 +393,11 @@ function BuildProject_cmd()
         end
     end
     
-    
---    local p = {}
---    local i=0
---    local out="PaletteData:\n"
---    for pNum = 0,7 do
---        out=out.."  .db "
---        for cellNum = 0,3 do
---            local c = Python.getControl(string.format("Pal%x_%02x",pNum,cellNum))
---            p[i]=tonumber(c.text,16)
---            i=i+1
---            out=out..string.format("$%s",c.text)
---            if cellNum==3 then
---                out=out.."\n"
---            else
---                out=out..", "
---            end
---        end
---    end
---    out=out.."\n"
-    
     util.writeToFile(filename,0, out, true)
-
-
-
 end
 
 function SaveProject_cmd()
-    c = Python.getControl('PaletteList')
-    data.project.paletteIndex = c.getIndex()
-
+    -- make sure folder exists for this project
     Python:makeDir(data.folders.projects..data.project.folder)
 
     filename = data.folders.projects..data.project.folder.."project.dat"
@@ -491,46 +428,10 @@ function PaletteEntry_cmd(t)
         t.setAll(p)
         data.project.changed = true
     end
-
-
---    for k,v in pairs(t.event.extra) do
---        print(string.format("%s = %s",k,v))
---    end
-
---    for k,v in pairs(t) do
---        print(string.format("%s = %s",k,v))
---    end
-
-    --print(t.getCellNum())
-    --ev = t.getCellEvent()
-    --print(type(t.event.extra))
-    --print(ev.widget.index)
-    --print(type(t))
 end
 
 function PaletteList_cmd(t)
---    print(t.getSelection())
---    print(type(t.getSelection()))
---    n = t.getSelection()
---    print(tonumber(string.format("%d",n)))
---    print(t.test)
-    
-    -- display the palette list item
     print(t.get())
-    
-    -- load the current palette
-    --ButtonLoadPalette_cmd()
-    
-    --c = Python.getControl('PaletteEntry')
-    
---    print(type(t))
---    for k,v in pairs(t) do
---        print(k)
---    end
---    print(t.control.fg)
---    print('************')
-    --print(t.control)
---    t.append('test')
 end
 
 function About_cmd()
@@ -584,6 +485,9 @@ function Save_cmd()
 --    end
 end
 
+function Button0_cmd()
+    Python:saveCanvasImage()
+end
 
 function onExit(cancel)
     print("onExit")
@@ -598,5 +502,4 @@ function onExit(cancel)
             SaveProject_cmd()
         end
     end
-
 end

@@ -15,6 +15,8 @@ from tkinter import *
 from PIL import ImageTk, Image, ImageDraw
 from PIL import ImageOps
 
+from shutil import copyfile
+
 #from textwrap import dedent
 
 import math
@@ -158,6 +160,20 @@ class ForLua:
         
     def _levelExtract(self, f, out):
         LevelExtract(f,os.path.join(script_path, out))
+    def copyfile(self, src,dst):
+        copyfile(src,dst)
+    def saveCanvasImage(self, f='test.png'):
+        pass
+        #canvas.im.save(f,"PNG")
+        #grabcanvas=ImageGrab.grab(bbox=canvas)
+        #.save("test.png")
+        #ttk.grabcanvas.save("test.png")
+
+        #print("loadImageToCanvas: {0}".format(f))
+#        Image.save(
+#        canvas.image.save(f)
+        #canvas.create_image(2, 2, image=canvas.image, anchor=NW)
+        #canvas.to_file(f)
     def loadImageToCanvas(self, f):
         print("loadImageToCanvas: {0}".format(f))
         
@@ -169,7 +185,7 @@ class ForLua:
 #            draw = ImageDraw.Draw(im)
 #            draw.line((0, 0) + im.size, fill=128)
 #            draw.line((0, im.size[1], im.size[0], 0), fill=128)
-
+            canvas.im = im
             displayImage = ImageOps.scale(im, 3.0, resample=Image.NEAREST)
             #canvas.image = ImageTk.PhotoImage(file=f) # Keep a reference
             canvas.image = ImageTk.PhotoImage(displayImage)
@@ -196,8 +212,6 @@ class ForLua:
         return t
     def imageToCHR(self, f, outputfile="output.chr", colors=False):
         print('imageToCHR')
-        
-        #colors = [[0,0,0],[60,188,252],[0,112,236],[36,24,140]]
         
         try:
             with Image.open(f) as im:
@@ -614,12 +628,12 @@ tab_parent.add(tab2, text="Palette")
 tab_parent.add(tab3, text="CHR")
 tab_parent.pack(expand=1, fill='both')
 
-
 menubar = Menu(root)
 
 filemenu = Menu(menubar, tearoff=0)
 filemenu.add_command(label="Open Project", command=lambda: doCommand("Open"))
 filemenu.add_command(label="Save Project", command=lambda: doCommand("Save"))
+filemenu.add_command(label="Build Project", command=lambda: doCommand("Build"))
 filemenu.add_separator()
 filemenu.add_command(label="Exit", command=lambda: doCommand("Quit"))
 menubar.add_cascade(label="File", menu=filemenu)
@@ -737,6 +751,8 @@ if config.launchText:
     b = tk.Label(tabs.get('Launch'), text=txt, borderwidth=0, foreground=color_fg, background=color_bk, justify=tk.LEFT)
     b.config(font=("Verdana", 12))
     b.place(x=8, y=48)
+
+print("This console is for debugging purposes.\n")
 
 lua.execute("if init then init() end")
 

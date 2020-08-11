@@ -1,7 +1,5 @@
-# SpideyGui
-A GUI Tool Framework Thing with Python and Lua
-
-* Turning into a NES specific tool.
+# NES Builder
+NES Building Software made with Python and Lua
 
 Requirements:
 * Windows

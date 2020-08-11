@@ -255,8 +255,23 @@ class ForLua:
             
             for i in range(16):
                 out.append(tile[i])
-        return out
+        
+        # return a string for easy serialiaztion
+        #ret = ''.join([chr(x) for x in out])
+        
+        #ret = lua.table(out)
+        ret = lua.table_from(out)
+        
+        return ret
     
+    def getFileData(self, f=None):
+        file=open(f,"rb")
+        #file.seek(0x1000)
+        fileData = file.read()
+        file.close()
+        
+        return list(fileData)
+
     def loadCHRFile(self, f='chr.chr', colors=(0x0f,0x21,0x11,0x01)):
         this=ForLua
         
@@ -265,11 +280,20 @@ class ForLua:
         fileData = file.read()
         file.close()
         
-        this.loadCHRData(self,fileData,colors)
+        fileData = list(fileData)
+        
+        ret = this.loadCHRData(self,fileData,colors)
+        return ret
 
     def loadCHRData(self, fileData, colors=(0x0f,0x21,0x11,0x01)):
         this=ForLua
         
+        if type(fileData) is str:
+            fileData = [ord(x) for x in fileData]
+        elif lupa.lua_type(fileData)=="table":
+            #fileData = [fileData[x] for x in fileData]
+            fileData = list([fileData[x] for x in fileData])
+            
         # convert and re-index lua table
         if lupa.lua_type(colors)=="table":
             colors = [colors[x] for x in colors]
@@ -291,12 +315,21 @@ class ForLua:
                     a[y1][x1] = nesPalette[colors[c]]
         
         img = Image.fromarray(a)
+        
+        # return a string for easy serialiaztion
+        #ret = ''.join([chr(x) for x in fileData])
+        
+        #ret = lua.table(fileData)
+        ret = lua.table_from(fileData)
+        
         photo = ImageTk.PhotoImage(ImageOps.scale(img, 3.0, resample=Image.NEAREST))
         
         canvas.chrImage = photo # keep a reference
         
         canvas.create_image(0,0, image=photo, state="normal", anchor=NW)
         canvas.configure(highlightthickness=0, borderwidth=0)
+        
+        return ret
     def Quit():
         onExit()
     def exec(s):

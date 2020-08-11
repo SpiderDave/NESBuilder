@@ -15,6 +15,15 @@ function util.writeToFile(file,address, data, wipe)
         f:close()
     end
     if not data then return nil end
+    
+    if type(data) == "table" then
+        newData = ''
+        for i=1,#data do
+            newData = newData..string.char(data[i])
+        end
+        data = newData
+    end
+    
     local f = io.open(file,"r+b")
     if not f then return nil end
     f:seek("set",address)

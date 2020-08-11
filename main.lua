@@ -194,17 +194,30 @@ function init()
 
     x=pad
     y=pad+128*3+pad*1.5
+    placeY = y
     c=Python.makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="CHRPalette", palette=palette}
     
+    
+    x=left + 120
+    y=placeY
+    b=Python.makeButton{x=x,y=y,name="ButtonPrevPaletteCHR",text="<"}
+
+    x=x+b.width+pad
+    y=placeY
+    b=Python.makeButton{x=x,y=y,name="ButtonNextPaletteCHR",text=">"}
+
+    x=left
+    
     y = y + 32 + pad
-    b=Python.makeButton{x=x,y=y,name="LoadCHR",text="Load Image"}
+    b=Python.makeButton{x=x,y=y,name="LoadCHRImage",text="Load Image"}
 
     y = y + b.height + pad
     b=Python.makeButton{x=x,y=y,name="LoadCHRNESmaker",text="Load NESmaker Image"}
 
     y = y + b.height + pad
     
-    b=Python.makeButton{x=x,y=y,name="ButtonCHRTest1",text="test"}
+    --b=Python.makeButton{x=x,y=y,name="ButtonCHRTest1",text="test"}
+    b=Python.makeButton{x=x,y=y,name="LoadCHR",text="Load .chr"}
     y = y + b.height + pad
     
     
@@ -297,6 +310,8 @@ function PaletteEntryUpdate()
 
     c = Python.getControl('CHRPalette')
     c.setAll(p)
+    
+    refreshCHR()
 end
 
 function ButtonPrevPalette_cmd()
@@ -321,6 +336,9 @@ function ButtonNextPalette_cmd()
     
     PaletteEntryUpdate()
 end
+
+ButtonPrevPaletteCHR_cmd = ButtonPrevPalette_cmd
+ButtonNextPaletteCHR_cmd = ButtonNextPalette_cmd
 
 function ButtonLevelExtract_cmd()
     f = Python:openFile({{"NES rom", ".nes"}})
@@ -366,8 +384,8 @@ function LoadProject_cmd()
 --    c = Python.getControl('PaletteList')
 --    c.set(data.project.paletteIndex or 0)
     
-    f=data.folders.projects..projectFolder.."chr.png"
-    Python:loadImageToCanvas(f)
+--    f=data.folders.projects..projectFolder.."chr.png"
+--    Python:loadImageToCanvas(f)
     
     updateTitle()
 end
@@ -395,11 +413,12 @@ function BuildProject_cmd()
     -- make sure folder exists for this project
     Python:makeDir(data.folders.projects..data.project.folder)
 
-    -- save CHR image to .chr
-    -- for now it just loads the chr.png
-    f = data.folders.projects..data.project.folder.."chr.png"
-    f2 = data.folders.projects..data.project.folder.."chr.chr"
-    Python:imageToCHR(f,f2,Python:getNESColors('0f211101'))
+    -- save CHR
+    if data.project.chrData then
+        f = data.folders.projects..data.project.folder.."output.chr"
+        print("File created "..f)
+        util.writeToFile(f, 0, data.project.chrData, true)
+    end
 
     c = Python.getControl('PaletteList')
     filename = data.folders.projects..projectFolder.."palettes.asm"
@@ -486,7 +505,13 @@ function Quit_cmd()
     Python.Quit()
 end
 
-function LoadCHR_cmd()
+function refreshCHR()
+    if not data.project.chrData then return end
+    p=data.project.palettes[data.project.palettes.index]
+    Python:loadCHRData(data.project.chrData, p)
+end
+
+function LoadCHRImage_cmd()
     local CHRData
     f = Python:openFile(nil)
     if f == "" then
@@ -501,11 +526,15 @@ function LoadCHR_cmd()
         CHRData = Python:imageToCHRData(f,Python:getNESColors(p))
         --CHRData = Python:imageToCHRData(f,Python:getNESmakerColors())
         
+        data.project.chrData = CHRData
+        
         -- Load CHR data and display on canvas
         Python:loadCHRData(CHRData, p)
 
         c = Python.getControl('CHRPalette')
         c.setAll(p)
+        
+        dataChanged()
     end
 end
 
@@ -524,25 +553,33 @@ function LoadCHRNESmaker_cmd()
         --CHRData = Python:imageToCHRData(f,Python:getNESColors(p))
         CHRData = Python:imageToCHRData(f,Python:getNESmakerColors())
         
+        data.project.chrData = CHRData
+        
         -- Load CHR data and display on canvas
         Python:loadCHRData(CHRData, p)
 
         c = Python.getControl('CHRPalette')
         c.setAll(p)
+        
+        dataChanged()
     end
 end
 
 
-function ButtonCHRTest1_cmd()
+function LoadCHR_cmd()
+    f = Python:openFile(nil)
+    if f == "" then
+        print("Open cancelled.")
+        return
+    end
+    
     p=data.project.palettes[data.project.palettes.index]
-
+    data.project.chrData = Python:loadCHRFile(f,p)
+    
     c = Python.getControl('CHRPalette')
     c.setAll(p)
-
-    --f = data.folders.projects..projectFolder.."chr.chr"
-    f = data.folders.projects..projectFolder.."smb_new.chr"
     
-    Python:loadCHRFile(f,p)
+    dataChanged()
 end
 
 function Open_cmd()

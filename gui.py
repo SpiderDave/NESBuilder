@@ -15,6 +15,8 @@ from tkinter import *
 from PIL import ImageTk, Image, ImageDraw
 from PIL import ImageOps
 
+import numpy as np
+
 from shutil import copyfile
 
 #from textwrap import dedent
@@ -176,24 +178,22 @@ class ForLua:
         #canvas.to_file(f)
     def loadImageToCanvas(self, f):
         print("loadImageToCanvas: {0}".format(f))
-        
         try:
-        
             with Image.open(f) as im:
                 px = im.load()
-
-#            draw = ImageDraw.Draw(im)
-#            draw.line((0, 0) + im.size, fill=128)
-#            draw.line((0, im.size[1], im.size[0], 0), fill=128)
-            canvas.im = im
             displayImage = ImageOps.scale(im, 3.0, resample=Image.NEAREST)
-            #canvas.image = ImageTk.PhotoImage(file=f) # Keep a reference
             canvas.image = ImageTk.PhotoImage(displayImage)
             canvas.create_image(0, 0, image=canvas.image, anchor=NW)
             canvas.configure(highlightthickness=0, borderwidth=0)
-            #canvas.place(x=canvas.x, y=canvas.y)
         except:
             print("error loading image")
+    def getNESmakerColors(self):
+        return [
+            [0,0,0],
+            [0,0,255],
+            [0,255,0],
+            [255,0,0]
+            ]
     def getNESColors(self, c):
         if type(c) is str:
             c=c.replace(' ','').strip()
@@ -211,7 +211,22 @@ class ForLua:
         t = lua.table(t)
         return t
     def imageToCHR(self, f, outputfile="output.chr", colors=False):
+        this = ForLua
         print('imageToCHR')
+        data = this.imageToCHRData(self, f, colors)
+        
+        print('Tile data written to {0}.'.format(outputfile))
+        f=open(outputfile,"wb")
+        f.write(bytes(data))
+        f.close()
+        
+    def imageToCHRData(self, f, colors=False):
+        this = ForLua
+        print('imageToCHRData')
+        
+        # convert and re-index lua table
+        if lupa.lua_type(colors)=="table":
+            colors = [colors[x] for x in colors]
         
         try:
             with Image.open(f) as im:
@@ -240,11 +255,48 @@ class ForLua:
             
             for i in range(16):
                 out.append(tile[i])
-        print('Tile data written to {0}.'.format(outputfile))
-        f=open(outputfile,"wb")
-        f.write(bytes(out))
-        f.close()
+        return out
+    
+    def loadCHRFile(self, f='chr.chr', colors=(0x0f,0x21,0x11,0x01)):
+        this=ForLua
+        
+        file=open(f,"rb")
+        #file.seek(0x1000)
+        fileData = file.read()
+        file.close()
+        
+        this.loadCHRData(self,fileData,colors)
 
+    def loadCHRData(self, fileData, colors=(0x0f,0x21,0x11,0x01)):
+        this=ForLua
+        
+        # convert and re-index lua table
+        if lupa.lua_type(colors)=="table":
+            colors = [colors[x] for x in colors]
+        
+        img=Image.new("RGB", size=(256,256))
+        
+        a = np.asarray(img).copy()
+        
+        for tile in range(256):
+            for y in range(8):
+                for x in range(8):
+                    c=0
+                    x1=tile%16*8+(7-x)
+                    y1=math.floor(tile/16)*8+y
+                    if (fileData[tile*16+y] & (1<<x)):
+                        c=c+1
+                    if (fileData[tile*16+y+8] & (1<<x)):
+                        c=c+2
+                    a[y1][x1] = nesPalette[colors[c]]
+        
+        img = Image.fromarray(a)
+        photo = ImageTk.PhotoImage(ImageOps.scale(img, 3.0, resample=Image.NEAREST))
+        
+        canvas.chrImage = photo # keep a reference
+        
+        canvas.create_image(0,0, image=photo, state="normal", anchor=NW)
+        canvas.configure(highlightthickness=0, borderwidth=0)
     def Quit():
         onExit()
     def exec(s):
@@ -467,6 +519,7 @@ class ForLua:
         this.w=pw*(w+1)+1
         this.h=ph*(h+1)+1
         def set(index, p):
+            changed = False
             cell = control.allCells[index]
             colorIndex = p
             
@@ -475,8 +528,12 @@ class ForLua:
             
             c = '#{0:02x}{1:02x}{2:02x}'.format(nesPalette[colorIndex][0],nesPalette[colorIndex][1],nesPalette[colorIndex][2])
             text="{0:02X}".format(colorIndex)
+            if cell['text'] != text:
+                changed = True
             cell.config(bg=c, fg=fg, text=text)
+            return changed
         def setAll(p):
+            changed = False
             for i, cell in enumerate(control.allCells):
                 colorIndex = p[i+1]
                 
@@ -485,7 +542,10 @@ class ForLua:
                 
                 c = '#{0:02x}{1:02x}{2:02x}'.format(nesPalette[colorIndex][0],nesPalette[colorIndex][1],nesPalette[colorIndex][2])
                 text="{0:02X}".format(colorIndex)
+                if cell['text'] != text:
+                    changed = True
                 cell.config(bg=c, fg=fg, text=text)
+            return changed
         def setAllRGB(p):
             base = 0
             if not p[0]:
@@ -518,6 +578,8 @@ class ForLua:
         control.bind( "<ButtonRelease-1>", control.cmd)
         
         return t
+    def setTitle(self, title=''):
+        root.title(title)
 
 
 # Return it from eval so we can execute it with a 

@@ -48,6 +48,7 @@ end
 
 data = {selectedColor = 0x0f}
 data.palettes = {}
+data.settings = {}
 
 data.palettes = {
     index=0,
@@ -196,7 +197,14 @@ function init()
     c=Python.makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="CHRPalette", palette=palette}
     
     y = y + 32 + pad
-    b=Python.makeButton{x=x,y=y,name="OpenCHR",text="Load CHR"}
+    b=Python.makeButton{x=x,y=y,name="LoadCHR",text="Load Image"}
+
+    y = y + b.height + pad
+    b=Python.makeButton{x=x,y=y,name="LoadCHRNESmaker",text="Load NESmaker Image"}
+
+    y = y + b.height + pad
+    
+    b=Python.makeButton{x=x,y=y,name="ButtonCHRTest1",text="test"}
     y = y + b.height + pad
     
     
@@ -208,8 +216,26 @@ function init()
     -- add it to the "Python" table.
     --LevelExtract = Python:importFunction('include.SMBLevelExtract','LevelExtract')
     
+    loadSettings()
+    
     LoadProject_cmd()
 end
+
+function loadSettings()
+    filename = "settings.dat"
+    data.settings = util.unserialize(util.getFileContents(filename)) or {project = data.projectID}
+    
+    -- Load last project
+    data.projectID = data.settings.project or data.projectID
+end
+
+function saveSettings()
+    data.settings.project = data.projectID
+    
+    filename = "settings.dat"
+    util.writeToFile(filename,0, util.serialize(data.settings), true)
+end
+
 
 function doCommand(ctrl)
     if type(ctrl) == 'string' then
@@ -227,18 +253,15 @@ function Palette_cmd(t)
 end
 
 function CHRPalette_cmd(t)
-
     if t.event.num == 1 then
         print(string.format("Selected palette %02x",t.cellNum))
         data.selectedColor = t.cellNum
         --data.drawColorIndex = t.cellNum
     elseif t.event.num == 3 then
         print(string.format("Set palette %02x",data.selectedColor or 0x0f))
-        t.set(t.cellNum, data.selectedColor)
-        --p=data.project.palettes[data.project.palettes.index]
-        --p[t.cellNum+1] = data.selectedColor
-        --t.setAll(p)
-        data.project.changed = true
+        if t.set(t.cellNum, data.selectedColor) then
+            dataChanged()
+        end
     end
 end
 
@@ -262,13 +285,17 @@ end
 function ButtonAddPalette_cmd()
     p = {0x0f,0x20,0x10,0x00}
     table.insert(data.project.palettes, p)
-    data.project.changed = true
+    dataChanged()
 end
 
 
 function PaletteEntryUpdate()
-    c = Python.getControl('PaletteEntry')
     p=data.project.palettes[data.project.palettes.index]
+    
+    c = Python.getControl('PaletteEntry')
+    c.setAll(p)
+
+    c = Python.getControl('CHRPalette')
     c.setAll(p)
 end
 
@@ -313,6 +340,8 @@ function ButtonLevelExtract_cmd()
 end
 
 function LoadProject_cmd()
+    print("loading project "..data.projectID)
+    
     projectFolder = data.projectID.."/"
     
     filename = data.folders.projects..projectFolder.."project.dat"
@@ -332,13 +361,30 @@ function LoadProject_cmd()
     data.project.palettes.index = 0
     PaletteEntryUpdate()
     
-    data.project.changed = false
+    dataChanged(false)
     
 --    c = Python.getControl('PaletteList')
 --    c.set(data.project.paletteIndex or 0)
     
     f=data.folders.projects..projectFolder.."chr.png"
     Python:loadImageToCanvas(f)
+    
+    updateTitle()
+end
+
+function dataChanged(changed)
+    if changed == false then
+        data.project.changed = false
+    else
+        data.project.changed = true
+    end
+    updateTitle()
+end
+
+function updateTitle()
+    changed = data.project.changed and "*" or ""
+    
+    Python:setTitle(string.format("%s - %s%s", config.title, data.projectID, changed))
 end
 
 function Build_cmd()
@@ -403,7 +449,7 @@ function SaveProject_cmd()
     filename = data.folders.projects..data.project.folder.."project.dat"
     util.writeToFile(filename,0, util.serialize(data.project), true)
     
-    data.project.changed = false
+    dataChanged(false)
     
     print(string.format("Project saved (%s)",data.projectID))
 end
@@ -414,8 +460,6 @@ end
 
 
 function PaletteEntry_cmd(t)
-    print("PaletteEntry")
-
     if t.event.num == 1 then
         print(string.format("Selected palette %02x",t.cellNum))
         data.selectedColor = t.cellNum
@@ -426,7 +470,7 @@ function PaletteEntry_cmd(t)
         p=data.project.palettes[data.project.palettes.index]
         p[t.cellNum+1] = data.selectedColor
         t.setAll(p)
-        data.project.changed = true
+        dataChanged()
     end
 end
 
@@ -442,14 +486,63 @@ function Quit_cmd()
     Python.Quit()
 end
 
-function OpenCHR_cmd()
+function LoadCHR_cmd()
+    local CHRData
     f = Python:openFile(nil)
     if f == "" then
         print("Open cancelled.")
     else
         print("file: "..f)
-        Python:loadImageToCanvas(f)
+        --Python:loadImageToCanvas(f)
+        
+        p=data.project.palettes[data.project.palettes.index]
+        
+        -- First we load the image into data
+        CHRData = Python:imageToCHRData(f,Python:getNESColors(p))
+        --CHRData = Python:imageToCHRData(f,Python:getNESmakerColors())
+        
+        -- Load CHR data and display on canvas
+        Python:loadCHRData(CHRData, p)
+
+        c = Python.getControl('CHRPalette')
+        c.setAll(p)
     end
+end
+
+function LoadCHRNESmaker_cmd()
+    local CHRData
+    f = Python:openFile(nil)
+    if f == "" then
+        print("Open cancelled.")
+    else
+        print("file: "..f)
+        --Python:loadImageToCanvas(f)
+        
+        p=data.project.palettes[data.project.palettes.index]
+        
+        -- First we load the image into data
+        --CHRData = Python:imageToCHRData(f,Python:getNESColors(p))
+        CHRData = Python:imageToCHRData(f,Python:getNESmakerColors())
+        
+        -- Load CHR data and display on canvas
+        Python:loadCHRData(CHRData, p)
+
+        c = Python.getControl('CHRPalette')
+        c.setAll(p)
+    end
+end
+
+
+function ButtonCHRTest1_cmd()
+    p=data.project.palettes[data.project.palettes.index]
+
+    c = Python.getControl('CHRPalette')
+    c.setAll(p)
+
+    --f = data.folders.projects..projectFolder.."chr.chr"
+    f = data.folders.projects..projectFolder.."smb_new.chr"
+    
+    Python:loadCHRFile(f,p)
 end
 
 function Open_cmd()
@@ -502,4 +595,6 @@ function onExit(cancel)
             SaveProject_cmd()
         end
     end
+    
+    saveSettings()
 end

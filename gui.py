@@ -190,9 +190,9 @@ class ForLua:
     def getNESmakerColors(self):
         return [
             [0,0,0],
-            [0,0,255],
             [0,255,0],
-            [255,0,0]
+            [255,0,0],
+            [0,0,255],
             ]
     def getNESColors(self, c):
         if type(c) is str:
@@ -285,8 +285,11 @@ class ForLua:
         ret = this.loadCHRData(self,fileData,colors)
         return ret
 
-    def loadCHRData(self, fileData, colors=(0x0f,0x21,0x11,0x01)):
+    def loadCHRData(self, fileData=False, colors=(0x0f,0x21,0x11,0x01)):
         this=ForLua
+        
+        if not fileData:
+            fileData = "\x00" * 0x1000
         
         if type(fileData) is str:
             fileData = [ord(x) for x in fileData]

@@ -273,6 +273,7 @@ function CHRPalette_cmd(t)
     elseif t.event.num == 3 then
         print(string.format("Set palette %02x",data.selectedColor or 0x0f))
         if t.set(t.cellNum, data.selectedColor) then
+            refreshCHR()
             dataChanged()
         end
     end
@@ -378,6 +379,11 @@ function LoadProject_cmd()
     -- update palette entry
     data.project.palettes.index = 0
     PaletteEntryUpdate()
+    
+    
+    if data.project.chrData then
+        
+    end
     
     dataChanged(false)
     
@@ -489,6 +495,7 @@ function PaletteEntry_cmd(t)
         p=data.project.palettes[data.project.palettes.index]
         p[t.cellNum+1] = data.selectedColor
         t.setAll(p)
+        refreshCHR()
         dataChanged()
     end
 end
@@ -506,7 +513,6 @@ function Quit_cmd()
 end
 
 function refreshCHR()
-    if not data.project.chrData then return end
     p=data.project.palettes[data.project.palettes.index]
     Python:loadCHRData(data.project.chrData, p)
 end

@@ -10,4 +10,3 @@ pyinstaller --onefile -w -i icon.ico -n NESBuilder.exe ^
 
 echo start time: %starttime%
 echo end time: %TIME%
-pause

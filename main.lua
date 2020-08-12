@@ -1,11 +1,25 @@
 config = {
-    title="NES Spider",
-    width=800,
-    height=600,
+    title="NESBuilder",
+    width=850,
+    height=700,
     upperHex=false,
     cellWidth=24,
     cellHeight=24,
+    buttonWidth=20,
+    buttonWidthSmall=4,
+    aboutURL = "https://github.com/SpiderDave/NESBuilder",
+    colors = {
+        bk='#202036',
+        bk2='#303046',
+        bk3='#404050',      -- text background
+        bk_hover='#454560',
+        fg = '#eef',
+        bk_menu_highlight='#606080',
+    },
+    pluginFolder = "plugins",
     launchText=[[
+Created by SpiderDave
+-------------------------------------------------------------------------------------------
 To open a project select "Open Project" from the "File" menu.
 To create a new project, do the same as above, but create a new folder.
 
@@ -15,12 +29,18 @@ Working:
     * loading, saving projects
     * Build Project
     * About
+    * Most of the CHR tab
+        - only 128x128 (4K) CHR banks at the moment
+        - Fixed to 8 banks for now
+        - you can click to change pixels on it, but it's just the 
+          start of a proper editing mode
+        - CHR refreshing is slow
+Working, but really just for testing:
     * Extract Level - SMB Level Extractor
     * Make CHR - Makes chr from a .png with set colors for now
       (use chr.png to test)
 
 Not working:
-    * Most of the CHR tab
     * Cut, Copy, Paste
 
 ToDo:
@@ -29,6 +49,8 @@ ToDo:
     * Palette sets and extra labels
     * More error handling
     * Replace this page with launcher
+    * undo!
+    * plugin support
 ]]
 }
 
@@ -65,7 +87,7 @@ data.folders = {
 }
 
 
-data.project = {}
+data.project = {chr={}}
 
 nespalette={[0]=
 {0x74,0x74,0x74},{0x24,0x18,0x8c},{0x00,0x00,0xa8},{0x44,0x00,0x9c},
@@ -107,6 +129,9 @@ function init()
     pad=6
     x=pad*1.5
     y=pad*1.5
+    
+    top = Python.y + pad*1.5
+    left = pad*1.5
 
 --    b=Python.makeButton{x=x,y=y,name="LoadProject",text="Load Project"}
 --    y = y + b.height + pad
@@ -114,14 +139,16 @@ function init()
 --    b=Python.makeButton{x=x,y=y,name="SaveProject",text="Save Project"}
 --    y = y + b.height + pad
     
-    b=Python.makeButton{x=x,y=y,name="BuildProject",text="Build Project"}
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidth, name="BuildProject",text="Build Project"}
     y = y + b.height + pad
     
-    b=Python.makeButton{x=x,y=y,name="ButtonLevelExtract",text="Extract Level"}
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonLevelExtract",text="Extract Level"}
     y = y + b.height + pad
     
-    b=Python.makeButton{x=x,y=y,name="ButtonMakeCHR",text="Make CHR"}
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonMakeCHR",text="Make CHR"}
     y = y + b.height + pad
+    
+    buttonHeight = b.height
 
 --    for i=0,4 do
 --        b=Python.makeButton{x=x,y=y,name="Button"..i,text="Button"..i}
@@ -130,9 +157,20 @@ function init()
     
     --b=Python.makeText{x=x,y=y, lineHeight=20,lineWidth=80, name="Text1",text="Text1"}
     
+    x2,y2=x,y
+    b=Python.makeText{x=x,y=y,w=20, w=150,h=buttonHeight, name="Text1",text="Text1"}
+    y = y + b.height + pad
+    
+    b=Python.makeButton{x=left+150+pad,y=y2,w=config.buttonWidth,name="ButtonSetText1",text="Set"}
+    x=left
+    y = y + b.height + pad
+
+    
     
     Python.setTab("Palette")
     Python.setDirection("h")
+    
+    x,y=left,top
     
     p = {[0]=0x0f,0x21,0x11,0x01}
     c=Python.makePaletteControl{x=pad*1.5,y=pad*1.5,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="Palette", palette=nespalette}
@@ -145,24 +183,23 @@ function init()
     x2=Python.x+pad + 100
     y2=pad*1.5
     
-    top = Python.y + pad*1.5
-    left = pad*1.5
-    
     placeX = left
     placeY = top
     
     x=left
-    y=top
-    b=Python.makeButton{x=x,y=y,name="ButtonPrevPalette",text="<"}
+    y=top + 100+pad*1.5
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonPrevPalette",text="<"}
     
     x = x + b.width + pad
-    b=Python.makeButton{x=x,y=y,name="ButtonNextPalette",text=">"}
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonNextPalette",text=">"}
    
     x = x + b.width + pad
-    b=Python.makeButton{x=x,y=y,name="ButtonAddPalette",text="+"}
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonAddPalette",text="+"}
     
     x = left
     y = y + b.height + pad
+    
+    x2,y2=x,y
     
     p = {[0]=0x0f,0x21,0x11,0x01}
     palette = {}
@@ -172,6 +209,10 @@ function init()
     c=Python.makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="PaletteEntry", palette=palette}
     y = y + 32 + pad
     
+    x=Python.x+pad
+    c=Python.makeLabel{x=x,y=y2+3,name="PaletteEntryLabel",clear=true,text="foobar"}
+    
+    x = left
     
 --    b=Python.makeText{x=x,y=y, lineHeight=16,lineWidth=80, name="Text1",text="Text1"}
 --    y = y + b.height + pad
@@ -197,27 +238,26 @@ function init()
     placeY = y
     c=Python.makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="CHRPalette", palette=palette}
     
-    
     x=left + 120
     y=placeY
-    b=Python.makeButton{x=x,y=y,name="ButtonPrevPaletteCHR",text="<"}
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonPrevPaletteCHR",text="<"}
 
     x=x+b.width+pad
     y=placeY
-    b=Python.makeButton{x=x,y=y,name="ButtonNextPaletteCHR",text=">"}
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonNextPaletteCHR",text=">"}
 
     x=left
     
     y = y + 32 + pad
-    b=Python.makeButton{x=x,y=y,name="LoadCHRImage",text="Load Image"}
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="LoadCHRImage",text="Load Image"}
 
     y = y + b.height + pad
-    b=Python.makeButton{x=x,y=y,name="LoadCHRNESmaker",text="Load NESmaker Image"}
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="LoadCHRNESmaker",text="Load NESmaker Image"}
 
     y = y + b.height + pad
     
     --b=Python.makeButton{x=x,y=y,name="ButtonCHRTest1",text="test"}
-    b=Python.makeButton{x=x,y=y,name="LoadCHR",text="Load .chr"}
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="LoadCHR",text="Load .chr"}
     y = y + b.height + pad
     
     
@@ -228,6 +268,18 @@ function init()
     -- Import the "LevelExtract" method from "SMBLevelExtract.py" and 
     -- add it to the "Python" table.
     --LevelExtract = Python:importFunction('include.SMBLevelExtract','LevelExtract')
+    
+    x=128*3+pad*3
+    y=top
+    c=Python.makeLabel{x=x,y=y,name="CHRNumLabel",clear=true,text="CHR"}
+    y = y + buttonHeight
+    
+    --y=top
+    x=128*3+pad*3
+    for i=0,7 do
+        b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="CHR"..i,text="CHR "..i}
+        y = y + b.height + pad
+    end
     
     loadSettings()
     
@@ -259,6 +311,8 @@ function doCommand(ctrl)
 end
 
 function Palette_cmd(t)
+    if not t.cellNum then return end -- the frame was clicked.
+    
     if t.event.num == 1 then
         print(string.format("Selected palette %02x",t.cellNum))
         data.selectedColor = t.cellNum
@@ -311,6 +365,9 @@ function PaletteEntryUpdate()
 
     c = Python.getControl('CHRPalette')
     c.setAll(p)
+    
+    c = Python.getControl('PaletteEntryLabel')
+    c.control.text = string.format("Palette%02x",data.project.palettes.index)
     
     refreshCHR()
 end
@@ -376,14 +433,15 @@ function LoadProject_cmd()
     -- use default palettes if not found
     data.project.palettes = data.project.palettes or util.deepCopy(data.palettes)
     
+    
+    data.project.chr = data.project.chr or {index=0}
+    
     -- update palette entry
     data.project.palettes.index = 0
     PaletteEntryUpdate()
     
     
-    if data.project.chrData then
-        
-    end
+    
     
     dataChanged(false)
     
@@ -419,12 +477,23 @@ function BuildProject_cmd()
     -- make sure folder exists for this project
     Python:makeDir(data.folders.projects..data.project.folder)
 
+    -- remove old format
+    data.project.chrData = nil
+    
     -- save CHR
-    if data.project.chrData then
-        f = data.folders.projects..data.project.folder.."output.chr"
-        print("File created "..f)
-        util.writeToFile(f, 0, data.project.chrData, true)
+    for i=0,#data.project.chr do
+        if data.project.chr[i] then
+            f = data.folders.projects..data.project.folder..string.format("chr%02x.chr",i)
+            print("File created "..f)
+            util.writeToFile(f, 0, data.project.chr[i], true)
+        end
     end
+    
+--    if data.project.chrData then
+--        f = data.folders.projects..data.project.folder.."output.chr"
+--        print("File created "..f)
+--        util.writeToFile(f, 0, data.project.chrData, true)
+--    end
 
     c = Python.getControl('PaletteList')
     filename = data.folders.projects..projectFolder.."palettes.asm"
@@ -465,6 +534,16 @@ function BuildProject_cmd()
     end
     
     util.writeToFile(filename,0, out, true)
+    
+    
+    filename = data.folders.projects..projectFolder.."version.asm"
+    
+    t = os.date("*t")
+    out=string.format("; %s.%s.%s %s:%s\n",t.year, t.month, t.day, t.hour, t.min)
+    out=string.format('version:\n    .db "v%s.%s.%s"\n\n',t.year, t.month, t.day)
+    
+    util.writeToFile(filename,0, out, true)
+    
 end
 
 function SaveProject_cmd()
@@ -485,6 +564,8 @@ end
 
 
 function PaletteEntry_cmd(t)
+    if not t.cellNum then return end -- the frame was clicked.
+    
     if t.event.num == 1 then
         print(string.format("Selected palette %02x",t.cellNum))
         data.selectedColor = t.cellNum
@@ -505,7 +586,7 @@ function PaletteList_cmd(t)
 end
 
 function About_cmd()
-    Python.exec("webbrowser.get('windows-default').open('https://github.com/SpiderDave/SpideyGui')")
+    Python.exec(string.format("webbrowser.get('windows-default').open('%s')",config.aboutURL))
 end
 
 function Quit_cmd()
@@ -514,7 +595,12 @@ end
 
 function refreshCHR()
     p=data.project.palettes[data.project.palettes.index]
-    Python:loadCHRData(data.project.chrData, p)
+    
+    --Python:loadCHRData(data.project.chrData, p)
+    Python:loadCHRData(data.project.chr[data.project.chr.index], p)
+
+    c = Python.getControl('CHRNumLabel')
+    c.control.text = string.format("%02x", data.project.chr.index)
 end
 
 function LoadCHRImage_cmd()
@@ -532,7 +618,7 @@ function LoadCHRImage_cmd()
         CHRData = Python:imageToCHRData(f,Python:getNESColors(p))
         --CHRData = Python:imageToCHRData(f,Python:getNESmakerColors())
         
-        data.project.chrData = CHRData
+        data.project.chr[data.project.chr.index] = CHRData
         
         -- Load CHR data and display on canvas
         Python:loadCHRData(CHRData, p)
@@ -559,7 +645,7 @@ function LoadCHRNESmaker_cmd()
         --CHRData = Python:imageToCHRData(f,Python:getNESColors(p))
         CHRData = Python:imageToCHRData(f,Python:getNESmakerColors())
         
-        data.project.chrData = CHRData
+        data.project.chr[data.project.chr.index] = CHRData
         
         -- Load CHR data and display on canvas
         Python:loadCHRData(CHRData, p)
@@ -580,7 +666,7 @@ function LoadCHR_cmd()
     end
     
     p=data.project.palettes[data.project.palettes.index]
-    data.project.chrData = Python:loadCHRFile(f,p)
+    data.project.chr[data.project.chr.index] = Python:loadCHRFile(f,p)
     
     c = Python.getControl('CHRPalette')
     c.setAll(p)
@@ -640,4 +726,54 @@ function onExit(cancel)
     end
     
     saveSettings()
+end
+
+function CHR_cmd(t)
+    local n = tonumber(t.name:sub(4))
+    data.project.chr.index = n
+    
+    
+    print(plugins.foobar.test)
+    
+    refreshCHR()
+end
+
+CHR0_cmd = CHR_cmd
+CHR1_cmd = CHR_cmd
+CHR2_cmd = CHR_cmd
+CHR3_cmd = CHR_cmd
+CHR4_cmd = CHR_cmd
+CHR5_cmd = CHR_cmd
+CHR6_cmd = CHR_cmd
+CHR7_cmd = CHR_cmd
+
+function canvas_cmd(t)
+    local x = math.floor(t.event.x/3)
+    local y = math.floor(t.event.y/3)
+    local tileX = math.floor(x/8)
+    local tileY = math.floor(y/8)
+    local tileNum = tileY*0x10+tileX
+    local tileOffset = 16*tileNum
+    
+--    for i=0,7 do
+--        data.project.chr[data.project.chr.index][tileOffset+i+1]=0xff
+--        data.project.chr[data.project.chr.index][tileOffset+i+1+8]=0
+--    end
+    
+    local c = data.selectedColor
+    local cBits = Python:numberToBitArray(c)
+    
+    for i=0, 1 do
+        local b = data.project.chr[data.project.chr.index][tileOffset+1+(i*8)+y%8]
+        local l=Python:numberToBitArray(b)
+        l[x%8]=cBits[7-i]
+        b = Python:bitArrayToNumber(l)
+        data.project.chr[data.project.chr.index][tileOffset+1+(i*8)+y%8] = b
+    end
+    
+    --print(string.format("(%03i, %03i)",x,y))
+    --print(string.format("%02x",tileNum))
+
+    dataChanged()
+    refreshCHR()
 end

@@ -1,4 +1,13 @@
 # needs lupa, pyinstaller, pillow, anything else?
+'''
+ToDo:
+    * use @makeControl decorator on most/all control generating methods
+    * make return value of control generating methods more consistant
+    * makeCanvas method
+    * clean up color variable names, add more
+
+'''
+
 
 import sys
 import lupa
@@ -40,6 +49,8 @@ import include
 include.init(lua)
 
 
+frozen = (getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'))
+
 controls={}
 
 tab1=None
@@ -48,6 +59,7 @@ tab3=None
 
 color_bk='#202036'
 color_bk2='#303046'
+color_bk3='#404050' # text background
 color_bk_hover='#454560'
 color_fg = '#eef'
 color_bk_menu_highlight='#606080'
@@ -62,6 +74,10 @@ d= dict(enumerate([x for x in dir(tk.constants) if not x.startswith('_')]))
 d = {v:k for k,v in d.items()}
 # export to lua.  the values will still be python
 lua_func(lua.table_from(d))
+
+
+def fancy(text):
+    return "*"*60+"\n"+text+"\n"+"*"*60
 
 
 class Text(tk.Text):
@@ -103,6 +119,34 @@ class ForLua:
     h=16
     direction="v"
     tab="Main"
+
+
+    # decorator
+    def makeControl(func):
+        def inner(t):
+            this=ForLua
+            if this.direction.lower() in ("v","vertical"):
+                x=coalesce(t.x, this.x, 0)
+                y=coalesce(t.y, this.y+this.h, 0)
+            else:
+                x=coalesce(t.x, this.x+this.w, 0)
+                y=coalesce(t.y, this.y, 0)
+            w=coalesce(t.w, this.w, 16)
+            h=coalesce(t.h, this.h, 16)
+            this.x=x
+            this.y=y
+            this.w=w
+            this.h=h
+
+            t = func(t, (x,y,w,h,this))
+            
+            return t
+        return inner
+
+    def numberToBitArray(self, n):
+        return [int(x) for x in "{:08b}".format(n)]
+    def bitArrayToNumber(self, l):
+        return int("".join(str(x) for x in l), 2) 
     def askyesnocancel(self, title, message):
         q = messagebox.askyesnocancel(title, message)
         print(q)
@@ -363,18 +407,45 @@ class ForLua:
         
     def makeButton(t):
         this=ForLua
-        w=20
+        if this.direction.lower() in ("v","vertical"):
+            x=coalesce(t.x, this.x, 0)
+            y=coalesce(t.y, this.y+this.h, 0)
+        else:
+            x=coalesce(t.x, this.x+this.w, 0)
+            y=coalesce(t.y, this.y, 0)
+        w=coalesce(t.w, this.w, 16)
+        h=coalesce(t.h, this.h, 16)
+        this.x=x
+        this.y=y
+        this.w=w
+        this.h=h
+
+        #w=20
         h=1
 
         i=5
-        b = HoverButton(this.getTab(), text=t.text, command=makeCmd(t.name), activebackground=color_bk2, activeforeground=color_fg)
+        b = HoverButton(this.getTab(), text=t.text, activebackground=color_bk2, activeforeground=color_fg, takefocus = 0)
         b.config(width=w, height=h, fg=color_fg, bg=color_bk2)
         b.place(x=t.x, y=t.y)
+        #b.place(width=w, height=h)
 
         controls.update({t.name:b})
         controls[t.name].update() # make sure things like winfo_height return the value we want
         c=controls[t.name]
-        return {"control":c,"height":c.winfo_height(), "width":c.winfo_width()}
+        control = c
+        #return {"control":c,"height":c.winfo_height(), "width":c.winfo_width()}
+
+        t=lua.table(name=t.name,
+                    control=control,
+                    height=c.winfo_height(),
+                    width=c.winfo_width(),
+                    )
+        
+        control.bind( "<ButtonRelease-1>", makeCmdNew(t))
+        
+        return t
+
+
     def setText(c,txt):
         c.setText(txt)
     def makeList(t):
@@ -435,8 +506,8 @@ class ForLua:
         this=ForLua
         
         #b = tk.Text(this.getTab(), borderwidth=1, relief="solid",height=t.lineHeight,width=t.lineWidth)
-        b = Text(this.getTab(), borderwidth=1, relief="solid",height=t.lineHeight,width=t.lineWidth)
-        b.config(fg=color_fg, bg=color_bk2)
+        b = Text(this.getTab(), borderwidth=0, relief="solid",height=t.lineHeight)
+        b.config(fg=color_fg, bg=color_bk3)
         
         if this.direction.lower() in ("v","vertical"):
             x=coalesce(t.x, this.x, 0)
@@ -444,7 +515,7 @@ class ForLua:
         else:
             x=coalesce(t.x, this.x+this.w, 0)
             y=coalesce(t.y, this.y, 0)
-        w=coalesce(t.w, this.w, 16 * 10)
+        w=coalesce(t.w, this.w, 16)
         h=coalesce(t.h, this.h, 16)
         this.x=x
         this.y=y
@@ -456,8 +527,7 @@ class ForLua:
         b.place(x=x, y=y)
         if not t.lineHeight:
             b.place(height=h)
-        if not t.lineWidth:
-            b.place(width=w)
+        b.place(width=w)
         
         
         b.bind( "<Button-1>", makeCmd(t.name, {'foo':42}))
@@ -465,13 +535,43 @@ class ForLua:
         controls[t.name].update()
         c=controls[t.name]
         return controls[t.name]
-    def makeLabel(t):
+    
+    @makeControl
+    def makeLabel(t, variables):
+        x,y,w,h,this = variables
+        
+        b = tk.Label(this.getTab(), text=t.text, borderwidth=1, background="white", relief="solid")
+        b.config(fg=color_fg, bg=color_bk2)
+        if t.clear:
+            b.config(fg=color_fg, bg=color_bk, borderwidth=0)
+        if t.clear:
+            b.place(x=x, y=y)
+        else:
+            b.place(x=x, y=y, height=h, width=w)
+        
+        
+        control=b
+        
+        # This is a lua table used for the callback and
+        # also as a return value for this method.
+        t=lua.table(name=t.name,
+                    control=control,
+                    )
+        
+        controls.update({t.name:t})
+        control.bind( "<Button-1>", makeCmdNew(t))
+        return t
+        
+    def _makeLabel(t):
         this=ForLua
         
         #b = tk.Label(root, text=t.text, borderwidth=1, background="white", relief="solid")
         b = tk.Label(this.getTab(), text=t.text, borderwidth=1, background="white", relief="solid")
         #b.config(fg="red", bg="blue")
         b.config(fg=color_fg, bg=color_bk2)
+        
+        if t.clear:
+            b.config(fg=color_fg, bg=color_bk, borderwidth=0)
         
         #l1 = Label(root, text="This", borderwidth=2, relief="groove")
         
@@ -488,7 +588,11 @@ class ForLua:
         this.w=w
         this.h=h
         
-        b.place(x=x, y=y, height=h, width=w)
+        
+        if t.clear:
+            b.place(x=x, y=y)
+        else:
+            b.place(x=x, y=y, height=h, width=w)
         
         b.bind( "<Button-1>", makeCmd(t.name, {'foo':42}))
         controls.update({t.name:b})
@@ -513,6 +617,8 @@ class ForLua:
             control.cellNum = ev.widget.index
             ev.index = ev.widget.index
             #control.cellEvent = ev
+            
+            print(ev)
             
             # This stuff is just taking a ride on the event
             # but will be on the main table
@@ -605,6 +711,7 @@ class ForLua:
                     getCellEvent = getCellEvent,
                     set = set,
                     setAll = setAll,
+                    noParentEvent = True,
                     )
 
         controls.update({t.name:t})
@@ -616,6 +723,7 @@ class ForLua:
         return t
     def setTitle(self, title=''):
         root.title(title)
+
 
 
 # Return it from eval so we can execute it with a 
@@ -644,7 +752,7 @@ def makeCmdNew(*args):
     return lambda x:doCommandNew(args, ev = x)
 
 # a single lua table is passed
-def doCommandNew(*args, ev):
+def doCommandNew(*args, ev=False):
     args = args[0][0]
     try:
         for k,v in ev.extra.items():
@@ -707,7 +815,9 @@ root.configure(bg=color_bk)
 root.iconbitmap(sys.executable)
 root.title("Some sort of tool 1.0")
 
-
+if not frozen:
+    photo = ImageTk.PhotoImage(file = "icon.ico")
+    root.iconphoto(False, photo)
 
 tab_parent = ttk.Notebook(root)
 
@@ -817,10 +927,23 @@ def on_click():
 
 
 #canvas = Canvas(tab3, width=300, height=300, bg='black')
-canvas = Canvas(tab3, width=1, height=1, bg='black')
+canvas = Canvas(tab3, width=1, height=1, bg='black',name="canvas")
 #c.bind("<Button-1>", makeCmd(t.name, {'foo':42}))
 # store x and y so we can use them to place when image is loaded
 canvas.place(x=8,y=8, width=128*3, height=128*3)
+
+control=canvas
+t=lua.table(name="canvas",
+            control=control,
+            )
+control.bind( "<ButtonPress-1>", makeCmdNew(t))
+
+canvas.config(cursor="top_left_arrow")
+
+try:
+    canvas.config(cursor="@cursors/pencil.cur")
+except:
+    pass
 
 try:
     f = open("main.lua","r")
@@ -836,6 +959,7 @@ root.title(config.title)
 
 #image = Image.open("logo.png")
 #logo = ImageTk.PhotoImage(image)
+
 #b = tk.Label(tabs.get('Launch'), text='???', borderwidth=1, background="white", relief="solid", image = logo)
 #b.image = logo # keep a reference!
 #b.place(x=8, y=8)
@@ -854,5 +978,27 @@ print("This console is for debugging purposes.\n")
 
 lua.execute("if init then init() end")
 
+# load lua plugins
+dir = config.pluginFolder
+dir = fixPath(script_path + "/" + dir)
+if os.path.exists(dir):
+    lua.execute("""
+    local _plugin
+    plugins = {}
+    """)
+    for file in os.listdir(dir):
+        if file.endswith(".lua") and not file.startswith("_"):
+            print("Loading plugin: "+file)
+
+            code = """
+                _plugin = require("{0}.{1}")
+                if type(_plugin) =="table" then
+                    plugins[_plugin.name or "{1}"]=_plugin
+                    _plugin.file = "{2}"
+                    if _plugin.init then _plugin.init() end
+                end
+            """.format(config.pluginFolder,os.path.splitext(file)[0], file)
+            print(fancy(code))
+            lua.execute(code)
 root.geometry("{0}x{1}".format(coalesce(config.width, 800), coalesce(config.height, 400)))
 root.mainloop()

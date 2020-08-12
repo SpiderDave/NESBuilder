@@ -54,6 +54,8 @@ ToDo:
 ]]
 }
 
+plugins = {}
+
 __print = print
 print = function(txt)
     __print("[Lua] "..(txt or ''))
@@ -285,6 +287,19 @@ function init()
     LoadProject_cmd()
 end
 
+function onPluginsLoaded()
+    handlePluginCallback("onInit")
+end
+
+function handlePluginCallback(f)
+    for n,p in pairs(plugins) do
+        if p[f] then
+            print(string.format("(Plugin %s): %s",n,f))
+            p[f]()
+        end
+    end
+end
+
 function loadSettings()
     filename = "settings.dat"
     data.settings = util.unserialize(util.getFileContents(filename)) or {project = data.projectID}
@@ -435,6 +450,8 @@ function LoadProject_cmd()
     
     data.project.chr = data.project.chr or {index=0}
     
+    handlePluginCallback("onLoadProject")
+    
     -- update palette entry
     data.project.palettes.index = 0
     PaletteEntryUpdate()
@@ -475,9 +492,8 @@ end
 function BuildProject_cmd()
     -- make sure folder exists for this project
     Python:makeDir(data.folders.projects..data.project.folder)
-
-    -- remove old format
-    data.project.chrData = nil
+    
+    handlePluginCallback("onBuild")
     
     -- save CHR
     for i=0,#data.project.chr do
@@ -548,7 +564,9 @@ end
 function SaveProject_cmd()
     -- make sure folder exists for this project
     Python:makeDir(data.folders.projects..data.project.folder)
-
+    
+    handlePluginCallback("onSaveProject")
+    
     filename = data.folders.projects..data.project.folder.."project.dat"
     util.writeToFile(filename,0, util.serialize(data.project), true)
     
@@ -723,6 +741,8 @@ function onExit(cancel)
             SaveProject_cmd()
         end
     end
+    
+    handlePluginCallback("onExit")
     
     saveSettings()
 end

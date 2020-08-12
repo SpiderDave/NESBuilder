@@ -5,7 +5,6 @@ ToDo:
     * make return value of control generating methods more consistant
     * makeCanvas method
     * clean up color variable names, add more
-    * plugin event callbacks, like onBuild, onClose
 '''
 
 
@@ -989,7 +988,6 @@ dir = fixPath(script_path + "/" + dir)
 if os.path.exists(dir):
     lua.execute("""
     local _plugin
-    plugins = {}
     """)
     for file in os.listdir(dir):
         if file.endswith(".lua") and not file.startswith("_"):
@@ -1000,10 +998,10 @@ if os.path.exists(dir):
                 if type(_plugin) =="table" then
                     plugins[_plugin.name or "{1}"]=_plugin
                     _plugin.file = "{2}"
-                    if _plugin.init then _plugin.init() end
                 end
             """.format(config.pluginFolder,os.path.splitext(file)[0], file)
-            print(fancy(code))
+            #print(fancy(code))
             lua.execute(code)
+    lua.execute("if onPluginsLoaded then onPluginsLoaded() end")
 root.geometry("{0}x{1}".format(coalesce(config.width, 800), coalesce(config.height, 400)))
 root.mainloop()

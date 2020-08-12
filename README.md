@@ -33,8 +33,8 @@ local plugin = {}
 -- the plugin name defaults to the filename without extension if not defined.
 plugin.name = "foobar"
 
--- if the plugin has init, it will be executed when loaded.
-function plugin.init()
+-- This will be executed after the plugin has been loaded.
+function plugin.onInit()
     print("hello plugin world!")
 end
 
@@ -42,3 +42,9 @@ end
 return plugin
 ```
 
+### Callbacks ###
+* onInit
+* onLoadProject
+* onSaveProject
+* onBuild
+* onExit

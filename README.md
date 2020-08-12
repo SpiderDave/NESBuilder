@@ -1,7 +1,7 @@
 # NES Builder
 NES Building Software made with Python and Lua
 
-![test](https://i.imgur.com/HyRHRub.png)
+![_](https://i.imgur.com/HyRHRub.png)
 
 ## Building ##
 Currently there is no binary release, but you can build your own.

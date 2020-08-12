@@ -1,4 +1,4 @@
 @echo off
-py gui.py
+py NESBuilder.py
 
 pause

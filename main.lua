@@ -164,7 +164,6 @@ function init()
     b=Python.makeButton{x=left+150+pad,y=y2,w=config.buttonWidth,name="ButtonSetText1",text="Set"}
     x=left
     y = y + b.height + pad
-
     
     
     Python.setTab("Palette")
@@ -731,9 +730,6 @@ end
 function CHR_cmd(t)
     local n = tonumber(t.name:sub(4))
     data.project.chr.index = n
-    
-    
-    print(plugins.foobar.test)
     
     refreshCHR()
 end

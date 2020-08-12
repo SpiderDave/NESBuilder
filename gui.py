@@ -5,7 +5,7 @@ ToDo:
     * make return value of control generating methods more consistant
     * makeCanvas method
     * clean up color variable names, add more
-
+    * plugin event callbacks, like onBuild, onClose
 '''
 
 
@@ -943,7 +943,12 @@ canvas.config(cursor="top_left_arrow")
 try:
     canvas.config(cursor="@cursors/pencil.cur")
 except:
-    pass
+    try:
+        canvas.config(cursor="@_cursors/pencil.cur")
+    except:
+        pass
+
+
 
 try:
     f = open("main.lua","r")

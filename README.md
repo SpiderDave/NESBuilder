@@ -1,6 +1,8 @@
 # NES Builder
 NES Building Software made with Python and Lua
 
+!(https://i.imgur.com/HyRHRub.png)
+
 ## Building ##
 Currently there is no binary release, but you can build your own.
 The resulting single file exe is rather large (~30MB) so binary 

@@ -745,6 +745,7 @@ function onExit(cancel)
     handlePluginCallback("onExit")
     
     saveSettings()
+    
 end
 
 function CHR_cmd(t)

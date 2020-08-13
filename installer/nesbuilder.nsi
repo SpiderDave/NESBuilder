@@ -57,8 +57,7 @@ Section "NESBuilder"
     inetc::get \
         "${GitURL}README.md" "README.md"\
         "${GitURL}main.lua" "main.lua"\
-        "${GitURL}/cursors/pencil.cur" "cursors/pencil.cur"\
-        "${GitURL}/dist/dummy.txt" "dist/dummy.txt"\
+        "${GitURL}cursors/pencil.cur" "cursors/pencil.cur"\
         "${GitURL}dist/NESBuilder.exe" "NESBuilder.exe"\
         /END
     Pop $0
@@ -90,7 +89,7 @@ Section "NESBuilder Source"
     inetc::get \
         "${GitURL}README.md" "README.md"\
         "${GitURL}main.lua" "main.lua"\
-        "${GitURL}/cursors/pencil.cur" "cursors/pencil.cur"\
+        "${GitURL}cursors/pencil.cur" "cursors/pencil.cur"\
         "${GitURL}NESBuilder.py" "NESBuilder.py"\
         "${GitURL}icon.ico" "icon.ico"\
         "${GitURL}build.bat" "build.bat"\
@@ -98,10 +97,10 @@ Section "NESBuilder Source"
         "${GitURL}install dependencies.bat" "install dependencies.bat"\
         "${GitURL}run script and pause.bat" "run script and pause.bat"\
         "${GitURL}run script.bat" "run script.bat"\
-        "${GitURL}/include/__init__.py" "include/__init__.py"\
-        "${GitURL}/include/Tserial.lua" "include/Tserial.lua"\
-        "${GitURL}/include/util.lua" "include/util.lua"\
-        "${GitURL}/include/SMBLevelExtract.py" "include/SMBLevelExtract.py"\
+        "${GitURL}include/__init__.py" "include/__init__.py"\
+        "${GitURL}include/Tserial.lua" "include/Tserial.lua"\
+        "${GitURL}include/util.lua" "include/util.lua"\
+        "${GitURL}include/SMBLevelExtract.py" "include/SMBLevelExtract.py"\
         "${GitURL}chr.png" "chr.png"\
         /END
     Pop $0

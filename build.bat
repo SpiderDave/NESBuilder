@@ -23,7 +23,7 @@ set parameter=w
 if %console% NEQ 0 set suffix=C& set parameter=c
 
 rem make sure we can find pyinstaller
-where pyinstaller>nul 2>&1
+where/q pyinstaller
 if %errorlevel% NEQ 0 set errormessage=Could not find pyinstaller.& goto error
 
 rem copy files

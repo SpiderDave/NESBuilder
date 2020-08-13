@@ -7,7 +7,6 @@ ToDo:
     * clean up color variable names, add more
 '''
 
-
 import sys
 import lupa
 from lupa import LuaRuntime

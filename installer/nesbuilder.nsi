@@ -1,5 +1,14 @@
 ; NSIS Installer script
 ;--------------------------------
+!define MUI_BGCOLOR "1c8585"
+!define MUI_INSTFILESPAGE_COLORS "FFFFFF 000000" ;Two colors
+!define MUI_HEADER_TRANSPARENT_TEXT
+!define MUI_TEXTCOLOR  "FFFF00"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "header.bmp"
+!define MUI_HEADERIMAGE_BITMAP_STRETCH AspectFitHeight
+
+!include "MUI2.nsh"
 
 ; The name of the installer
 Name "NES Builder"
@@ -22,9 +31,32 @@ InstallDirRegKey HKLM "Software\NESBuilder" "Install_Dir"
 
 ;--------------------------------
 
+;!getdllversion "..\dist\NESBuilder.exe" expv_
+;!define MUI_PAGE_HEADER_TEXT "         [v${expv_1}.${expv_2}.${expv_3}]"
+
+!insertmacro MUI_LANGUAGE "English"
+
 ; Pages
 
-Page components
+!define MUI_TEXT_COMPONENTS_TITLE "1 MUI_TEXT_COMPONENTS_TITLE"
+!define MUI_TEXT_COMPONENTS_SUBTITLE "2 MUI_TEXT_COMPONENTS_SUBTITLE"
+;!define MUI_COMPONENTSPAGE_TEXT_COMPLIST "4 MUI_COMPONENTSPAGE_TEXT_COMPLIST"
+;!define MUI_COMPONENTSPAGE_TEXT_INSTTYPE "5 MUI_COMPONENTSPAGE_TEXT_INSTTYPE"
+;!define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_TITLE "6 MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_TITLE"
+;!define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_INFO "7 MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_INFO"
+;!define MUI_INNERTEXT_COMPONENTS_DESCRIPTION_TITLE "8 MUI_INNERTEXT_COMPONENTS_DESCRIPTION_TITLE"
+;!define MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO "9 MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO"
+;!define MUI_PAGE_HEADER_TEXT "         version alpha"
+;!define MUI_PAGE_HEADER_SUBTEXT  "PAGE_HEADER_SUBTEXT"
+
+!define MUI_COMPONENTSPAGE_NODESC
+
+!define MUI_COMPONENTSPAGE_TEXT_TOP "Check the components you want to install and uncheck the components$\n\
+you dont want to install.  Click Next to continue."
+
+!insertmacro MUI_PAGE_COMPONENTS
+
+;Page components
 Page directory
 Page instfiles
 
@@ -32,19 +64,17 @@ UninstPage uninstConfirm
 UninstPage instfiles
 
 ;--------------------------------
-
 Icon "installicon.ico"
 
-InstType "full"
-InstType "minimal"
+InstType "Full"
 
 !define GitURL "https://raw.githubusercontent.com/SpiderDave/NESBuilder/master/"
 
 ; The stuff to install
-Section "NESBuilder"
+Section "NESBuilder Executable"
 
     ;SectionIn RO
-    SectionIn 1 2
+    SectionIn 1
 
     ; Set output path to the installation directory.
     SetOutPath $INSTDIR
@@ -108,7 +138,7 @@ SectionEnd
 
 ; Optional section (can be disabled by the user)
 Section "Start Menu Shortcuts"
-    SectionIn 1 2
+    SectionIn 1
     CreateDirectory "$SMPROGRAMS\NESBuilder"
     CreateShortcut "$SMPROGRAMS\NESBuilder\Uninstall.lnk" "$INSTDIR\uninstall.exe"
     CreateShortcut "$SMPROGRAMS\NESBuilder\NESBuilder.lnk" "$INSTDIR\NESBuilder.exe"

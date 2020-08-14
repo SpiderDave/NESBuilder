@@ -136,6 +136,24 @@ Section "NESBuilder Source"
     Pop $0
 SectionEnd
 
+Section "Installer Source"
+    SectionIn 1
+
+    ; Set output path to the installation directory.
+    SetOutPath $INSTDIR
+
+    CreateDirectory $INSTDIR\installer
+
+    inetc::get \
+        "${GitURL}installer/nsbuilder.nsi" "installer/nsbuilder.nsi"\
+        "${GitURL}installer/header.bmp" "installer/header.bmp"\
+        "${GitURL}installer/header.xcf" "installer/header.xcf"\
+        "${GitURL}installer/installicon.ico" "installer/installicon.ico"\
+        /END
+    Pop $0
+
+SectionEnd
+
 ; Optional section (can be disabled by the user)
 Section "Start Menu Shortcuts"
     SectionIn 1
@@ -175,6 +193,7 @@ Section "Uninstall"
     RMDir /r /REBOOTOK $INSTDIR\cursors
     RMDir /r /REBOOTOK $INSTDIR\dist
     RMDir /r /REBOOTOK $INSTDIR\include
+    RMDir /r /REBOOTOK $INSTDIR\installer
     Delete $INSTDIR\NESBuilder.exe.spec
     Delete $INSTDIR\uninstall.exe
 

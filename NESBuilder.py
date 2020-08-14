@@ -10,6 +10,7 @@ ToDo:
 import sys
 import lupa
 from lupa import LuaRuntime
+from lupa import LuaError
 lua = LuaRuntime(unpack_returned_tuples=True)
 
 from tkinter import filedialog
@@ -21,6 +22,8 @@ from tkinter import *
 #from tkinter.ttk import *
 from PIL import ImageTk, Image, ImageDraw
 from PIL import ImageOps
+
+import textwrap
 
 import numpy as np
 
@@ -946,16 +949,29 @@ except:
     except:
         pass
 
-
+gotError = False
 
 try:
     f = open("main.lua","r")
     lua.execute(f.read())
     f.close()
-except:
+except LuaError as err:
+    print("-"*80)
+    print("LuaError in main.lua\n")
+    
+    err = str(err).replace('error loading code: ','')
+    err = '\n'.join(textwrap.wrap(err, width=70))
+    err = textwrap.indent(err, " "*4)
+    
+    print(err)
+    print()
+    print("-"*80)
+    gotError = True
+
+if gotError:
     raise NameError('Could not open/execute main.lua')
     sys.exit()
-
+    
 config  = lua.eval('config or {}')
 config.title = config.title or "SpideyGUI"
 root.title(config.title)

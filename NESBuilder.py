@@ -957,12 +957,33 @@ try:
     f.close()
 except LuaError as err:
     err = str(err).replace('error loading code: ','')
-    err = err.replace('[string "<python>"]',"[(file)]")
-    err = '\n'.join(textwrap.wrap(err, width=70))
+    err = err.replace('[string "<python>"]',"[main.lua]")
+    err = err.replace('[C]',"[lua]")
+    err = err.replace("stack traceback:","\nstack traceback:")
+    #err = '\n'.join(textwrap.wrap(err, width=70))
+    #err = textwrap.indent(err, " "*4)
+    
+    err = [line.strip() for line in err.splitlines()]
+    if err[0].startswith("error loading module "):
+        err.pop(0)
+        line = err[0].split(":")
+        line[0]=line[0].replace(".\\","").replace("\\","")
+        line[0]="["+line[0]+"]"
+        line = ":".join(line)
+        err[0] = line
+    
+    indent = 0
+    for i, line in enumerate(err):
+        err[i]=" "*indent+line
+        if line.startswith("stack traceback:"):
+            indent = 4
+    
+    err = "\n".join(err)
     err = textwrap.indent(err, " "*4)
     
+    
     print("-"*80)
-    print("LuaError in main.lua or nested module\n")
+    print("LuaError:\n")
     print(err)
     print()
     print("-"*80)

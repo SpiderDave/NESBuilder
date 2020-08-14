@@ -9,6 +9,7 @@
 !define MUI_HEADERIMAGE_BITMAP_STRETCH AspectFitHeight
 
 !include "MUI2.nsh"
+!include Sections.nsh
 
 ; The name of the installer
 Name "NES Builder"
@@ -70,6 +71,27 @@ InstType "Full"
 
 !define GitURL "https://raw.githubusercontent.com/SpiderDave/NESBuilder/master/"
 
+
+
+
+Section "-Uninstaller" sec_hidden
+    SectionIn RO
+
+    ; make sure the install dir exists
+    CreateDirectory $INSTDIR
+    
+    ; Write the installation path into the registry
+    WriteRegStr HKLM SOFTWARE\NESBuilder "Install_Dir" "$INSTDIR"
+
+    ; Write the uninstall keys for Windows
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NESBuilder" "DisplayName" "NESBuilder"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NESBuilder" "UninstallString" '"$INSTDIR\uninstall.exe"'
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NESBuilder" "NoModify" 1
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NESBuilder" "NoRepair" 1
+    WriteUninstaller "$INSTDIR\uninstall.exe"
+
+SectionEnd
+
 ; The stuff to install
 Section "NESBuilder Executable"
 
@@ -92,16 +114,6 @@ Section "NESBuilder Executable"
         /END
     Pop $0
 
-
-    ; Write the installation path into the registry
-    WriteRegStr HKLM SOFTWARE\NESBuilder "Install_Dir" "$INSTDIR"
-
-    ; Write the uninstall keys for Windows
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NESBuilder" "DisplayName" "NESBuilder"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NESBuilder" "UninstallString" '"$INSTDIR\uninstall.exe"'
-    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NESBuilder" "NoModify" 1
-    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NESBuilder" "NoRepair" 1
-    WriteUninstaller "$INSTDIR\uninstall.exe"
 
 SectionEnd
 
@@ -145,12 +157,13 @@ Section "Installer Source"
     CreateDirectory $INSTDIR\installer
 
     inetc::get \
-        "${GitURL}installer/nsbuilder.nsi" "installer/nsbuilder.nsi"\
+        "${GitURL}installer/nesbuilder.nsi" "installer/nesbuilder.nsi"\
         "${GitURL}installer/header.bmp" "installer/header.bmp"\
         "${GitURL}installer/header.xcf" "installer/header.xcf"\
         "${GitURL}installer/installicon.ico" "installer/installicon.ico"\
         /END
     Pop $0
+
 
 SectionEnd
 

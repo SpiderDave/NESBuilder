@@ -952,7 +952,9 @@ except:
 gotError = False
 
 try:
-    lua.execute("main.lua")
+    f = open("main.lua","r")
+    lua.execute(f.read())
+    f.close()
 except LuaError as err:
     err = str(err).replace('error loading code: ','')
     err = err.replace('[string "<python>"]',"[(file)]")

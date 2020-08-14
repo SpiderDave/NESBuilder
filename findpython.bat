@@ -9,7 +9,7 @@ rem -- find python --------------------
 echo Locating python...
 echo Attempt 1: "py"
 py --version 2>NUL
-if errorlevel 1 goto attempt2
+if %errorlevel% NEQ 0 goto attempt2
 set pycmd=py
 goto foundpython
 

@@ -1,5 +1,4 @@
 @echo off
-
 rem -- Settings ----------------------------
 
 rem pause when done
@@ -7,8 +6,6 @@ rem (note: errors will always pause)
 set dopause=0
 
 rem ----------------------------------------
-
-set dopause=0
 
 rem default error
 set errormessage=unspecified error

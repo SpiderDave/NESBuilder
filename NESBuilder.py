@@ -952,17 +952,15 @@ except:
 gotError = False
 
 try:
-    f = open("main.lua","r")
-    lua.execute(f.read())
-    f.close()
+    lua.execute("main.lua")
 except LuaError as err:
-    print("-"*80)
-    print("LuaError in main.lua\n")
-    
     err = str(err).replace('error loading code: ','')
+    err = err.replace('[string "<python>"]',"[(file)]")
     err = '\n'.join(textwrap.wrap(err, width=70))
     err = textwrap.indent(err, " "*4)
     
+    print("-"*80)
+    print("LuaError in main.lua or nested module\n")
     print(err)
     print()
     print("-"*80)

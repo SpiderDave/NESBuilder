@@ -953,7 +953,7 @@ try:
     lua.execute(f.read())
     f.close()
 except:
-    print("Error: Could not open/execute main.lua")
+    raise NameError('Could not open/execute main.lua')
     sys.exit()
 
 config  = lua.eval('config or {}')

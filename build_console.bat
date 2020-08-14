@@ -38,6 +38,7 @@ pyinstaller --onefile -%parameter% -i icon.ico -n NESBuilder%suffix%.exe ^
             --add-binary "include\Tserial.lua;include" ^
             --add-binary "include\util.lua;include" ^
             --add-binary "cursors\pencil.cur;cursors" ^
+            --hidden-import "lupa._lupa" ^
             NESBuilder.py
 if %errorlevel% NEQ 0 goto error
 

@@ -6,7 +6,7 @@ ToDo:
     * makeCanvas method
     * clean up color variable names, add more
 '''
-#test
+
 import sys
 import lupa
 from lupa import LuaRuntime

@@ -17,7 +17,9 @@ config = {
         bk_menu_highlight='#606080',
     },
     pluginFolder = "plugins",
-    launchText=[[
+}
+
+config.launchText=[[
 Created by SpiderDave
 -------------------------------------------------------------------------------------------
 To open a project select "Open Project" from the "File" menu.
@@ -52,7 +54,6 @@ ToDo:
     * undo!
     * plugin support
 ]]
-}
 
 plugins = {}
 

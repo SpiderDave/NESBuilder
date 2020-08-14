@@ -808,8 +808,11 @@ def onExit():
 def hello():
     pass
 
-
 root = Tk()
+
+# hide the window until it's ready
+root.withdraw()
+
 #root.geometry("{0}x{1}".format(coalesce(config.width, 800), coalesce(config.height, 400)))
 root.protocol( "WM_DELETE_WINDOW", onExit )
 root.configure(bg=color_bk)
@@ -1038,5 +1041,10 @@ if os.path.exists(dir):
             #print(fancy(code))
             lua.execute(code)
     lua.execute("if onPluginsLoaded then onPluginsLoaded() end")
+
 root.geometry("{0}x{1}".format(coalesce(config.width, 800), coalesce(config.height, 400)))
+
+# show the window
+root.deiconify()
+
 root.mainloop()

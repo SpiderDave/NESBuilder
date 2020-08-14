@@ -22,9 +22,16 @@ rem set pyinstaller flag to determine if a console window will be added
 set parameter=w
 if %console% NEQ 0 set suffix=C& set parameter=c
 
+rem run this to fill the pycmd environment variable
+call findpython.bat 1
+if %errorlevel% NEQ 0 goto error
+
 rem make sure we can find pyinstaller
-where pyinstaller>nul 2>&1
+where/q pyinstaller
 if %errorlevel% NEQ 0 set errormessage=Could not find pyinstaller.& goto error
+
+%pycmd% makeVersion.py
+if %errorlevel% NEQ 0 set errormessage=Could not create version information file.&goto error
 
 rem copy files
 echo copying required files to dist folder...
@@ -34,11 +41,13 @@ copy/y chr.png dist
 if %errorlevel% NEQ 0 set errormessage=Could not copy chr.png & goto error
 
 rem run pyinstaller
+echo starting pyinstaller...
 pyinstaller --onefile -%parameter% -i icon.ico -n NESBuilder%suffix%.exe ^
             --add-binary "include\Tserial.lua;include" ^
             --add-binary "include\util.lua;include" ^
             --add-binary "cursors\pencil.cur;cursors" ^
             --hidden-import "lupa._lupa" ^
+            --version-file "version.py" ^
             NESBuilder.py
 if %errorlevel% NEQ 0 goto error
 

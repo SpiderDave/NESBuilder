@@ -969,8 +969,7 @@ except LuaError as err:
     gotError = True
 
 if gotError:
-    raise NameError('Could not open/execute main.lua')
-    sys.exit()
+    sys.exit(1)
     
 config  = lua.eval('config or {}')
 config.title = config.title or "SpideyGUI"

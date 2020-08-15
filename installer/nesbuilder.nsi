@@ -15,7 +15,7 @@
 Name "NES Builder"
 
 ; The file to write
-OutFile "NESBuilder_Setup.exe"
+OutFile "NESBuilder_Install.exe"
 
 ; Request application privileges for Windows Vista and higher
 RequestExecutionLevel admin
@@ -71,8 +71,8 @@ InstType "Full"
 
 !define GitURL "https://raw.githubusercontent.com/SpiderDave/NESBuilder/master/"
 
-
-
+!include StrFunc.nsh
+${StrRep}
 
 ; The - makes it hidden
 Section "-Uninstaller"
@@ -93,14 +93,21 @@ Section "-Uninstaller"
 SectionEnd
 
 Section "-DefaultStuff"
+
     SectionIn RO
 
+    ; make sure the install folder exists
+    CreateDirectory $INSTDIR
+
     CreateDirectory $INSTDIR\tools
+    
+    ; Set output path to the installation directory.
+    SetOutPath $INSTDIR
+    
     inetc::get \
-        "${GitURL}tools/asm6.exe" "tools/asm6.exe"\
+        "${GitURL}asm6.exe" "tools/asm6.exe"\
         /END
     Pop $0
-
 SectionEnd
 
 ; The stuff to install
@@ -233,3 +240,12 @@ Section "Uninstall"
     RMDir "$INSTDIR"
 
 SectionEnd
+
+Function .onInit
+    SetOutPath $TEMP
+    
+    inetc::get \
+        "${GitURL}filelist.txt" "filelist.txt"\
+        /END
+    Pop $0
+FunctionEnd

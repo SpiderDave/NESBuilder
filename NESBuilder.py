@@ -16,6 +16,7 @@ lua = LuaRuntime(unpack_returned_tuples=True)
 from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import messagebox as msg
+from tkinter import simpledialog
 import tkinter as tk
 from tkinter import ttk
 from tkinter import *
@@ -23,6 +24,8 @@ from tkinter import *
 from PIL import ImageTk, Image, ImageDraw
 from PIL import ImageOps
 from PIL import ImageGrab
+
+import re
 
 import textwrap
 
@@ -140,11 +143,15 @@ class ForLua:
             this.y=y
             this.w=w
             this.h=h
-
+            
             t = func(t, (x,y,w,h,this))
+            t.control.update()
             
             return t
         return inner
+    def pathExists(self, f):
+        f = fixPath(script_path+"/"+f)
+        return os.path.exists(f)
     def delete(self, filename):
         filename = fixPath(script_path+"/"+filename)
         try:
@@ -179,6 +186,22 @@ class ForLua:
         return [int(x) for x in "{:08b}".format(n)]
     def bitArrayToNumber(self, l):
         return int("".join(str(x) for x in l), 2) 
+    def showError(self, title, text):
+        answer = messagebox.showerror(title, text)
+        return answer
+    def askText(self, title, text):
+        answer = simpledialog.askstring(title, text, parent=root)
+        if answer:
+            answer=answer.strip()
+        if answer == '': answer=None
+        return answer
+    def isAlphaNumeric(self, txt):
+        return txt.isalnum()
+    def regexMatch(self,reString, txt):
+        if re.match(reString, txt):
+            return True
+        else:
+            return None
     def askyesnocancel(self, title, message):
         q = messagebox.askyesnocancel(title, message)
         print(q)
@@ -642,6 +665,7 @@ class ForLua:
             control.config(justify=t.get(j, tk.LEFT))
         # This is a lua table used for the callback and
         # also as a return value for this method.
+        
         t=lua.table(name=t.name,
                     control=control,
                     height=h,
@@ -798,7 +822,7 @@ class ForLua:
 # to Lua
 lua_func = lua.eval('function(o) {0} = o return o end'.format('Python'))
 lua_func(ForLua)
-
+lua.execute('NESBuilder = Python')
 
 lua_func = lua.eval('function(o) {0} = o return o end'.format('nesPalette'))
 lua_func(lua.table(nesPalette))
@@ -900,7 +924,8 @@ tab2 = ttk.Frame(tab_parent, style='new.TFrame')
 tab3 = ttk.Frame(tab_parent, style='new.TFrame')
 tabs={'Launch':tabLaunch,'Main':tab1,'Palette':tab2,'Image':tab3}
 
-tab_parent.add(tabLaunch, text="Launcher")
+#tab_parent.add(tabLaunch, text="Launcher")
+tab_parent.add(tabLaunch, text="Info")
 tab_parent.add(tab1, text="Main")
 tab_parent.add(tab2, text="Palette")
 tab_parent.add(tab3, text="CHR")
@@ -909,6 +934,7 @@ tab_parent.pack(expand=1, fill='both')
 menubar = Menu(root)
 
 filemenu = Menu(menubar, tearoff=0)
+filemenu.add_command(label="New Project", command=lambda: doCommand("New"))
 filemenu.add_command(label="Open Project", command=lambda: doCommand("Open"))
 filemenu.add_command(label="Save Project", command=lambda: doCommand("Save"))
 filemenu.add_command(label="Build Project", command=lambda: doCommand("Build"))

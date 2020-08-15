@@ -22,37 +22,26 @@ config = {
 config.launchText=[[
 Created by SpiderDave
 -------------------------------------------------------------------------------------------
-To open a project select "Open Project" from the "File" menu.
-To create a new project, do the same as above, but create a new folder.
+NESBuilder is a NES development tool.
 
-Many things do not work yet.
-
-Working:
-    * loading, saving projects
-    * Build Project
-    * About
-    * Most of the CHR tab
+Notes:
+    General:
+        Lots of work to do!
+    
+    CHR Tab:
         - only 128x128 (4K) CHR banks at the moment
         - Fixed to 8 banks for now
         - you can click to change pixels on it, but it's just the 
-          start of a proper editing mode
+          start of a proper editing mode (export and use your
+          favorite editor and re-import for now).
         - CHR refreshing is slow
-Working, but really just for testing:
-    * Extract Level - SMB Level Extractor
-    * Make CHR - Makes chr from a .png with set colors for now
-      (use chr.png to test)
-
-Not working:
-    * Cut, Copy, Paste
 
 ToDo:
-    * Show palette index
     * Ability to remove palettes
     * Palette sets and extra labels
     * More error handling
     * Replace this page with launcher
     * undo!
-    * plugin support
 ]]
 
 plugins = {}
@@ -117,8 +106,9 @@ for i=0,#nespalette do
 end
 
 function init()
-    local x,y
-    local x2,y2
+    local x,y,x2,y2,pad
+    local control, b, c
+    local top,left
     
     print("init")
     
@@ -129,35 +119,30 @@ function init()
     Python:makeDir(data.folders.projects)
     
     pad=6
-    
-    x=pad*1.5
-    y=pad*1.5
+    top = pad*1.5
+    left = pad*1.5
+    x,y = left,top
     
     Python.setTab("Launch")
     
-    control = Python.makeLabel{x=x,y=y,name="testLabel",clear=true,text="NESBuilder"}
+    control = Python.makeLabel{x=x,y=y,name="launchLabel",clear=true,text="NESBuilder"}
     control.setFont("Verdana", 24)
-    control.height = 32 -- can't get proper height for labels sometimes, needs work.
-    y = y + control.height + pad
     
-    control = Python.makeLabel{x=x,y=y,name="testLabel",clear=true,text=config.launchText}
+    -- Getting wrong height here for some reason.  Doesn't happen in a plugin.
+    control.height = 26
+    
+    y = y + control.height + pad*1.5
+    
+    control = Python.makeLabel{x=x,y=y,name="launchLabel2",clear=true,text=config.launchText}
     control.setFont("Verdana", 12)
     control.setJustify("left")
     
     
     Python.setTab("Main")
+    x,y = left,top
     
-    x=pad*1.5
-    y=pad*1.5
-    
-    top = Python.y + pad*1.5
-    left = pad*1.5
-
---    b=Python.makeButton{x=x,y=y,name="LoadProject",text="Load Project"}
---    y = y + b.height + pad
-    
---    b=Python.makeButton{x=x,y=y,name="SaveProject",text="Save Project"}
---    y = y + b.height + pad
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidth, name="NewProject",text="New Project"}
+    y = y + b.height + pad
     
     b=Python.makeButton{x=x,y=y,w=config.buttonWidth, name="OpenProject",text="Open Project"}
     y = y + b.height + pad
@@ -198,7 +183,6 @@ function init()
     
     Python.setTab("Palette")
     Python.setDirection("h")
-    
     x,y=left,top
     
     p = {[0]=0x0f,0x21,0x11,0x01}
@@ -514,7 +498,67 @@ function updateTitle()
     Python:setTitle(string.format("%s - %s%s", config.title, data.projectID, changed))
 end
 
+function NewProject_cmd()
+    if data.project.changed then
+        q= Python:askyesnocancel("", string.format("Save changes to %s?",data.projectID))
+        
+        -- cancel
+        if q==nil then return end
+        
+        if q==true then
+            SaveProject_cmd()
+        end
+    end
 
+
+    n = NESBuilder:askText("New Project", "Please enter a name for the project")
+    if (not n) or n=='' then
+        print('cancelled')
+        return
+    end
+    
+    -- Currently, must start with letter or number, and can contain 
+    -- letters, numbers, underscore, dash
+    if not NESBuilder:regexMatch("^[A-Za-z0-9]+[A-Za-z0-9_-]*$",n) then
+        NESBuilder:showError("Error", string.format('Invalid project name: "%s"',n))
+        return
+    end
+    
+    -- check if the project folder already exists
+    f = data.folders.projects..n
+    if NESBuilder:pathExists(f) then
+         local q= NESBuilder:askyesnocancel("", string.format('The project folder "%s" already exists.  Load it instead?', n))
+         -- cancel
+        if q==nil then return end
+        
+        -- no
+        if q==false then return end
+
+        -- yes
+        data.projectID = n
+        LoadProject_cmd()
+        return
+    end
+    
+    print(string.format('Creating new project "%s"',n))
+    data.projectID = n
+    LoadProject_cmd()
+end
+
+function Cut_cmd()
+    NESBuilder:showError("Error", "Not yet implemented.")
+end
+function Copy_cmd()
+    NESBuilder:showError("Error", "Not yet implemented.")
+end
+function Paste_cmd()
+    NESBuilder:showError("Error", "Not yet implemented.")
+end
+
+
+function New_cmd()
+    NewProject_cmd()
+end
 function OpenProject_cmd()
     Open_cmd()
 end

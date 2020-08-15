@@ -1,14 +1,19 @@
 # NES Builder
 NES Building Software made with Python and Lua
 
+Current Stage: Alpha
+
 ![_](https://i.imgur.com/HyRHRub.png)
 
-## Building ##
-Currently there is no binary release, but you can build your own.
-The resulting single file exe is rather large (~30MB) so binary 
-releases won't be frequent, and wont happen until the program 
-changes a bit less rapidly.
+## Installing ##
+Download the [latest release](https://github.com/SpiderDave/NESBuilder/releases).
+The NESBuilder_Setup.exe installer will allow you to download and install the latest compoents:
+* NESBuilder Executable
+* NESBuilder Source
+* Installer Source
+* Start Menu Shortcuts
 
+## Building ##
 Requirements:
 * Windows
 * Python 3
@@ -18,6 +23,7 @@ You can use "install dependencies.bat" to install these.
 * lupa
 * pyinstaller
 * pillow
+* numpy
 
 
 ## Plugins ##

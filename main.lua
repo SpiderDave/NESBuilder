@@ -128,9 +128,25 @@ function init()
     -- make sure projects folder exists
     Python:makeDir(data.folders.projects)
     
+    pad=6
+    
+    x=pad*1.5
+    y=pad*1.5
+    
+    Python.setTab("Launch")
+    
+    control = Python.makeLabel{x=x,y=y,name="testLabel",clear=true,text="NESBuilder"}
+    control.setFont("Verdana", 24)
+    control.height = 32 -- can't get proper height for labels sometimes, needs work.
+    y = y + control.height + pad
+    
+    control = Python.makeLabel{x=x,y=y,name="testLabel",clear=true,text=config.launchText}
+    control.setFont("Verdana", 12)
+    control.setJustify("left")
+    
+    
     Python.setTab("Main")
     
-    pad=6
     x=pad*1.5
     y=pad*1.5
     
@@ -143,14 +159,24 @@ function init()
 --    b=Python.makeButton{x=x,y=y,name="SaveProject",text="Save Project"}
 --    y = y + b.height + pad
     
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidth, name="OpenProject",text="Open Project"}
+    y = y + b.height + pad
+
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidth, name="SaveProject",text="Save Project"}
+    y = y + b.height + pad
+
     b=Python.makeButton{x=x,y=y,w=config.buttonWidth, name="BuildProject",text="Build Project"}
     y = y + b.height + pad
     
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonLevelExtract",text="Extract Level"}
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidth, name="BuildProjectTest",text="Build Project and Test"}
     y = y + b.height + pad
     
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonMakeCHR",text="Make CHR"}
-    y = y + b.height + pad
+
+--    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonLevelExtract",text="Extract Level"}
+--    y = y + b.height + pad
+    
+--    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonMakeCHR",text="Make CHR"}
+--    y = y + b.height + pad
     
     buttonHeight = b.height
 
@@ -161,13 +187,13 @@ function init()
     
     --b=Python.makeText{x=x,y=y, lineHeight=20,lineWidth=80, name="Text1",text="Text1"}
     
-    x2,y2=x,y
-    b=Python.makeText{x=x,y=y,w=20, w=150,h=buttonHeight, name="Text1",text="Text1"}
-    y = y + b.height + pad
+--    x2,y2=x,y
+--    b=Python.makeText{x=x,y=y,w=20, w=150,h=buttonHeight, name="Text1",text="Text1"}
+--    y = y + b.height + pad
     
-    b=Python.makeButton{x=left+150+pad,y=y2,w=config.buttonWidth,name="ButtonSetText1",text="Set"}
-    x=left
-    y = y + b.height + pad
+--    b=Python.makeButton{x=left+150+pad,y=y2,w=config.buttonWidth,name="ButtonSetText1",text="Set"}
+--    x=left
+--    y = y + b.height + pad
     
     
     Python.setTab("Palette")
@@ -487,6 +513,18 @@ function updateTitle()
     
     Python:setTitle(string.format("%s - %s%s", config.title, data.projectID, changed))
 end
+
+
+function OpenProject_cmd()
+    Open_cmd()
+end
+function SaveProject_cmd()
+    Save_cmd()
+end
+function BuildProjectTest_cmd()
+    BuildTest_cmd()
+end
+
 
 function Build_cmd()
     BuildProject_cmd()

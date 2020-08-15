@@ -632,12 +632,22 @@ class ForLua:
         
         control=b
         
+        def setFont(fontName="Verdana", size=12):
+            control.config(font=(fontName, size))
+        def setJustify(j):
+            t = {
+                "left":tk.LEFT,
+                "right":tk.RIGHT
+                }
+            control.config(justify=t.get(j, tk.LEFT))
         # This is a lua table used for the callback and
         # also as a return value for this method.
         t=lua.table(name=t.name,
                     control=control,
                     height=h,
                     width=w,
+                    setFont = setFont,
+                    setJustify = setJustify,
                     )
         
         controls.update({t.name:t})
@@ -645,43 +655,6 @@ class ForLua:
         control.bind( "<Button-1>", makeCmdNew(t))
         return t
         
-    def _makeLabel(t):
-        this=ForLua
-        
-        #b = tk.Label(root, text=t.text, borderwidth=1, background="white", relief="solid")
-        b = tk.Label(this.getTab(), text=t.text, borderwidth=1, background="white", relief="solid")
-        #b.config(fg="red", bg="blue")
-        b.config(fg=color_fg, bg=color_bk2)
-        
-        if t.clear:
-            b.config(fg=color_fg, bg=color_bk, borderwidth=0)
-        
-        #l1 = Label(root, text="This", borderwidth=2, relief="groove")
-        
-        if this.direction.lower() in ("v","vertical"):
-            x=coalesce(t.x, this.x, 0)
-            y=coalesce(t.y, this.y+this.h, 0)
-        else:
-            x=coalesce(t.x, this.x+this.w, 0)
-            y=coalesce(t.y, this.y, 0)
-        w=coalesce(t.w, this.w, 16)
-        h=coalesce(t.h, this.h, 16)
-        this.x=x
-        this.y=y
-        this.w=w
-        this.h=h
-        
-        
-        if t.clear:
-            b.place(x=x, y=y)
-        else:
-            b.place(x=x, y=y, height=h, width=w)
-        
-        b.bind( "<Button-1>", makeCmd(t.name, {'foo':42}))
-        controls.update({t.name:b})
-        controls[t.name].update()
-        c=controls[t.name]
-        return controls[t.name]
     def makePaletteControl(t):
         this=ForLua
 
@@ -1100,15 +1073,6 @@ root.title(config.title)
 #b.image = logo # keep a reference!
 #b.place(x=8, y=8)
 
-b = tk.Label(tabs.get('Launch'), text=config.title, borderwidth=0, foreground=color_fg, background=color_bk)
-b.config(font=(False, 24))
-b.place(x=8, y=8)
-
-if config.launchText:
-    txt = config.launchText.strip()
-    b = tk.Label(tabs.get('Launch'), text=txt, borderwidth=0, foreground=color_fg, background=color_bk, justify=tk.LEFT)
-    b.config(font=("Verdana", 12))
-    b.place(x=8, y=48)
 
 print("This console is for debugging purposes.\n")
 

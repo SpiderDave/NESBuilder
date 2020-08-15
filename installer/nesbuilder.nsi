@@ -100,12 +100,15 @@ Section "-DefaultStuff"
     CreateDirectory $INSTDIR
 
     CreateDirectory $INSTDIR\tools
+    CreateDirectory $INSTDIR\plugins
     
     ; Set output path to the installation directory.
     SetOutPath $INSTDIR
     
     inetc::get \
-        "${GitURL}asm6.exe" "tools/asm6.exe"\
+        "${GitURL}tools/asm6.exe" "tools/asm6.exe"\
+        "${GitURL}plugins/_samplePlugin.lua" "plugins/_samplePlugin.lua"\
+        "${GitURL}plugins/hello.py" "plugins/hello.py"\
         /END
     Pop $0
 SectionEnd
@@ -227,6 +230,7 @@ Section "Uninstall"
     RMDir /r /REBOOTOK $INSTDIR\include
     RMDir /r /REBOOTOK $INSTDIR\installer
     RMDir /r /REBOOTOK $INSTDIR\tools
+    RMDir /r /REBOOTOK $INSTDIR\plugins
     Delete $INSTDIR\NESBuilder.exe.spec
     Delete $INSTDIR\uninstall.exe
 

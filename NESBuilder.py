@@ -360,7 +360,8 @@ class ForLua:
         
         ret = this.loadCHRData(self,fileData,colors)
         return ret
-
+    def newCHRData(self):
+        return lua.table_from("\x00" * 0x1000)
     def loadCHRData(self, fileData=False, colors=(0x0f,0x21,0x11,0x01)):
         this=ForLua
         
@@ -635,9 +636,12 @@ class ForLua:
         # also as a return value for this method.
         t=lua.table(name=t.name,
                     control=control,
+                    height=h,
+                    width=w,
                     )
         
         controls.update({t.name:t})
+
         control.bind( "<Button-1>", makeCmdNew(t))
         return t
         
@@ -800,6 +804,17 @@ class ForLua:
         control.bind( "<ButtonRelease-1>", control.cmd)
         
         return t
+    def createTab(self, name, text):
+        
+        if name in tabs:
+            print('Not creating tab "{}" (already exists).'.format(name))
+        else:
+            tab = ttk.Frame(tab_parent, style='new.TFrame')
+            tabs.update({name:tab})
+            tab_parent.add(tab, text=text)
+            
+            tab_parent.pack(expand=1, fill='both')
+
     def setTitle(self, title=''):
         root.title(title)
 

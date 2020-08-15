@@ -822,6 +822,13 @@ function canvas_cmd(t)
     local c = data.selectedColor
     local cBits = Python:numberToBitArray(c)
     
+    
+    if not data.project.chr[data.project.chr.index] then
+        -- Load in blank CHR if drawing on empty CHR.
+        data.project.chr[data.project.chr.index] = Python:loadCHRData()
+    end
+    
+    
     for i=0, 1 do
         local b = data.project.chr[data.project.chr.index][tileOffset+1+(i*8)+y%8]
         local l=Python:numberToBitArray(b)

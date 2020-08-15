@@ -12,6 +12,7 @@ end
 function util.writeToFile(file,address, data, wipe)
     if wipe==true or (not util.fileExists(file)) then
         local f=io.open(file,"w")
+        if not f then return nil end
         f:close()
     end
     if not data then return nil end

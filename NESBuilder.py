@@ -22,12 +22,14 @@ from tkinter import *
 #from tkinter.ttk import *
 from PIL import ImageTk, Image, ImageDraw
 from PIL import ImageOps
+from PIL import ImageGrab
 
 import textwrap
 
 import numpy as np
 
 from shutil import copyfile
+import subprocess
 
 #from textwrap import dedent
 
@@ -143,7 +145,36 @@ class ForLua:
             
             return t
         return inner
-
+    def delete(self, filename):
+        filename = fixPath(script_path+"/"+filename)
+        try:
+            if os.path.exists(filename):
+                os.remove(filename)
+            return True
+        except:
+            print("Could not delete "+filename)
+            return False
+    def run(self, workingFolder, cmd, args):
+        try:
+            cmd = fixPath(script_path+"/"+cmd)
+            workingFolder = fixPath(script_path+"/"+workingFolder)
+            os.chdir(workingFolder)
+            subprocess.run([cmd]+ args.split())
+            print()
+            return True
+        except:
+            print("could not run " + cmd)
+            return False
+    def shellOpen(self, workingFolder, cmd):
+        cmd = fixPath(script_path+"/"+cmd)
+        workingFolder = fixPath(script_path+"/"+workingFolder)
+        try:
+            os.chdir(workingFolder)
+            os.startfile(cmd, 'open')
+            return True
+        except:
+            print("could not open " + cmd)
+            return False
     def numberToBitArray(self, n):
         return [int(x) for x in "{:08b}".format(n)]
     def bitArrayToNumber(self, l):
@@ -212,9 +243,9 @@ class ForLua:
     def saveCanvasImage(self, f='test.png'):
         pass
         #canvas.im.save(f,"PNG")
-        #grabcanvas=ImageGrab.grab(bbox=canvas)
+        grabcanvas=ImageGrab.grab(bbox=canvas)
         #.save("test.png")
-        #ttk.grabcanvas.save("test.png")
+        ttk.grabcanvas.save(f)
 
         #print("loadImageToCanvas: {0}".format(f))
 #        Image.save(
@@ -378,6 +409,53 @@ class ForLua:
         canvas.configure(highlightthickness=0, borderwidth=0)
         
         return ret
+    def exportCHRDataToImage(self, filename="export.png", fileData=False, colors=(0x0f,0x21,0x11,0x01)):
+        this=ForLua
+        colors=(0x0f,0x21,0x11,0x01)
+        
+        if not fileData:
+            print('no filedata')
+            fileData = "\x00" * 0x1000
+        
+        if type(fileData) is str:
+            fileData = [ord(x) for x in fileData]
+        elif lupa.lua_type(fileData)=="table":
+            #fileData = [fileData[x] for x in fileData]
+            fileData = list([fileData[x] for x in fileData])
+            
+        # convert and re-index lua table
+        if lupa.lua_type(colors)=="table":
+            colors = [colors[x] for x in colors]
+        
+        img=Image.new("RGB", size=(128,128))
+        
+        a = np.asarray(img).copy()
+        
+        for tile in range(256):
+            for y in range(8):
+                for x in range(8):
+                    c=0
+                    x1=tile%16*8+(7-x)
+                    y1=math.floor(tile/16)*8+y
+                    if (fileData[tile*16+y] & (1<<x)):
+                        c=c+1
+                    if (fileData[tile*16+y+8] & (1<<x)):
+                        c=c+2
+                    a[y1][x1] = nesPalette[colors[c]]
+        
+        img = Image.fromarray(a)
+        
+#        ret = lua.table_from(fileData)
+        
+#        photo = ImageTk.PhotoImage(ImageOps.scale(img, 3.0, resample=Image.NEAREST))
+        
+#        canvas.chrImage = photo # keep a reference
+        
+#        canvas.create_image(0,0, image=photo, state="normal", anchor=NW)
+#        canvas.configure(highlightthickness=0, borderwidth=0)
+        img.save(filename)
+        
+#        return ret
     def Quit():
         onExit()
     def exec(s):
@@ -846,6 +924,7 @@ filemenu = Menu(menubar, tearoff=0)
 filemenu.add_command(label="Open Project", command=lambda: doCommand("Open"))
 filemenu.add_command(label="Save Project", command=lambda: doCommand("Save"))
 filemenu.add_command(label="Build Project", command=lambda: doCommand("Build"))
+filemenu.add_command(label="Build Project and Test", command=lambda: doCommand("BuildTest"))
 filemenu.add_separator()
 filemenu.add_command(label="Exit", command=lambda: doCommand("Quit"))
 menubar.add_cascade(label="File", menu=filemenu)

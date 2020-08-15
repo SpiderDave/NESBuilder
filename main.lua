@@ -87,6 +87,7 @@ data.projectID = "project1" -- this determines the folder that it will load the 
 --data.projectID = "newproject"
 data.folders = {
     projects = "projects/",
+    tools = "tools/",
 }
 
 
@@ -262,7 +263,8 @@ function init()
     b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="LoadCHR",text="Load .chr"}
     y = y + b.height + pad
     
-    
+    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="ExportCHRImage",text="Export to .png"}
+    y = y + b.height + pad
     
 --    f="chr.png"
 --    Python:loadImageToCanvas(f)
@@ -302,7 +304,7 @@ function handlePluginCallback(f)
 end
 
 function loadSettings()
-    filename = "settings.dat"
+    local filename = "settings.dat"
     data.settings = util.unserialize(util.getFileContents(filename)) or {project = data.projectID}
     
     -- Load last project
@@ -312,7 +314,7 @@ end
 function saveSettings()
     data.settings.project = data.projectID
     
-    filename = "settings.dat"
+    local filename = "settings.dat"
     util.writeToFile(filename,0, util.serialize(data.settings), true)
 end
 
@@ -349,7 +351,7 @@ function CHRPalette_cmd(t)
 end
 
 function ButtonMakeCHR_cmd()
-    f = Python:openFile({{"Images", ".png"}})
+    local f = Python:openFile({{"Images", ".png"}})
     if f == "" then
         print("Open cancelled.")
     else
@@ -414,7 +416,7 @@ ButtonPrevPaletteCHR_cmd = ButtonPrevPalette_cmd
 ButtonNextPaletteCHR_cmd = ButtonNextPalette_cmd
 
 function ButtonLevelExtract_cmd()
-    f = Python:openFile({{"NES rom", ".nes"}})
+    local f = Python:openFile({{"NES rom", ".nes"}})
     if f == "" then
         print("Open cancelled.")
     else
@@ -435,7 +437,7 @@ function LoadProject_cmd()
     
     projectFolder = data.projectID.."/"
     
-    filename = data.folders.projects..projectFolder.."project.dat"
+    local filename = data.folders.projects..projectFolder.."project.dat"
     data.project = util.unserialize(util.getFileContents(filename))
     
     if not data.project then
@@ -490,29 +492,40 @@ function Build_cmd()
     BuildProject_cmd()
 end
 
+function BuildTest_cmd()
+    BuildProject_cmd()
+
+    workingFolder = data.folders.projects..data.project.folder
+    local f = data.folders.projects..data.project.folder.."game.nes"
+    Python:shellOpen(workingFolder, f)
+end
+
 function BuildProject_cmd()
     -- make sure folder exists for this project
     Python:makeDir(data.folders.projects..data.project.folder)
+    
+    Python:makeDir(data.folders.projects..data.project.folder.."/chr")
+    Python:makeDir(data.folders.projects..data.project.folder.."/code")
     
     handlePluginCallback("onBuild")
     
     -- save CHR
     for i=0,#data.project.chr do
         if data.project.chr[i] then
-            f = data.folders.projects..data.project.folder..string.format("chr%02x.chr",i)
+            local f = data.folders.projects..data.project.folder..string.format("chr/chr%02x.chr",i)
             print("File created "..f)
             util.writeToFile(f, 0, data.project.chr[i], true)
         end
     end
     
 --    if data.project.chrData then
---        f = data.folders.projects..data.project.folder.."output.chr"
+--        local f = data.folders.projects..data.project.folder.."output.chr"
 --        print("File created "..f)
 --        util.writeToFile(f, 0, data.project.chrData, true)
 --    end
 
     c = Python.getControl('PaletteList')
-    filename = data.folders.projects..projectFolder.."palettes.asm"
+    local filename = data.folders.projects..projectFolder.."code/palettes.asm"
 
     out=""
     
@@ -549,17 +562,31 @@ function BuildProject_cmd()
         end
     end
     
+    print("File created "..filename)
     util.writeToFile(filename,0, out, true)
     
+    local filename = data.folders.projects..projectFolder.."code/version.asm"
     
-    filename = data.folders.projects..projectFolder.."version.asm"
-    
-    t = os.date("*t")
+    local t = os.date("*t")
     out=string.format("; %s.%s.%s %s:%s\n",t.year, t.month, t.day, t.hour, t.min)
     out=string.format('version:\n    .db "v%s.%s.%s"\n\n',t.year, t.month, t.day)
     
     util.writeToFile(filename,0, out, true)
     
+    -- assemble project
+    local folder = data.folders.projects..data.project.folder
+    
+    -- make sure project.asm exists, or dont bother
+    if util.fileExists(folder.."project.asm") then
+        -- remove old game.nes
+        if Python:delete(folder.."game.nes") then
+            cmd = data.folders.tools.."asm6.exe"
+            args = "-L project.asm game.nes list.txt"
+            Python:run(folder, cmd, args)
+        else
+            print("Did not assemble project.")
+        end
+    end
 end
 
 function SaveProject_cmd()
@@ -568,7 +595,7 @@ function SaveProject_cmd()
     
     handlePluginCallback("onSaveProject")
     
-    filename = data.folders.projects..data.project.folder.."project.dat"
+    local filename = data.folders.projects..data.project.folder.."project.dat"
     util.writeToFile(filename,0, util.serialize(data.project), true)
     
     dataChanged(false)
@@ -623,7 +650,7 @@ end
 
 function LoadCHRImage_cmd()
     local CHRData
-    f = Python:openFile(nil)
+    local f = Python:openFile(nil)
     if f == "" then
         print("Open cancelled.")
     else
@@ -648,9 +675,23 @@ function LoadCHRImage_cmd()
     end
 end
 
+function ExportCHRImage_cmd()
+    local filename = string.format("chr%02x_export.png",data.project.palettes.index)
+    local f = Python:saveFileAs({{"CHR", ".chr"}},filename)
+    if f == "" then
+        print("Export cancelled.")
+    else
+        print("file: "..f)
+    end
+    
+    p=data.project.palettes[data.project.palettes.index]
+    chrData = data.project.chr[data.project.chr.index]
+    Python:exportCHRDataToImage(f, chrData, p)
+end
+
 function LoadCHRNESmaker_cmd()
     local CHRData
-    f = Python:openFile(nil)
+    local f = Python:openFile(nil)
     if f == "" then
         print("Open cancelled.")
     else
@@ -677,7 +718,7 @@ end
 
 
 function LoadCHR_cmd()
-    f = Python:openFile(nil)
+    local f = Python:openFile(nil)
     if f == "" then
         print("Open cancelled.")
         return
@@ -704,7 +745,7 @@ function Open_cmd()
         end
     end
     
-    f, projectID = Python:openFolder("projects")
+    local f, projectID = Python:openFolder("projects")
     if f == "" then
         print("Open cancelled.")
     else
@@ -717,7 +758,7 @@ end
 
 function Save_cmd()
     SaveProject_cmd()
---    f = Python:saveFileAs(nil)
+--    local f = Python:saveFileAs(nil)
 --    if f == "" then
 --        print("Save cancelled.")
 --    else

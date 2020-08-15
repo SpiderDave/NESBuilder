@@ -74,10 +74,11 @@ InstType "Full"
 
 
 
-Section "-Uninstaller" sec_hidden
+; The - makes it hidden
+Section "-Uninstaller"
     SectionIn RO
 
-    ; make sure the install dir exists
+    ; make sure the install folder exists
     CreateDirectory $INSTDIR
     
     ; Write the installation path into the registry
@@ -89,6 +90,16 @@ Section "-Uninstaller" sec_hidden
     WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NESBuilder" "NoModify" 1
     WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NESBuilder" "NoRepair" 1
     WriteUninstaller "$INSTDIR\uninstall.exe"
+SectionEnd
+
+Section "-DefaultStuff"
+    SectionIn RO
+
+    CreateDirectory $INSTDIR\tools
+    inetc::get \
+        "${GitURL}tools/asm6.exe" "tools/asm6.exe"\
+        /END
+    Pop $0
 
 SectionEnd
 
@@ -113,7 +124,6 @@ Section "NESBuilder Executable"
         "${GitURL}dist/NESBuilder.exe" "NESBuilder.exe"\
         /END
     Pop $0
-
 
 SectionEnd
 
@@ -146,6 +156,7 @@ Section "NESBuilder Source"
         "${GitURL}chr.png" "chr.png"\
         /END
     Pop $0
+
 SectionEnd
 
 Section "Installer Source"
@@ -164,15 +175,14 @@ Section "Installer Source"
         /END
     Pop $0
 
-
 SectionEnd
 
 ; Optional section (can be disabled by the user)
 Section "Start Menu Shortcuts"
-    SectionIn 1
-    CreateDirectory "$SMPROGRAMS\NESBuilder"
-    CreateShortcut "$SMPROGRAMS\NESBuilder\Uninstall.lnk" "$INSTDIR\uninstall.exe"
-    CreateShortcut "$SMPROGRAMS\NESBuilder\NESBuilder.lnk" "$INSTDIR\NESBuilder.exe"
+        SectionIn 1
+        CreateDirectory "$SMPROGRAMS\NESBuilder"
+        CreateShortcut "$SMPROGRAMS\NESBuilder\Uninstall.lnk" "$INSTDIR\uninstall.exe"
+        CreateShortcut "$SMPROGRAMS\NESBuilder\NESBuilder.lnk" "$INSTDIR\NESBuilder.exe"
 SectionEnd
 
 ;--------------------------------
@@ -207,6 +217,7 @@ Section "Uninstall"
     RMDir /r /REBOOTOK $INSTDIR\dist
     RMDir /r /REBOOTOK $INSTDIR\include
     RMDir /r /REBOOTOK $INSTDIR\installer
+    RMDir /r /REBOOTOK $INSTDIR\tools
     Delete $INSTDIR\NESBuilder.exe.spec
     Delete $INSTDIR\uninstall.exe
 

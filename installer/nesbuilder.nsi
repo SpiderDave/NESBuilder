@@ -179,6 +179,8 @@ Section "Installer Source"
         "${GitURL}installer/header.bmp" "installer/header.bmp"\
         "${GitURL}installer/header.xcf" "installer/header.xcf"\
         "${GitURL}installer/installicon.ico" "installer/installicon.ico"\
+        "${GitURL}installer/updater.nsi" "installer/updater.nsi"\
+        "${GitURL}installer/README.md" "installer/readme.txt"\
         /END
     Pop $0
 

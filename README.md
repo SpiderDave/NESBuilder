@@ -1,9 +1,17 @@
 # NES Builder
-NES Building Software made with Python and Lua
+NES development tool made with Python and Lua
 
 Current Stage: Alpha
 
 ![_](https://i.imgur.com/HyRHRub.png)
+
+## Features ##
+* Open source
+* "Build" project, which exports various items and assembles project.asm if it exists.
+* Palette editor
+* Import CHR banks from .chr, .png, .png (nesmaker).
+* Export CHR banks to .png with chosen palette.
+* plugin system (Lua/Python)
 
 ## Installing ##
 Download the [latest release](https://github.com/SpiderDave/NESBuilder/releases).

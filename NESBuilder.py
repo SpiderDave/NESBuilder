@@ -113,6 +113,14 @@ nesPalette=[
 [0x9c,0xfc,0xf0],[0xc4,0xc4,0xc4],[0x00,0x00,0x00],[0x00,0x00,0x00],
 ]
 
+def pathToFolder(p):
+    return fixPath2(os.path.split(p)[0])
+
+def fixPath2(p):
+    if ":" not in p:
+        p = script_path+"/"+p
+    return p.replace("/",os.sep).replace('\\',os.sep)
+    
 def fixPath(p):
     return p.replace("/",os.sep).replace('\\',os.sep)
 
@@ -173,8 +181,10 @@ class ForLua:
             print("could not run " + cmd)
             return False
     def shellOpen(self, workingFolder, cmd):
-        cmd = fixPath(script_path+"/"+cmd)
-        workingFolder = fixPath(script_path+"/"+workingFolder)
+        #cmd = fixPath(script_path+"/"+cmd)
+        cmd = fixPath2(cmd)
+        #workingFolder = fixPath(script_path+"/"+workingFolder)
+        workingFolder = pathToFolder(workingFolder)
         try:
             os.chdir(workingFolder)
             os.startfile(cmd, 'open')
@@ -370,7 +380,17 @@ class ForLua:
         file.close()
         
         return list(fileData)
-
+    def getFileAsArray(self, f):
+        file=open(f,"rb")
+        fileData = file.read()
+        file.close()
+        fileData = list(fileData)
+        return fileData
+    def saveArrayToFile(self, fileData, f):
+        file=open(f,"wb")
+        file.write(bytes(fileData))
+        file.close()
+        return True
     def loadCHRFile(self, f='chr.chr', colors=(0x0f,0x21,0x11,0x01)):
         this=ForLua
         
@@ -812,6 +832,8 @@ class ForLua:
             
             tab_parent.pack(expand=1, fill='both')
 
+    def restart(self):
+        os.execv(__file__, sys.argv)
     def setTitle(self, title=''):
         root.title(title)
 

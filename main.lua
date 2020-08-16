@@ -583,11 +583,13 @@ function BuildTest_cmd()
 end
 
 function BuildProject_cmd()
+    print("building project...")
+    
     -- make sure folder exists for this project
     Python:makeDir(data.folders.projects..data.project.folder)
     
-    Python:makeDir(data.folders.projects..data.project.folder.."/chr")
-    Python:makeDir(data.folders.projects..data.project.folder.."/code")
+    Python:makeDir(data.folders.projects..data.project.folder.."chr")
+    Python:makeDir(data.folders.projects..data.project.folder.."code")
     
     handlePluginCallback("onBuild")
     

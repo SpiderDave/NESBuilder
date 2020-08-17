@@ -8,8 +8,8 @@ local plugin = {
 }
 
 function plugin.onInit()
-    Python:createTab("sampleplugin", "Sample Plugin")
-    Python.setTab("sampleplugin")
+    NESBuilder:createTab("sampleplugin", "Sample Plugin")
+    NESBuilder:setTab("sampleplugin")
     
     local x,y,control,pad
     
@@ -17,15 +17,15 @@ function plugin.onInit()
     x=pad*1.5
     y=pad*1.5
     
-    control = Python.makeLabel{x=x,y=y,name="PluginLabel",clear=true,text="This is a label."}
+    control = NESBuilder:makeLabel{x=x,y=y,name="PluginLabel",clear=true,text="This is a label."}
     y = y + control.height + pad
 
     -- Simple button test
-    control = Python.makeButton{x=x,y=y,w=config.buttonWidth, name="PluginButton",text="Plugin test button 2"}
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="PluginButton",text="Plugin test button 2"}
     y = y + control.height + pad
 
     -- import a method from a python module and run it.
-    control = Python.makeButton{x=x,y=y,w=config.buttonWidth, name="PluginButton2",text="Python Test"}
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="PluginButton2",text="Python Test"}
     y = y + control.height + pad
     
 end
@@ -40,7 +40,7 @@ end
 
 function PluginButton2_cmd()
     -- import a method from a python module and run it.
-    local hello = Python:importFunction('plugins.hello','hello')
+    local hello = NESBuilder:importFunction('plugins.hello','hello')
     hello()
 end
 

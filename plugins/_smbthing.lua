@@ -8,9 +8,10 @@ local plugin = {
 }
 
 function plugin.onInit()
-    Python:createTab("smbthing", "SMB Thing")
-    Python.setTab("smbthing")
+    NESBuilder:createTab("smbthing", "SMB Thing")
+    NESBuilder:setTab("smbthing")
     
+    local stack, push, pop = NESBuilder:newStack()
     local x,y,control,pad
     local top,left
     
@@ -19,21 +20,20 @@ function plugin.onInit()
     top=pad*1.5
     x,y=left,top
     
-    control = Python.makeLabel{x=x,y=y,name="testLabel",clear=true,text="SMB Thing!"}
+    control = NESBuilder:makeLabel{x=x,y=y,name="testLabel",clear=true,text="SMB Thing!"}
     control.setFont("Verdana", 24)
-    y = y + control.height + 10+ pad
-    
-    control = Python.makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingLoadRom",text="Load rom"}
     y = y + control.height + pad
     
-    control = Python.makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingSaveRom",text="Save rom"}
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingLoadRom",text="Load rom"}
     y = y + control.height + pad
     
-    control = Python.makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingSaveRomAs",text="Save rom as..."}
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingSaveRom",text="Save rom"}
     y = y + control.height + pad
     
-    control=Python.makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbthingPalette", palette=nespalette}
-    control.height = 100
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingSaveRomAs",text="Save rom as..."}
+    y = y + control.height + pad
+    
+    control=NESBuilder:makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbthingPalette", palette=nespalette}
     y = y + control.height + pad
     
     local p = {[0]=0x0f,0x0f,0x0f,0x0f}
@@ -44,18 +44,17 @@ function plugin.onInit()
     end
     
     
-    control=Python.makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="MarioPalette", palette=palette}
-    control.height = 20
+    control=NESBuilder:makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="MarioPalette", palette=palette}
+    push(y + control.height + pad)
     
     x=x+100+pad
-    control = Python.makeLabel{x=x,y=y+4,name="MarioPaletteLabel",clear=true,text="Mario's Palette"}
-    control.height=10
-    y = y + control.height + pad
+    control = NESBuilder:makeLabel{x=x,y=y+4,name="MarioPaletteLabel",clear=true,text="Mario's Palette"}
     
     x=left
-    y=y+20
+    y = pop()
     
-    control = Python.makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingTest",text="Test rom"}
+    
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingTest",text="Test rom"}
     y = y + control.height + pad
     
     plugin.selectedColor=0x0f
@@ -65,11 +64,11 @@ function smbthingTest_cmd()
     local f = plugin.outputFile or plugin.inputFile
     if not f then return end
     local workingFolder = f
-    Python:shellOpen(workingFolder, f)
+    NESBuilder:shellOpen(workingFolder, f)
 end
 
 function smbthingLoadRom_cmd()
-    local f = Python:openFile({{"NES rom", ".nes"}})
+    local f = NESBuilder:openFile({{"NES rom", ".nes"}})
     if f == "" then
         print("Open cancelled.")
         return
@@ -88,7 +87,7 @@ end
 function smbthingSaveRomAs_cmd()
     if not plugin.fileData then return end
     
-    local f = Python:saveFileAs({{"NES rom", ".nes"}},'output.nes')
+    local f = NESBuilder:saveFileAs({{"NES rom", ".nes"}},'output.nes')
     if f == "" then
         print("Save cancelled.")
     else
@@ -111,7 +110,7 @@ function smbthingRefreshPalettes()
         table.insert(p,plugin.fileData[offset+i])
     end
     
-    c = Python.getControl('MarioPalette')
+    c = NESBuilder.getControl('MarioPalette')
     c.setAll(p)
 end
 

@@ -46,11 +46,31 @@ ToDo:
 
 plugins = {}
 
+-- Overriding print and adding all sorts of neat things
 __print = print
-print = function(txt)
-    __print("[Lua] "..(txt or ''))
+local prefix = "[Lua] "
+print = function(item)
+    if type(item)=="userdata" then
+        __print(prefix..NESBuilder:getPrintable(item))
+    elseif type(item)=="table" then
+        print("{")
+        for k,v in pairs(item) do
+            if type(v) == "function" then
+                -- It's a Lua function
+                v = "<function>"
+            elseif NESBuilder:type(v) == "function" then
+                -- It's a Python function
+                v = "<function>"
+            else
+                v = NESBuilder:repr(v)
+            end
+            print("  "..k .. "=" .. v..",")
+        end
+        print("}")
+    else
+        __print(prefix..(item or ''))
+    end
 end
-
 
 makeHex = function(n)
     if config.upperHex then
@@ -112,20 +132,20 @@ function init()
     
     print("init")
     
-    Python.incLua("Tserial")
-    util = Python.incLua("util")
+    NESBuilder.incLua("Tserial")
+    util = NESBuilder.incLua("util")
     
     -- make sure projects folder exists
-    Python:makeDir(data.folders.projects)
+    NESBuilder:makeDir(data.folders.projects)
     
     pad=6
     top = pad*1.5
     left = pad*1.5
     x,y = left,top
     
-    Python.setTab("Launch")
+    NESBuilder:setTab("Launch")
     
-    control = Python.makeLabel{x=x,y=y,name="launchLabel",clear=true,text="NESBuilder"}
+    control = NESBuilder:makeLabel{x=x,y=y,name="launchLabel",clear=true,text="NESBuilder"}
     control.setFont("Verdana", 24)
     
     -- Getting wrong height here for some reason.  Doesn't happen in a plugin.
@@ -133,67 +153,67 @@ function init()
     
     y = y + control.height + pad*1.5
     
-    control = Python.makeLabel{x=x,y=y,name="launchLabel2",clear=true,text=config.launchText}
+    control = NESBuilder:makeLabel{x=x,y=y,name="launchLabel2",clear=true,text=config.launchText}
     control.setFont("Verdana", 12)
     control.setJustify("left")
     
     
-    Python.setTab("Main")
+    NESBuilder:setTab("Main")
     x,y = left,top
     
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidth, name="NewProject",text="New Project"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="NewProject",text="New Project"}
     y = y + b.height + pad
     
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidth, name="OpenProject",text="Open Project"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="OpenProject",text="Open Project"}
     y = y + b.height + pad
 
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidth, name="SaveProject",text="Save Project"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="SaveProject",text="Save Project"}
     y = y + b.height + pad
 
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidth, name="BuildProject",text="Build Project"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="BuildProject",text="Build Project"}
     y = y + b.height + pad
     
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidth, name="BuildProjectTest",text="Build Project and Test"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="BuildProjectTest",text="Build Project and Test"}
     y = y + b.height + pad
     
 
---    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonLevelExtract",text="Extract Level"}
+--    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonLevelExtract",text="Extract Level"}
 --    y = y + b.height + pad
     
---    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonMakeCHR",text="Make CHR"}
+--    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonMakeCHR",text="Make CHR"}
 --    y = y + b.height + pad
     
     buttonHeight = b.height
 
 --    for i=0,4 do
---        b=Python.makeButton{x=x,y=y,name="Button"..i,text="Button"..i}
+--        b=NESBuilder:makeButton{x=x,y=y,name="Button"..i,text="Button"..i}
 --        y = y + b.height + pad
 --    end
     
-    --b=Python.makeText{x=x,y=y, lineHeight=20,lineWidth=80, name="Text1",text="Text1"}
+    --b=NESBuilder:makeText{x=x,y=y, lineHeight=20,lineWidth=80, name="Text1",text="Text1"}
     
 --    x2,y2=x,y
---    b=Python.makeText{x=x,y=y,w=20, w=150,h=buttonHeight, name="Text1",text="Text1"}
+--    b=NESBuilder:makeText{x=x,y=y,w=20, w=150,h=buttonHeight, name="Text1",text="Text1"}
 --    y = y + b.height + pad
     
---    b=Python.makeButton{x=left+150+pad,y=y2,w=config.buttonWidth,name="ButtonSetText1",text="Set"}
+--    b=NESBuilder:makeButton{x=left+150+pad,y=y2,w=config.buttonWidth,name="ButtonSetText1",text="Set"}
 --    x=left
 --    y = y + b.height + pad
     
     
-    Python.setTab("Palette")
-    Python.setDirection("h")
+    NESBuilder:setTab("Palette")
+    NESBuilder.setDirection("h")
     x,y=left,top
     
     p = {[0]=0x0f,0x21,0x11,0x01}
-    c=Python.makePaletteControl{x=pad*1.5,y=pad*1.5,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="Palette", palette=nespalette}
+    c=NESBuilder:makePaletteControl{x=pad*1.5,y=pad*1.5,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="Palette", palette=nespalette}
     
     palette = {}
     for i=0,#p do
         palette[i] = nespalette[p[i]]
     end
     
-    x2=Python.x+pad + 100
+    x2=NESBuilder.x+pad + 100
     y2=pad*1.5
     
     placeX = left
@@ -201,13 +221,13 @@ function init()
     
     x=left
     y=top + 100+pad*1.5
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonPrevPalette",text="<"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonPrevPalette",text="<"}
     
     x = x + b.width + pad
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonNextPalette",text=">"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonNextPalette",text=">"}
    
     x = x + b.width + pad
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonAddPalette",text="+"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonAddPalette",text="+"}
     
     x = left
     y = y + b.height + pad
@@ -219,27 +239,27 @@ function init()
     for i=0,#p do
         palette[i] = nespalette[p[i]]
     end
-    c=Python.makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="PaletteEntry", palette=palette}
+    c=NESBuilder:makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="PaletteEntry", palette=palette}
     y = y + 32 + pad
     
-    x=Python.x+pad
-    c=Python.makeLabel{x=x,y=y2+3,name="PaletteEntryLabel",clear=true,text="foobar"}
+    x=NESBuilder.x+pad
+    c=NESBuilder:makeLabel{x=x,y=y2+3,name="PaletteEntryLabel",clear=true,text="foobar"}
     
     x = left
     
---    b=Python.makeText{x=x,y=y, lineHeight=16,lineWidth=80, name="Text1",text="Text1"}
+--    b=NESBuilder:makeText{x=x,y=y, lineHeight=16,lineWidth=80, name="Text1",text="Text1"}
 --    y = y + b.height + pad
     
 --    x=x2
 --    y=y2
---    b=Python.makeList{x=x,y=y, name="PaletteList"}
+--    b=NESBuilder:makeList{x=x,y=y, name="PaletteList"}
 --    b.append("palette00")
 --    b.append("palette01")
 --    b.append("palette02")
 --    b.append("palette03")
     
     
-    Python.setTab("Image")
+    NESBuilder:setTab("Image")
     p = {[0]=0x0f,0x21,0x11,0x01}
     palette = {}
     for i=0,#p do
@@ -249,49 +269,49 @@ function init()
     x=pad
     y=pad+128*3+pad*1.5
     placeY = y
-    c=Python.makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="CHRPalette", palette=palette}
+    c=NESBuilder:makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="CHRPalette", palette=palette}
     
     x=left + 120
     y=placeY
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonPrevPaletteCHR",text="<"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonPrevPaletteCHR",text="<"}
 
     x=x+b.width+pad
     y=placeY
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonNextPaletteCHR",text=">"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonNextPaletteCHR",text=">"}
 
     x=left
     
     y = y + 32 + pad
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="LoadCHRImage",text="Load Image"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="LoadCHRImage",text="Load Image"}
 
     y = y + b.height + pad
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="LoadCHRNESmaker",text="Load NESmaker Image"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="LoadCHRNESmaker",text="Load NESmaker Image"}
 
     y = y + b.height + pad
     
-    --b=Python.makeButton{x=x,y=y,name="ButtonCHRTest1",text="test"}
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="LoadCHR",text="Load .chr"}
+    --b=NESBuilder:makeButton{x=x,y=y,name="ButtonCHRTest1",text="test"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="LoadCHR",text="Load .chr"}
     y = y + b.height + pad
     
-    b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="ExportCHRImage",text="Export to .png"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="ExportCHRImage",text="Export to .png"}
     y = y + b.height + pad
     
 --    f="chr.png"
---    Python:loadImageToCanvas(f)
+--    NESBuilder:loadImageToCanvas(f)
     
     -- Import the "LevelExtract" method from "SMBLevelExtract.py" and 
     -- add it to the "Python" table.
-    --LevelExtract = Python:importFunction('include.SMBLevelExtract','LevelExtract')
+    --LevelExtract = NESBuilder:importFunction('include.SMBLevelExtract','LevelExtract')
     
     x=128*3+pad*3
     y=top
-    c=Python.makeLabel{x=x,y=y,name="CHRNumLabel",clear=true,text="CHR"}
+    c=NESBuilder:makeLabel{x=x,y=y,name="CHRNumLabel",clear=true,text="CHR"}
     y = y + buttonHeight
     
     --y=top
     x=128*3+pad*3
     for i=0,7 do
-        b=Python.makeButton{x=x,y=y,w=config.buttonWidth,name="CHR"..i,text="CHR "..i}
+        b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="CHR"..i,text="CHR "..i}
         y = y + b.height + pad
     end
     
@@ -361,18 +381,18 @@ function CHRPalette_cmd(t)
 end
 
 function ButtonMakeCHR_cmd()
-    local f = Python:openFile({{"Images", ".png"}})
+    local f = NESBuilder:openFile({{"Images", ".png"}})
     if f == "" then
         print("Open cancelled.")
     else
         print("file: "..f)
         
-        f2 = Python:saveFileAs({{"CHR", ".chr"}},'output.chr')
+        f2 = NESBuilder:saveFileAs({{"CHR", ".chr"}},'output.chr')
         if f2 == "" then
             print("Save cancelled.")
         else
             print("file: "..f2)
-            Python:imageToCHR(f,f2,Python:getNESColors('0f211101'))
+            NESBuilder:imageToCHR(f,f2,NESBuilder:getNESColors('0f211101'))
         end
     end
 end
@@ -387,20 +407,20 @@ end
 function PaletteEntryUpdate()
     p=data.project.palettes[data.project.palettes.index]
     
-    c = Python.getControl('PaletteEntry')
+    c = NESBuilder.getControl('PaletteEntry')
     c.setAll(p)
 
-    c = Python.getControl('CHRPalette')
+    c = NESBuilder.getControl('CHRPalette')
     c.setAll(p)
     
-    c = Python.getControl('PaletteEntryLabel')
+    c = NESBuilder.getControl('PaletteEntryLabel')
     c.control.text = string.format("Palette%02x",data.project.palettes.index)
     
     refreshCHR()
 end
 
 function ButtonPrevPalette_cmd()
-    c = Python.getControl('PaletteEntry')
+    c = NESBuilder.getControl('PaletteEntry')
     
     data.project.palettes.index = data.project.palettes.index-1
     --if data.project.palettes.index < 0 then data.project.palettes.index=#data.project.palettes end
@@ -411,7 +431,7 @@ function ButtonPrevPalette_cmd()
 end
 
 function ButtonNextPalette_cmd()
-    c = Python.getControl('PaletteEntry')
+    c = NESBuilder.getControl('PaletteEntry')
     
     data.project.palettes.index = data.project.palettes.index+1
     --if data.project.palettes.index > #data.project.palettes then data.project.palettes.index=0 end
@@ -426,13 +446,13 @@ ButtonPrevPaletteCHR_cmd = ButtonPrevPalette_cmd
 ButtonNextPaletteCHR_cmd = ButtonNextPalette_cmd
 
 function ButtonLevelExtract_cmd()
-    local f = Python:openFile({{"NES rom", ".nes"}})
+    local f = NESBuilder:openFile({{"NES rom", ".nes"}})
     if f == "" then
         print("Open cancelled.")
     else
         print("file: "..f)
         
-        f2 = Python:saveFileAs({{"ASM", ".asm"}},'output.asm')
+        f2 = NESBuilder:saveFileAs({{"ASM", ".asm"}},'output.asm')
         if f2 == "" then
             print("Save cancelled.")
         else
@@ -474,11 +494,11 @@ function LoadProject_cmd()
     
     dataChanged(false)
     
---    c = Python.getControl('PaletteList')
+--    c = NESBuilder.getControl('PaletteList')
 --    c.set(data.project.paletteIndex or 0)
     
 --    f=data.folders.projects..projectFolder.."chr.png"
---    Python:loadImageToCanvas(f)
+--    NESBuilder:loadImageToCanvas(f)
     
     updateTitle()
 end
@@ -495,12 +515,12 @@ end
 function updateTitle()
     changed = data.project.changed and "*" or ""
     
-    Python:setTitle(string.format("%s - %s%s", config.title, data.projectID, changed))
+    NESBuilder:setTitle(string.format("%s - %s%s", config.title, data.projectID, changed))
 end
 
 function NewProject_cmd()
     if data.project.changed then
-        q= Python:askyesnocancel("", string.format("Save changes to %s?",data.projectID))
+        q= NESBuilder:askyesnocancel("", string.format("Save changes to %s?",data.projectID))
         
         -- cancel
         if q==nil then return end
@@ -579,17 +599,17 @@ function BuildTest_cmd()
 
     workingFolder = data.folders.projects..data.project.folder
     local f = data.folders.projects..data.project.folder.."game.nes"
-    Python:shellOpen(workingFolder, f)
+    NESBuilder:shellOpen(workingFolder, f)
 end
 
 function BuildProject_cmd()
     print("building project...")
     
     -- make sure folder exists for this project
-    Python:makeDir(data.folders.projects..data.project.folder)
+    NESBuilder:makeDir(data.folders.projects..data.project.folder)
     
-    Python:makeDir(data.folders.projects..data.project.folder.."chr")
-    Python:makeDir(data.folders.projects..data.project.folder.."code")
+    NESBuilder:makeDir(data.folders.projects..data.project.folder.."chr")
+    NESBuilder:makeDir(data.folders.projects..data.project.folder.."code")
     
     handlePluginCallback("onBuild")
     
@@ -608,7 +628,7 @@ function BuildProject_cmd()
 --        util.writeToFile(f, 0, data.project.chrData, true)
 --    end
 
-    c = Python.getControl('PaletteList')
+    c = NESBuilder.getControl('PaletteList')
     local filename = data.folders.projects..projectFolder.."code/palettes.asm"
 
     out=""
@@ -663,10 +683,10 @@ function BuildProject_cmd()
     -- make sure project.asm exists, or dont bother
     if util.fileExists(folder.."project.asm") then
         -- remove old game.nes
-        if Python:delete(folder.."game.nes") then
+        if NESBuilder:delete(folder.."game.nes") then
             cmd = data.folders.tools.."asm6.exe"
             args = "-L project.asm game.nes list.txt"
-            Python:run(folder, cmd, args)
+            NESBuilder:run(folder, cmd, args)
         else
             print("Did not assemble project.")
         end
@@ -675,7 +695,7 @@ end
 
 function SaveProject_cmd()
     -- make sure folder exists for this project
-    Python:makeDir(data.folders.projects..data.project.folder)
+    NESBuilder:makeDir(data.folders.projects..data.project.folder)
     
     handlePluginCallback("onSaveProject")
     
@@ -715,44 +735,44 @@ function PaletteList_cmd(t)
 end
 
 function About_cmd()
-    Python.exec(string.format("webbrowser.get('windows-default').open('%s')",config.aboutURL))
+    NESBuilder.exec(string.format("webbrowser.get('windows-default').open('%s')",config.aboutURL))
 end
 
 function Quit_cmd()
-    Python.Quit()
+    NESBuilder.Quit()
 end
 
 function refreshCHR()
     p=data.project.palettes[data.project.palettes.index]
     
-    --Python:loadCHRData(data.project.chrData, p)
-    Python:loadCHRData(data.project.chr[data.project.chr.index], p)
+    --NESBuilder:loadCHRData(data.project.chrData, p)
+    NESBuilder:loadCHRData(data.project.chr[data.project.chr.index], p)
 
-    c = Python.getControl('CHRNumLabel')
+    c = NESBuilder.getControl('CHRNumLabel')
     c.control.text = string.format("%02x", data.project.chr.index)
 end
 
 function LoadCHRImage_cmd()
     local CHRData
-    local f = Python:openFile(nil)
+    local f = NESBuilder:openFile(nil)
     if f == "" then
         print("Open cancelled.")
     else
         print("file: "..f)
-        --Python:loadImageToCanvas(f)
+        --NESBuilder:loadImageToCanvas(f)
         
         p=data.project.palettes[data.project.palettes.index]
         
         -- First we load the image into data
-        CHRData = Python:imageToCHRData(f,Python:getNESColors(p))
-        --CHRData = Python:imageToCHRData(f,Python:getNESmakerColors())
+        CHRData = NESBuilder:imageToCHRData(f,NESBuilder:getNESColors(p))
+        --CHRData = NESBuilder:imageToCHRData(f,NESBuilder:getNESmakerColors())
         
         data.project.chr[data.project.chr.index] = CHRData
         
         -- Load CHR data and display on canvas
-        Python:loadCHRData(CHRData, p)
+        NESBuilder:loadCHRData(CHRData, p)
 
-        c = Python.getControl('CHRPalette')
+        c = NESBuilder.getControl('CHRPalette')
         c.setAll(p)
         
         dataChanged()
@@ -761,7 +781,7 @@ end
 
 function ExportCHRImage_cmd()
     local filename = string.format("chr%02x_export.png",data.project.palettes.index)
-    local f = Python:saveFileAs({{"CHR", ".chr"}},filename)
+    local f = NESBuilder:saveFileAs({{"CHR", ".chr"}},filename)
     if f == "" then
         print("Export cancelled.")
     else
@@ -770,30 +790,30 @@ function ExportCHRImage_cmd()
     
     p=data.project.palettes[data.project.palettes.index]
     chrData = data.project.chr[data.project.chr.index]
-    Python:exportCHRDataToImage(f, chrData, p)
+    NESBuilder:exportCHRDataToImage(f, chrData, p)
 end
 
 function LoadCHRNESmaker_cmd()
     local CHRData
-    local f = Python:openFile(nil)
+    local f = NESBuilder:openFile(nil)
     if f == "" then
         print("Open cancelled.")
     else
         print("file: "..f)
-        --Python:loadImageToCanvas(f)
+        --NESBuilder:loadImageToCanvas(f)
         
         p=data.project.palettes[data.project.palettes.index]
         
         -- First we load the image into data
-        --CHRData = Python:imageToCHRData(f,Python:getNESColors(p))
-        CHRData = Python:imageToCHRData(f,Python:getNESmakerColors())
+        --CHRData = NESBuilder:imageToCHRData(f,NESBuilder:getNESColors(p))
+        CHRData = NESBuilder:imageToCHRData(f,NESBuilder:getNESmakerColors())
         
         data.project.chr[data.project.chr.index] = CHRData
         
         -- Load CHR data and display on canvas
-        Python:loadCHRData(CHRData, p)
+        NESBuilder:loadCHRData(CHRData, p)
 
-        c = Python.getControl('CHRPalette')
+        c = NESBuilder.getControl('CHRPalette')
         c.setAll(p)
         
         dataChanged()
@@ -802,16 +822,16 @@ end
 
 
 function LoadCHR_cmd()
-    local f = Python:openFile(nil)
+    local f = NESBuilder:openFile(nil)
     if f == "" then
         print("Open cancelled.")
         return
     end
     
     p=data.project.palettes[data.project.palettes.index]
-    data.project.chr[data.project.chr.index] = Python:loadCHRFile(f,p)
+    data.project.chr[data.project.chr.index] = NESBuilder:loadCHRFile(f,p)
     
-    c = Python.getControl('CHRPalette')
+    c = NESBuilder.getControl('CHRPalette')
     c.setAll(p)
     
     dataChanged()
@@ -819,7 +839,7 @@ end
 
 function Open_cmd()
     if data.project.changed then
-        q= Python:askyesnocancel("", string.format("Save changes to %s?",data.projectID))
+        q= NESBuilder:askyesnocancel("", string.format("Save changes to %s?",data.projectID))
         
         -- cancel
         if q==nil then return end
@@ -829,12 +849,12 @@ function Open_cmd()
         end
     end
     
-    local f, projectID = Python:openFolder("projects")
+    local f, projectID = NESBuilder:openFolder("projects")
     if f == "" then
         print("Open cancelled.")
     else
         print("file: "..f)
-        --Python:loadImageToCanvas(f)
+        --NESBuilder:loadImageToCanvas(f)
         data.projectID = projectID
         LoadProject_cmd()
     end
@@ -842,7 +862,7 @@ end
 
 function Save_cmd()
     SaveProject_cmd()
---    local f = Python:saveFileAs(nil)
+--    local f = NESBuilder:saveFileAs(nil)
 --    if f == "" then
 --        print("Save cancelled.")
 --    else
@@ -851,14 +871,14 @@ function Save_cmd()
 end
 
 function Button0_cmd()
-    Python:saveCanvasImage()
+    NESBuilder:saveCanvasImage()
 end
 
 function onExit(cancel)
     print("onExit")
     
     if data.project.changed then
-        q= Python:askyesnocancel("", string.format('Save changes to "%s?"',data.projectID))
+        q= NESBuilder:askyesnocancel("", string.format('Save changes to "%s?"',data.projectID))
         
         -- cancel
         if q==nil then return true end
@@ -904,20 +924,20 @@ function canvas_cmd(t)
 --    end
     
     local c = data.selectedColor
-    local cBits = Python:numberToBitArray(c)
+    local cBits = NESBuilder:numberToBitArray(c)
     
     
     if not data.project.chr[data.project.chr.index] then
         -- Load in blank CHR if drawing on empty CHR.
-        data.project.chr[data.project.chr.index] = Python:loadCHRData()
+        data.project.chr[data.project.chr.index] = NESBuilder:loadCHRData()
     end
     
     
     for i=0, 1 do
         local b = data.project.chr[data.project.chr.index][tileOffset+1+(i*8)+y%8]
-        local l=Python:numberToBitArray(b)
+        local l=NESBuilder:numberToBitArray(b)
         l[x%8]=cBits[7-i]
-        b = Python:bitArrayToNumber(l)
+        b = NESBuilder:bitArrayToNumber(l)
         data.project.chr[data.project.chr.index][tileOffset+1+(i*8)+y%8] = b
     end
     

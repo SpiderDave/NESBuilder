@@ -110,7 +110,7 @@ function smbthingRefreshPalettes()
         table.insert(p,plugin.fileData[offset+i])
     end
     
-    c = NESBuilder.getControl('MarioPalette')
+    c = NESBuilder:getControl('MarioPalette')
     c.setAll(p)
 end
 

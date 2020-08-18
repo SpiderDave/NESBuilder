@@ -139,6 +139,7 @@ class ForLua:
     direction="v"
     tab="Main"
     window="Main"
+    canvas=False
     
     def repr(self, item):
         return repr(item)
@@ -179,32 +180,31 @@ class ForLua:
             t.getEventType = getEventType
             return t
         def inner(self, t=None):
-            this=ForLua
             # This is some patchwork stuff for methods
             # that lack the self argument
-            if self!=this:
+            if self!=ForLua:
                 t=self
-                self=this
+                self=ForLua
                 #print("Warning: created {0} without : syntax.".format(t.name))
             
             # This is used in makeWindow to avoid
             # creating the same window over and over.
             if t.alreadyCreated: return t
             
-            if this.direction.lower() in ("v","vertical"):
-                x=coalesce(t.x, this.x, 0)
-                y=coalesce(t.y, this.y+this.h, 0)
+            if self.direction.lower() in ("v","vertical"):
+                x=coalesce(t.x, self.x, 0)
+                y=coalesce(t.y, self.y+self.h, 0)
             else:
-                x=coalesce(t.x, this.x+this.w, 0)
-                y=coalesce(t.y, this.y, 0)
-            w=coalesce(t.w, this.w, 16)
-            h=coalesce(t.h, this.h, 16)
-            this.x=x
-            this.y=y
-            this.w=w
-            this.h=h
+                x=coalesce(t.x, self.x+self.w, 0)
+                y=coalesce(t.y, self.y, 0)
+            w=coalesce(t.w, self.w, 16)
+            h=coalesce(t.h, self.h, 16)
+            self.x=x
+            self.y=y
+            self.w=w
+            self.h=h
             
-            t = func(self, t, (x,y,w,h,this))
+            t = func(self, t, (x,y,w,h,self))
             t = addStandardProp(t)
             t.control.update()
             
@@ -273,11 +273,11 @@ class ForLua:
         #return messagebox.askyesnocancel(title, message)
     def messageBox(self, title, message):
         return messagebox.askyesno(title, message)
-    def incLua(n):
+    def incLua(self, n):
         filedata = pkgutil.get_data( 'include', n+'.lua' )
         return lua.execute(filedata)
-    def setDirection(d):
-        ForLua.direction=d
+    def setDirection(self, d):
+        self.direction=d
     def getWindow(self, window=None):
         return windows.get(coalesce(window, ForLua.window))
     def setWindow(self, window):
@@ -293,6 +293,10 @@ class ForLua:
         window = controls[self.window]
         window.tab = tab
         self.tab=tab
+    def getCanvas(self, canvas=None):
+        return controls[coalesce(canvas, self.canvas)]
+    def setCanvas(self, canvas):
+        self.canvas = canvas
     def fileTest(self):
         filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("jpeg files","*.jpg"),("all files","*.*")))
         return filename
@@ -326,20 +330,17 @@ class ForLua:
         filename =  filedialog.asksaveasfilename(title = "Select file",filetypes = types, initialfile=initial)
         return filename
     def importFunction(self, mod, f):
-        this=ForLua
         m = importlib.import_module(mod)
-        setattr(this, f, getattr(m, f))
+        setattr(self, f, getattr(m, f))
         
-        
-        #return getattr(this,f)
         return getattr(m,f)
         
-    def _levelExtract(self, f, out):
-        LevelExtract(f,os.path.join(script_path, out))
+#    def _levelExtract(self, f, out):
+#        LevelExtract(f,os.path.join(script_path, out))
     def copyfile(self, src,dst):
         copyfile(src,dst)
     def saveCanvasImage(self, f='test.png'):
-        pass
+        canvas = self.getCanvas(self)
         #canvas.im.save(f,"PNG")
         grabcanvas=ImageGrab.grab(bbox=canvas)
         #.save("test.png")
@@ -351,6 +352,7 @@ class ForLua:
         #canvas.create_image(2, 2, image=canvas.image, anchor=NW)
         #canvas.to_file(f)
     def loadImageToCanvas(self, f):
+        canvas = self.getCanvas(self)
         print("loadImageToCanvas: {0}".format(f))
         try:
             with Image.open(f) as im:
@@ -388,9 +390,8 @@ class ForLua:
         t = lua.table(t)
         return t
     def imageToCHR(self, f, outputfile="output.chr", colors=False):
-        this = ForLua
         print('imageToCHR')
-        data = this.imageToCHRData(self, f, colors)
+        data = self.imageToCHRData(self, f, colors)
         
         print('Tile data written to {0}.'.format(outputfile))
         f=open(outputfile,"wb")
@@ -398,7 +399,6 @@ class ForLua:
         f.close()
         
     def imageToCHRData(self, f, colors=False):
-        this = ForLua
         print('imageToCHRData')
         
         # convert and re-index lua table
@@ -433,14 +433,9 @@ class ForLua:
             for i in range(16):
                 out.append(tile[i])
         
-        # return a string for easy serialiaztion
-        #ret = ''.join([chr(x) for x in out])
-        
-        #ret = lua.table(out)
         ret = lua.table_from(out)
         
         return ret
-    
     def getFileData(self, f=None):
         file=open(f,"rb")
         #file.seek(0x1000)
@@ -460,8 +455,6 @@ class ForLua:
         file.close()
         return True
     def loadCHRFile(self, f='chr.chr', colors=(0x0f,0x21,0x11,0x01)):
-        this=ForLua
-        
         file=open(f,"rb")
         #file.seek(0x1000)
         fileData = file.read()
@@ -469,12 +462,12 @@ class ForLua:
         
         fileData = list(fileData)
         
-        ret = this.loadCHRData(self,fileData,colors)
+        ret = self.loadCHRData(self,fileData,colors)
         return ret
     def newCHRData(self):
         return lua.table_from("\x00" * 0x1000)
     def loadCHRData(self, fileData=False, colors=(0x0f,0x21,0x11,0x01)):
-        this=ForLua
+        canvas = self.getCanvas(self)
         
         if not fileData:
             fileData = "\x00" * 0x1000
@@ -507,10 +500,6 @@ class ForLua:
         
         img = Image.fromarray(a)
         
-        # return a string for easy serialiaztion
-        #ret = ''.join([chr(x) for x in fileData])
-        
-        #ret = lua.table(fileData)
         ret = lua.table_from(fileData)
         
         photo = ImageTk.PhotoImage(ImageOps.scale(img, 3.0, resample=Image.NEAREST))
@@ -522,7 +511,6 @@ class ForLua:
         
         return ret
     def exportCHRDataToImage(self, filename="export.png", fileData=False, colors=(0x0f,0x21,0x11,0x01)):
-        this=ForLua
         colors=(0x0f,0x21,0x11,0x01)
         
         if not fileData:
@@ -557,15 +545,15 @@ class ForLua:
         
         img = Image.fromarray(a)
         img.save(filename)
-    def Quit():
+    def Quit(self):
         onExit()
-    def exec(s):
+    def exec(self, s):
         exec(s)
     def eval(s):
         # store the eval return value so we can pass return value to lua space.
         exec('ForLua.execRet = {0}'.format(s))
         return ForLua.execRet
-    def getControl(n):
+    def getControl(self, n):
         if not n:
             return controls
         else:
@@ -585,13 +573,42 @@ class ForLua:
         controls[c].place(x=x)
         print(controls[c].foobar)
     @makeControl
+    def makeCanvas(self, t, variables):
+        x,y,w,h,this = variables
+        
+        canvas = Canvas(self.getTab(self), width=1, height=1, bg='black',name=t.name)
+        canvas.place(x=x,y=y, width=w, height=h)
+        control=canvas
+        t=lua.table(name=t.name,
+                    control=control,
+                    )
+        control.bind( "<ButtonPress-1>", makeCmdNew(t))
+
+        canvas.config(cursor="top_left_arrow")
+
+        try:
+            canvas.config(cursor="@cursors/pencil.cur")
+        except:
+            try:
+                canvas.config(cursor="@_cursors/pencil.cur")
+            except:
+                pass
+        
+        if not self.canvas:
+            # set as default canvas
+            self.setCanvas(self, t.name)
+        
+        controls.update({t.name:control})
+        
+        return t
+    @makeControl
     def makeButton(self, t, variables):
         x,y,w,h,this = variables
 
         #w=20
         h=1
 
-        control = HoverButton(this.getTab(this), text=t.text, activebackground=color_bk2, activeforeground=color_fg, takefocus = 0)
+        control = HoverButton(self.getTab(self), text=t.text, activebackground=color_bk2, activeforeground=color_fg, takefocus = 0)
         #control.config(width=w, height=h, fg=color_fg, bg=color_bk2)
         control.config(width=w, fg=color_fg, bg=color_bk2)
         control.place(x=t.x, y=t.y)
@@ -615,13 +632,21 @@ class ForLua:
         x,y,w,h,this = variables
         
         if controls.get(t.name):
+            # If the window already exists, bring it to the front
+            # and return its table.
             t = controls.get(t.name)
             t.alreadyCreated = True
+            t.control.lift()
             return t
         
         window = tk.Toplevel(root)
         window.title(t.title or "Window")
         window.geometry("{0}x{1}".format(w,h))
+        
+        def close():
+            del controls[t.name]
+            window.destroy()
+        window.protocol( "WM_DELETE_WINDOW", close)
         
         tabParent = ttk.Notebook(window)
         tabs={}
@@ -629,7 +654,7 @@ class ForLua:
         window.configure(bg=color_bk)
         window.iconbitmap(sys.executable)
         if not frozen:
-            photo = ImageTk.PhotoImage(file = "icon.ico")
+            photo = ImageTk.PhotoImage(file = fixPath2("icon.ico"))
             window.iconphoto(False, photo)
         
         control = window
@@ -637,19 +662,20 @@ class ForLua:
                     control=control,
                     tabParent=tabParent,
                     tabs=tabs,
+                    close=close,
                     )
         
         controls.update({t.name:t})
         windows.update({t.name:window})
         
-        control.bind( "<ButtonRelease-1>", makeCmdNew(t))
+        #control.bind( "<ButtonRelease-1>", makeCmdNew(t))
         return t
         
     @makeControl
     def makeList(self, t, variables):
         x,y,w,h,this = variables
         
-        control = tk.Listbox(this.getTab(this))
+        control = tk.Listbox(self.getTab(self))
         control.config(fg=color_fg, bg=color_bk2)
         control.place(x=x, y=y)
         
@@ -688,11 +714,9 @@ class ForLua:
         return t
     @makeControl
     def makeText(self, t, variables):
-        this=ForLua
-        
         x,y,w,h,this = variables
         
-        control = Text(this.getTab(this), borderwidth=0, relief="solid",height=t.lineHeight)
+        control = Text(self.getTab(self), borderwidth=0, relief="solid",height=t.lineHeight)
         control.config(fg=color_fg, bg=color_bk3)
         
         control.insert(tk.END, t.text)
@@ -721,11 +745,9 @@ class ForLua:
         return t
     @makeControl
     def makeEntry(self, t, variables):
-        this=ForLua
-        
         x,y,w,h,this = variables
         
-        control = Entry(this.getTab(this), borderwidth=0, relief="solid",height=t.lineHeight)
+        control = Entry(self.getTab(self), borderwidth=0, relief="solid",height=t.lineHeight)
         control.config(fg=color_fg, bg=color_bk3)
         
         control.insert(tk.END, t.text)
@@ -758,7 +780,7 @@ class ForLua:
     def makeLabel(self, t, variables):
         x,y,w,h,this = variables
         
-        control = tk.Label(this.getTab(this), text=t.text, borderwidth=1, background="white", relief="solid")
+        control = tk.Label(self.getTab(self), text=t.text, borderwidth=1, background="white", relief="solid")
         control.config(fg=color_fg, bg=color_bk2)
         
         if t.clear:
@@ -801,7 +823,7 @@ class ForLua:
         w=coalesce(t.cellWidth, 30)
         h=coalesce(t.cellHeight, 30)
         
-        control = tk.Frame(this.getTab(this), width=pw*(w+1)+1, height=ph*(h+1)+1, name="_{0}_frame".format(t.name))
+        control = tk.Frame(self.getTab(self), width=pw*(w+1)+1, height=ph*(h+1)+1, name="_{0}_frame".format(t.name))
         control.place(x=t.x,y=t.y)
         
         control.cellNum = 0
@@ -849,10 +871,10 @@ class ForLua:
                 controls[n].update()
                 #print(n)
                 control.allCells.append(l)
-        this.x = t.x+pw*(w+1)+1
-        this.y = t.y+ph*(h+1)+1
-        this.w=pw*(w+1)+1
-        this.h=ph*(h+1)+1
+        self.x = t.x+pw*(w+1)+1
+        self.y = t.y+ph*(h+1)+1
+        self.w=pw*(w+1)+1
+        self.h=ph*(h+1)+1
         def set(index, p):
             changed = False
             cell = control.allCells[index]
@@ -896,8 +918,6 @@ class ForLua:
             control.cellEvent.index = control.cellNum
             return control.cellEvent
         
-        # This is a lua table used for the callback and
-        # also as a return value for this method.
         t=lua.table(name=t.name,
                     control=control,
                     getCellNum = getCellNum,
@@ -915,47 +935,34 @@ class ForLua:
         
         return t
     def createTab(self, name, text):
-        if name in tabs:
+        window = controls[self.window]
+        if name in window.tabs:
             print('Not creating tab "{}" (already exists).'.format(name))
         else:
-            window = controls[self.window]
             tab = ttk.Frame(window.tabParent, style='new.TFrame')
-            #tab = ttk.Frame(tab_parent, style='new.TFrame')
-            #tabs.update({name:tab})
             window.tabs.update({name:tab})
-            #tab_parent.add(tab, text=text)
             window.tabParent.add(tab, text=text)
-            
-            #tab_parent.pack(expand=1, fill='both')
             window.tabParent.pack(expand=1, fill='both')
     def makeTab(self, name, text):
-        ForLua.createTab(self, name, text)
+        self.createTab(self, name, text)
     def restart(self):
         os.execv(__file__, sys.argv)
     def setTitle(self, title=''):
         root.title(title)
 
-
-
 # Return it from eval so we can execute it with a 
-# Python object as argument.  It will then add "Python"
+# Python object as argument.  It will then add "NESBuilder"
 # to Lua
-lua_func = lua.eval('function(o) {0} = o return o end'.format('Python'))
+lua_func = lua.eval('function(o) {0} = o return o end'.format('NESBuilder'))
 lua_func(ForLua)
-lua.execute('NESBuilder = Python')
 
 lua_func = lua.eval('function(o) {0} = o return o end'.format('nesPalette'))
 lua_func(lua.table(nesPalette))
 
-
-#lua.execute("if init then init() end")
-
 def coalesce(*arg): return next((a for a in arg if a is not None), None)
-
 
 def makeCmd(buttonName, *args):
     if args and (type(args[0]) is dict):
-        #return lambda *x:doCommand(buttonName, args.update(x))
         return lambda *x:doCommand(buttonName, x,args)
     return lambda *x:doCommand(buttonName, x)
 
@@ -1002,9 +1009,9 @@ def doCommand(ctrl, *args):
 #    print("if {0}_cmd then {0}_cmd('{0}',Python.getControl('{0}'),{1}) end".format(ctrl,a))
 
 
-    lua.execute("if doCommand then doCommand('{0}',Python.getControl('{0}'),{1}) end".format(ctrl,a))
-    lua.execute("if {0}_command then {0}_command('{0}',Python.getControl('{0}'),{1}) end".format(ctrl,a))
-    lua.execute("if {0}_cmd then {0}_cmd('{0}',Python.getControl('{0}'),{1}) end".format(ctrl,a))
+    lua.execute("if doCommand then doCommand('{0}',NESBuilder:getControl('{0}'),{1}) end".format(ctrl,a))
+    lua.execute("if {0}_command then {0}_command('{0}',NESBuilder:getControl('{0}'),{1}) end".format(ctrl,a))
+    lua.execute("if {0}_cmd then {0}_cmd('{0}',NESBuilder:getControl('{0}'),{1}) end".format(ctrl,a))
 def onExit():
     if lua.eval('type(onExit)') == 'function':
         if lua.eval('onExit()') != True:
@@ -1030,7 +1037,7 @@ root.iconbitmap(sys.executable)
 root.title("Some sort of tool 1.0")
 
 if not frozen:
-    photo = ImageTk.PhotoImage(file = "icon.ico")
+    photo = ImageTk.PhotoImage(file = fixPath2("icon.ico"))
     root.iconphoto(False, photo)
 
 tab_parent = ttk.Notebook(root)
@@ -1038,19 +1045,8 @@ tab_parent = ttk.Notebook(root)
 s = ttk.Style()
 s.configure('new.TFrame', background=color_bk)
 
-tabLaunch = ttk.Frame(tab_parent, style='new.TFrame')
-tab1 = ttk.Frame(tab_parent, style='new.TFrame')
-tab2 = ttk.Frame(tab_parent, style='new.TFrame')
-tab3 = ttk.Frame(tab_parent, style='new.TFrame')
-tabs={'Launch':tabLaunch,'Main':tab1,'Palette':tab2,'Image':tab3}
-
 windows={'Main':root}
 
-#tab_parent.add(tabLaunch, text="Launcher")
-tab_parent.add(tabLaunch, text="Info")
-tab_parent.add(tab1, text="Main")
-tab_parent.add(tab2, text="Palette")
-tab_parent.add(tab3, text="CHR")
 tab_parent.pack(expand=1, fill='both')
 
 menubar = Menu(root)
@@ -1137,42 +1133,24 @@ def on_click():
 #b.place(x=x, y=y)
 
 
-#from PIL import Image
-#with Image.open('hopper.jpg') as im:
-#    px = im.load()
-#print (px[4,4])
-#px[4,4] = (0,0,0)
-#print (px[4,4])
-
-
-#canvas = Canvas(tab3, width=300, height=300, bg='black')
-canvas = Canvas(tab3, width=1, height=1, bg='black',name="canvas")
-#c.bind("<Button-1>", makeCmd(t.name, {'foo':42}))
-# store x and y so we can use them to place when image is loaded
-canvas.place(x=8,y=8, width=128*3, height=128*3)
-
-control=canvas
-t=lua.table(name="canvas",
-            control=control,
-            )
-control.bind( "<ButtonPress-1>", makeCmdNew(t))
-
-canvas.config(cursor="top_left_arrow")
-
-try:
-    canvas.config(cursor="@cursors/pencil.cur")
-except:
-    try:
-        canvas.config(cursor="@_cursors/pencil.cur")
-    except:
-        pass
-
 gotError = False
 
 try:
-    f = open("main.lua","r")
-    lua.execute(f.read())
-    f.close()
+    if len(sys.argv)>1:
+        # use file specified in argument
+        f = open(sys.argv[1],"r")
+        lua.execute(f.read())
+        f.close()
+    elif frozen:
+        # use internal main.lua
+        filedata = pkgutil.get_data('include', 'main.lua' )
+        lua.execute(filedata)
+    else:
+        # use external main.lua
+        f = open("main.lua","r")
+        lua.execute(f.read())
+        f.close()
+    pass
 except LuaError as err:
     err = str(err).replace('error loading code: ','')
     err = err.replace('[string "<python>"]',"[main.lua]")
@@ -1218,19 +1196,11 @@ root.title(config.title)
 t=lua.table(name="Main",
             control=root,
             tabParent=tab_parent,
-            tabs=tabs,
+            tabs={},
             tab="Main",
             )
 
 controls.update({"Main":t})
-
-#image = Image.open("logo.png")
-#logo = ImageTk.PhotoImage(image)
-
-#b = tk.Label(tabs.get('Launch'), text='???', borderwidth=1, background="white", relief="solid", image = logo)
-#b.image = logo # keep a reference!
-#b.place(x=8, y=8)
-
 
 print("This console is for debugging purposes.\n")
 

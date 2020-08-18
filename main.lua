@@ -46,7 +46,9 @@ ToDo:
 
 plugins = {}
 
--- Overriding print and adding all sorts of neat things
+-- Overriding print and adding all sorts of neat things.
+-- This is really complicated and should probably move to
+-- the Python side of things.
 __print = print
 local prefix = "[Lua] "
 print = function(item)
@@ -132,11 +134,22 @@ function init()
     
     print("init")
     
-    NESBuilder.incLua("Tserial")
-    util = NESBuilder.incLua("util")
+    NESBuilder:incLua("Tserial")
+    util = NESBuilder:incLua("util")
     
     -- make sure projects folder exists
     NESBuilder:makeDir(data.folders.projects)
+    
+    NESBuilder:setWindow("Main")
+    NESBuilder:makeTab("Launch", "Info")
+    NESBuilder:makeTab("Main", "Main")
+    NESBuilder:makeTab("Palette", "Palette")
+    NESBuilder:makeTab("Image", "CHR")
+    
+    NESBuilder:setTab("Image")
+    NESBuilder:makeCanvas{x=8,y=8,w=128*3,h=128*3,name="canvas"}
+    NESBuilder:setCanvas("canvas")
+    
     
     pad=6
     top = pad*1.5
@@ -202,7 +215,7 @@ function init()
     
     
     NESBuilder:setTab("Palette")
-    NESBuilder.setDirection("h")
+    NESBuilder:setDirection("h")
     x,y=left,top
     
     p = {[0]=0x0f,0x21,0x11,0x01}
@@ -325,10 +338,16 @@ function onPluginsLoaded()
 end
 
 function handlePluginCallback(f)
-    for n,p in pairs(plugins) do
-        if p[f] then
+    local keys={}
+    for k,v in pairs(plugins) do
+        table.insert(keys,k)
+    end
+    table.sort(keys)
+    
+    for _,n in pairs(keys) do
+        if plugins[n][f] then
             print(string.format("(Plugin %s): %s",n,f))
-            p[f]()
+            plugins[n][f]()
         end
     end
 end
@@ -352,6 +371,7 @@ end
 function doCommand(ctrl)
     if type(ctrl) == 'string' then
         print("doCommand "..ctrl)
+        print("****")
     else
         print("doCommand "..ctrl.name)
     end
@@ -407,23 +427,22 @@ end
 function PaletteEntryUpdate()
     p=data.project.palettes[data.project.palettes.index]
     
-    c = NESBuilder.getControl('PaletteEntry')
+    c = NESBuilder:getControl('PaletteEntry')
     c.setAll(p)
 
-    c = NESBuilder.getControl('CHRPalette')
+    c = NESBuilder:getControl('CHRPalette')
     c.setAll(p)
     
-    c = NESBuilder.getControl('PaletteEntryLabel')
+    c = NESBuilder:getControl('PaletteEntryLabel')
     c.control.text = string.format("Palette%02x",data.project.palettes.index)
     
     refreshCHR()
 end
 
 function ButtonPrevPalette_cmd()
-    c = NESBuilder.getControl('PaletteEntry')
+    c = NESBuilder:getControl('PaletteEntry')
     
     data.project.palettes.index = data.project.palettes.index-1
-    --if data.project.palettes.index < 0 then data.project.palettes.index=#data.project.palettes end
     if data.project.palettes.index < 0 then data.project.palettes.index= 0 end
     print(data.project.palettes.index)
     
@@ -431,10 +450,9 @@ function ButtonPrevPalette_cmd()
 end
 
 function ButtonNextPalette_cmd()
-    c = NESBuilder.getControl('PaletteEntry')
+    c = NESBuilder:getControl('PaletteEntry')
     
     data.project.palettes.index = data.project.palettes.index+1
-    --if data.project.palettes.index > #data.project.palettes then data.project.palettes.index=0 end
     if data.project.palettes.index > #data.project.palettes then data.project.palettes.index = #data.project.palettes end
     if data.project.palettes.index > 255 then data.project.palettes.index = 255 end
     print(data.project.palettes.index)
@@ -489,12 +507,9 @@ function LoadProject_cmd()
     data.project.palettes.index = 0
     PaletteEntryUpdate()
     
-    
-    
-    
     dataChanged(false)
     
---    c = NESBuilder.getControl('PaletteList')
+--    c = NESBuilder:getControl('PaletteList')
 --    c.set(data.project.paletteIndex or 0)
     
 --    f=data.folders.projects..projectFolder.."chr.png"
@@ -628,7 +643,7 @@ function BuildProject_cmd()
 --        util.writeToFile(f, 0, data.project.chrData, true)
 --    end
 
-    c = NESBuilder.getControl('PaletteList')
+    c = NESBuilder:getControl('PaletteList')
     local filename = data.folders.projects..projectFolder.."code/palettes.asm"
 
     out=""
@@ -735,11 +750,11 @@ function PaletteList_cmd(t)
 end
 
 function About_cmd()
-    NESBuilder.exec(string.format("webbrowser.get('windows-default').open('%s')",config.aboutURL))
+    NESBuilder:exec(string.format("webbrowser.get('windows-default').open('%s')",config.aboutURL))
 end
 
 function Quit_cmd()
-    NESBuilder.Quit()
+    NESBuilder:Quit()
 end
 
 function refreshCHR()
@@ -748,7 +763,7 @@ function refreshCHR()
     --NESBuilder:loadCHRData(data.project.chrData, p)
     NESBuilder:loadCHRData(data.project.chr[data.project.chr.index], p)
 
-    c = NESBuilder.getControl('CHRNumLabel')
+    c = NESBuilder:getControl('CHRNumLabel')
     c.control.text = string.format("%02x", data.project.chr.index)
 end
 
@@ -772,7 +787,7 @@ function LoadCHRImage_cmd()
         -- Load CHR data and display on canvas
         NESBuilder:loadCHRData(CHRData, p)
 
-        c = NESBuilder.getControl('CHRPalette')
+        c = NESBuilder:getControl('CHRPalette')
         c.setAll(p)
         
         dataChanged()
@@ -813,7 +828,7 @@ function LoadCHRNESmaker_cmd()
         -- Load CHR data and display on canvas
         NESBuilder:loadCHRData(CHRData, p)
 
-        c = NESBuilder.getControl('CHRPalette')
+        c = NESBuilder:getControl('CHRPalette')
         c.setAll(p)
         
         dataChanged()
@@ -831,7 +846,7 @@ function LoadCHR_cmd()
     p=data.project.palettes[data.project.palettes.index]
     data.project.chr[data.project.chr.index] = NESBuilder:loadCHRFile(f,p)
     
-    c = NESBuilder.getControl('CHRPalette')
+    c = NESBuilder:getControl('CHRPalette')
     c.setAll(p)
     
     dataChanged()
@@ -918,11 +933,6 @@ function canvas_cmd(t)
     local tileNum = tileY*0x10+tileX
     local tileOffset = 16*tileNum
     
---    for i=0,7 do
---        data.project.chr[data.project.chr.index][tileOffset+i+1]=0xff
---        data.project.chr[data.project.chr.index][tileOffset+i+1+8]=0
---    end
-    
     local c = data.selectedColor
     local cBits = NESBuilder:numberToBitArray(c)
     
@@ -941,9 +951,6 @@ function canvas_cmd(t)
         data.project.chr[data.project.chr.index][tileOffset+1+(i*8)+y%8] = b
     end
     
-    --print(string.format("(%03i, %03i)",x,y))
-    --print(string.format("%02x",tileNum))
-
     dataChanged()
     refreshCHR()
 end

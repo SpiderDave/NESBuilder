@@ -33,16 +33,10 @@ if %errorlevel% NEQ 0 set errormessage=Could not find pyinstaller.& goto error
 %pycmd% makeVersion.py
 if %errorlevel% NEQ 0 set errormessage=Could not create version information file.&goto error
 
-rem copy files
-echo copying required files to dist folder...
-copy/y main.lua dist
-if %errorlevel% NEQ 0 set errormessage=Could not copy main.lua & goto error
-copy/y chr.png dist
-if %errorlevel% NEQ 0 set errormessage=Could not copy chr.png & goto error
-
 rem run pyinstaller
 echo starting pyinstaller...
 pyinstaller --onefile -%parameter% -i icon.ico -n NESBuilder%suffix%.exe ^
+            --add-binary "main.lua;include" ^
             --add-binary "include\Tserial.lua;include" ^
             --add-binary "include\util.lua;include" ^
             --add-binary "cursors\pencil.cur;cursors" ^

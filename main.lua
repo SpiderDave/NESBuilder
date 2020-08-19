@@ -88,7 +88,7 @@ makeHex = function(n)
     end
 end
 
-data = {selectedColor = 0x0f}
+data = {selectedColor = 0}
 data.palettes = {}
 
 data.palettes = {
@@ -194,6 +194,8 @@ function init()
     b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="BuildProjectTest",text="Build Project and Test"}
     y = y + b.height + pad
     
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="OpenProjectFolder",text="Open Project Folder"}
+    y = y + b.height + pad
 
 --    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonLevelExtract",text="Extract Level"}
 --    y = y + b.height + pad
@@ -603,6 +605,10 @@ function BuildProjectTest_cmd()
     BuildTest_cmd()
 end
 
+function OpenProjectFolder_cmd()
+    local workingFolder = data.folders.projects..data.project.folder
+    NESBuilder:shellOpen(workingFolder, data.folders.projects..data.project.folder)
+end
 
 function Build_cmd()
     BuildProject_cmd()
@@ -611,7 +617,7 @@ end
 function BuildTest_cmd()
     BuildProject_cmd()
 
-    workingFolder = data.folders.projects..data.project.folder
+    local workingFolder = data.folders.projects..data.project.folder
     local f = data.folders.projects..data.project.folder.."game.nes"
     NESBuilder:shellOpen(workingFolder, f)
 end
@@ -937,6 +943,7 @@ function canvas_cmd(t)
         data.project.chr[data.project.chr.index] = NESBuilder:loadCHRData()
     end
     
+    if x<0 or y<0 or x>=128 or y>=128 then return end
     
     for i=0, 1 do
         local b = data.project.chr[data.project.chr.index][tileOffset+1+(i*8)+y%8]
@@ -946,6 +953,11 @@ function canvas_cmd(t)
         data.project.chr[data.project.chr.index][tileOffset+1+(i*8)+y%8] = b
     end
     
+    NESBuilder:setCanvas("canvas")
+    
+    local p=data.project.palettes[data.project.palettes.index][data.selectedColor+1]
+    NESBuilder:canvasPaint(x,y,p)
+    
     dataChanged()
-    refreshCHR()
+    --refreshCHR()
 end

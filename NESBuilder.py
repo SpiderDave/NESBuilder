@@ -162,6 +162,7 @@ atexit.register(cfg.save)
 cfg.load()
 
 cfg.setDefault('main', 'stylemenus', 1)
+cfg.setDefault("main", "tearoff", 0)
 cfg.setDefault('main', 'project', "newProject")
 #cfg.setDefault('main', 'nespalette', nesPalette)
 
@@ -443,6 +444,16 @@ class ForLua:
 #        LevelExtract(f,os.path.join(script_path, out))
     def copyfile(self, src,dst):
         copyfile(src,dst)
+    def canvasPaint(self, x,y, c):
+        canvas = self.getCanvas(self)
+        c = "#{0:02x}{1:02x}{2:02x}".format(nesPalette[c][0],nesPalette[c][1],nesPalette[c][2])
+#        canvas.create_line(x, y, x+1, y+1,
+#                           width=1, fill=c,
+#                           capstyle=tk.ROUND, smooth=tk.TRUE, splinesteps=36)
+        canvas.create_rectangle(x*3, y*3, x*3+2, y*3+2,
+                           width=1, outline=c, fill=c,
+                           )
+
     def saveCanvasImage(self, f='test.png'):
         canvas = self.getCanvas(self)
         #canvas.im.save(f,"PNG")
@@ -745,11 +756,53 @@ class ForLua:
         # create a popup menu
         tab = self.getTab(self)
         menu = tk.Menu(tab, tearoff=0)
-
+        
+        if cfg.getValue("main","styleMenus"):
+            menu.config(bg=config.colors.bk2,fg=config.colors.fg, activebackground=config.colors.bk_menu_highlight)
+        
         def popup(event):
             controls[t.name].event = event
             menu.post(event.x_root, event.y_root)
-            #messagebox.showerror("Error", "Computer says no.")
+        
+        control = menu
+        controls.update({t.name:control})
+
+        t=lua.table(name=t.name,
+                    control=control,
+                    items=t['items'],
+                    prefix=t.prefix,
+                    )
+
+        for i, item in t['items'].items():
+            name = item.name or str(i)
+            t2=lua.table(name=t.name+"_"+name,
+                        control=control,
+                        items=t['items'],
+                        )
+            if not t.prefix:
+                if item.name:
+                    t2.name = name
+                else:
+                    t2.name = "_"+name
+            
+            entry = dict(index=i, entry = item)
+            menu.add_command(label=item.text, command=makeCmdNoEvent(t2, extra=entry))
+
+        tab.bind("<Button-3>", popup)
+        
+        return t
+    @makeControl
+    def makeMenu(self, t, variables):
+        x,y,w,h = variables
+        
+        # create a popup menu
+        tab = self.getTab(self)
+        menu = tk.Menu(tab, tearoff=tearoff)
+        
+        if cfg.getValue("main","styleMenus"):
+            menu.config(bg=config.colors.bk2,fg=config.colors.fg, activebackground=config.colors.bk_menu_highlight)
+        
+        menubar.add_cascade(label=t.text, menu=menu)
 
         control = menu
         controls.update({t.name:control})
@@ -771,11 +824,9 @@ class ForLua:
                     t2.name = name
                 else:
                     t2.name = "_"+name
-            #menu.add_command(label=item, command=lambda: doCommand(t.name+"_"+item))
+            
             entry = dict(index=i, entry = item)
             menu.add_command(label=item.text, command=makeCmdNoEvent(t2, extra=entry))
-
-        tab.bind("<Button-3>", popup)
         
         return t
     @makeControl
@@ -1146,13 +1197,19 @@ def doCommandNew(*args, ev=False, extra = False):
         pass
     
     if ev:
-        args.event = dict(
+        event = dict(
             event = ev,
             button = ev.num,
-            type = ev.type.name,
             x = ev.x,
             y = ev.y,
         )
+        
+        try:
+            event.type = ev.type.name
+        except:
+            event.update(type="")
+        
+        args.event = event
     
     lua_func = lua.eval('function(o) if doCommand then doCommand(o) end end'.format(args.name))
     lua_func(args)
@@ -1222,9 +1279,11 @@ windows={'Main':root}
 
 tab_parent.pack(expand=1, fill='both')
 
+tearoff = cfg.getValue("main","tearoff")
+
 menubar = tk.Menu(root)
 
-filemenu = tk.Menu(menubar, tearoff=0)
+filemenu = tk.Menu(menubar, tearoff=tearoff)
 filemenu.add_command(label="New Project", command=lambda: doCommand("New"))
 filemenu.add_command(label="Open Project", command=lambda: doCommand("Open"))
 filemenu.add_command(label="Save Project", command=lambda: doCommand("Save"))
@@ -1234,46 +1293,17 @@ filemenu.add_separator()
 filemenu.add_command(label="Exit", command=lambda: doCommand("Quit"))
 menubar.add_cascade(label="File", menu=filemenu)
 
-editmenu = tk.Menu(menubar, tearoff=0)
+editmenu = tk.Menu(menubar, tearoff=tearoff)
 editmenu.add_command(label="Cut", command=lambda: doCommand("Cut"))
 editmenu.add_command(label="Copy", command=lambda: doCommand("Copy"))
 editmenu.add_command(label="Paste", command=lambda: doCommand("Paste"))
 menubar.add_cascade(label="Edit", menu=editmenu)
 
-helpmenu = tk.Menu(menubar, tearoff=0)
+helpmenu = tk.Menu(menubar, tearoff=tearoff)
 helpmenu.add_command(label="About", command=lambda: doCommand("About"))
 menubar.add_cascade(label="Help", menu=helpmenu)
 
-filemenu["borderwidth"] = 0
-
 root.config(menu=menubar)
-
-# create a popup menu
-#menu = Menu(root, tearoff=0)
-#menu.add_command(label="Undo", command=hello)
-#menu.add_command(label="Redo", command=hello)
-
-#def popup(event):
-#    menu.post(event.x_root, event.y_root)
-    #messagebox.showerror("Error", "Computer says no.")
-
-#tab1.bind("<Button-3>", popup)
-#root.bind("<Button-3>", popup)
-
-#filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("jpeg files","*.jpg"),("all files","*.*")))
-#print (filename)
-
-
-#photo = PhotoImage(file=R"file.png")
-
-#frame = Frame(root, width=800,height=400)
-#frame.pack(side = LEFT, anchor=tk.NW)
-#frame.place(x=0,y=0)
-
-#photo = PhotoImage(file=R"1.png")
-#l = Label(root, width=900-14,height=600-8,image = photo)
-#l = Label(root, text="label")
-#l.place(x=0,y=0)
 
 class HoverButton(tk.Button):
     def __init__(self, master, **kw):
@@ -1283,11 +1313,9 @@ class HoverButton(tk.Button):
         self.bind("<Leave>", self.on_leave)
 
     def on_enter(self, e):
-        #self['background'] = self['activebackground']
         self['background'] = config.colors.bk_hover
 
     def on_leave(self, e):
-        #self['background'] = self.defaultBackground
         self['background'] = config.colors.bk2
         
 

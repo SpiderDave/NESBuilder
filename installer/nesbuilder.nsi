@@ -109,6 +109,7 @@ Section "-DefaultStuff"
         "${GitURL}tools/asm6.exe" "tools/asm6.exe"\
         "${GitURL}plugins/_samplePlugin.lua" "plugins/_samplePlugin.lua"\
         "${GitURL}plugins/hello.py" "plugins/hello.py"\
+        "${GitURL}plugins/_smbthing.lua" "plugins/_smbthing.lua"\
         /END
     Pop $0
 SectionEnd
@@ -129,7 +130,6 @@ Section "NESBuilder Executable"
 
     inetc::get \
         "${GitURL}README.md" "README.md"\
-        "${GitURL}main.lua" "main.lua"\
         "${GitURL}cursors/pencil.cur" "cursors/pencil.cur"\
         "${GitURL}dist/NESBuilder.exe" "NESBuilder.exe"\
         /END
@@ -247,11 +247,11 @@ Section "Uninstall"
 
 SectionEnd
 
-Function .onInit
-    SetOutPath $TEMP
+;Function .onInit
+;    SetOutPath $TEMP
     
-    inetc::get \
-        "${GitURL}filelist.txt" "filelist.txt"\
-        /END
-    Pop $0
-FunctionEnd
+;    inetc::get \
+;        "${GitURL}filelist.txt" "filelist.txt"\
+;        /END
+;    Pop $0
+;FunctionEnd

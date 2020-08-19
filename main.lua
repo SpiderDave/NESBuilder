@@ -39,9 +39,10 @@ Notes:
 ToDo:
     * Ability to remove palettes
     * Palette sets and extra labels
-    * More error handling
     * Replace this page with launcher
     * undo!
+    * ability to add/remove/replace with popup menus
+    * better docs
 ]]
 
 plugins = {}
@@ -69,6 +70,11 @@ print = function(item)
             print("  "..k .. "=" .. v..",")
         end
         print("}")
+    elseif type(item)=="number" then
+        -- seems like this would do nothing but it actually changes
+        -- python numbers that would display like "42.0" to "42".
+        if item == math.floor(item) then item = math.floor(item) end
+        __print(prefix..item)
     else
         __print(prefix..(item or ''))
     end
@@ -84,7 +90,6 @@ end
 
 data = {selectedColor = 0x0f}
 data.palettes = {}
-data.settings = {}
 
 data.palettes = {
     index=0,
@@ -353,45 +358,39 @@ function handlePluginCallback(f)
 end
 
 function loadSettings()
-    local filename = "settings.dat"
-    data.settings = util.unserialize(util.getFileContents(filename)) or {project = data.projectID}
-    
-    -- Load last project
-    data.projectID = data.settings.project or data.projectID
+    data.projectID = NESBuilder:cfgGetValue("main", "project", data.projectID)
 end
 
 function saveSettings()
-    data.settings.project = data.projectID
-    
-    local filename = "settings.dat"
-    util.writeToFile(filename,0, util.serialize(data.settings), true)
+    NESBuilder:cfgSetValue("main", "project", data.projectID)
 end
 
-
-function doCommand(ctrl)
-    if type(ctrl) == 'string' then
-        print("doCommand "..ctrl)
+function doCommand(t)
+    if type(t) == 'string' then
+        print("doCommand "..t)
         print("****")
     else
-        print("doCommand "..ctrl.name)
+        if t.event.type == "ButtonPress" then
+            print("doCommand "..t.name)
+        end
     end
 end
 
 function Palette_cmd(t)
     if not t.cellNum then return end -- the frame was clicked.
     
-    if t.event.num == 1 then
+    if t.event.button == 1 then
         print(string.format("Selected palette %02x",t.cellNum))
         data.selectedColor = t.cellNum
     end
 end
 
 function CHRPalette_cmd(t)
-    if t.event.num == 1 then
+    if t.event.button == 1 then
         print(string.format("Selected palette %02x",t.cellNum))
         data.selectedColor = t.cellNum
         --data.drawColorIndex = t.cellNum
-    elseif t.event.num == 3 then
+    elseif t.event.button == 3 then
         print(string.format("Set palette %02x",data.selectedColor or 0x0f))
         if t.set(t.cellNum, data.selectedColor) then
             refreshCHR()
@@ -449,7 +448,7 @@ function ButtonPrevPalette_cmd()
     PaletteEntryUpdate()
 end
 
-function ButtonNextPalette_cmd()
+function ButtonNextPalette_cmd(t)
     c = NESBuilder:getControl('PaletteEntry')
     
     data.project.palettes.index = data.project.palettes.index+1
@@ -730,10 +729,10 @@ end
 function PaletteEntry_cmd(t)
     if not t.cellNum then return end -- the frame was clicked.
     
-    if t.event.num == 1 then
+    if t.event.button == 1 then
         print(string.format("Selected palette %02x",t.cellNum))
         data.selectedColor = t.cellNum
-    elseif t.event.num == 3 then
+    elseif t.event.button == 3 then
         print(string.format("Set palette %02x",data.selectedColor or 0x0f))
         --t.set(t.cellNum, data.selectedColor)
 
@@ -760,7 +759,7 @@ end
 function refreshCHR()
     p=data.project.palettes[data.project.palettes.index]
     
-    --NESBuilder:loadCHRData(data.project.chrData, p)
+    NESBuilder:setCanvas("canvas")
     NESBuilder:loadCHRData(data.project.chr[data.project.chr.index], p)
 
     c = NESBuilder:getControl('CHRNumLabel')
@@ -774,17 +773,17 @@ function LoadCHRImage_cmd()
         print("Open cancelled.")
     else
         print("file: "..f)
-        --NESBuilder:loadImageToCanvas(f)
         
         p=data.project.palettes[data.project.palettes.index]
         
-        -- First we load the image into data
+        -- Load the image into data
         CHRData = NESBuilder:imageToCHRData(f,NESBuilder:getNESColors(p))
-        --CHRData = NESBuilder:imageToCHRData(f,NESBuilder:getNESmakerColors())
         
+        -- Store in selected project bank
         data.project.chr[data.project.chr.index] = CHRData
         
         -- Load CHR data and display on canvas
+        NESBuilder:setCanvas("canvas")
         NESBuilder:loadCHRData(CHRData, p)
 
         c = NESBuilder:getControl('CHRPalette')
@@ -805,6 +804,7 @@ function ExportCHRImage_cmd()
     
     p=data.project.palettes[data.project.palettes.index]
     chrData = data.project.chr[data.project.chr.index]
+    NESBuilder:setCanvas("canvas")
     NESBuilder:exportCHRDataToImage(f, chrData, p)
 end
 
@@ -815,17 +815,16 @@ function LoadCHRNESmaker_cmd()
         print("Open cancelled.")
     else
         print("file: "..f)
-        --NESBuilder:loadImageToCanvas(f)
         
         p=data.project.palettes[data.project.palettes.index]
         
         -- First we load the image into data
-        --CHRData = NESBuilder:imageToCHRData(f,NESBuilder:getNESColors(p))
         CHRData = NESBuilder:imageToCHRData(f,NESBuilder:getNESmakerColors())
         
         data.project.chr[data.project.chr.index] = CHRData
         
         -- Load CHR data and display on canvas
+        NESBuilder:setCanvas("canvas")
         NESBuilder:loadCHRData(CHRData, p)
 
         c = NESBuilder:getControl('CHRPalette')
@@ -843,6 +842,7 @@ function LoadCHR_cmd()
         return
     end
     
+    NESBuilder:setCanvas("canvas")
     p=data.project.palettes[data.project.palettes.index]
     data.project.chr[data.project.chr.index] = NESBuilder:loadCHRFile(f,p)
     
@@ -869,7 +869,6 @@ function Open_cmd()
         print("Open cancelled.")
     else
         print("file: "..f)
-        --NESBuilder:loadImageToCanvas(f)
         data.projectID = projectID
         LoadProject_cmd()
     end
@@ -877,15 +876,10 @@ end
 
 function Save_cmd()
     SaveProject_cmd()
---    local f = NESBuilder:saveFileAs(nil)
---    if f == "" then
---        print("Save cancelled.")
---    else
---        print("file: "..f)
---    end
 end
 
 function Button0_cmd()
+    NESBuilder:setCanvas("canvas")
     NESBuilder:saveCanvasImage()
 end
 
@@ -939,6 +933,7 @@ function canvas_cmd(t)
     
     if not data.project.chr[data.project.chr.index] then
         -- Load in blank CHR if drawing on empty CHR.
+        NESBuilder:setCanvas("canvas")
         data.project.chr[data.project.chr.index] = NESBuilder:loadCHRData()
     end
     

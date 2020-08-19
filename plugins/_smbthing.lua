@@ -116,7 +116,7 @@ end
 
 function smbthingPalette_cmd(t)
     if not t.cellNum then return end -- the frame was clicked.
-    if t.event.num == 1 then
+    if t.event.button == 1 then
         plugin.selectedColor = t.cellNum
     end
 end
@@ -128,9 +128,10 @@ function MarioPalette_cmd(t)
     if not t.cellNum then return end -- the frame was clicked.
     if not plugin.fileData then return end
     
-    if t.event.num == 1 then
+    if t.event.button == 1 then
         -- left click
-    elseif t.event.num == 3 then
+        plugin.selectedColor = plugin.fileData[offset+t.cellNum]
+    elseif t.event.button == 3 then
         plugin.fileData[offset+t.cellNum]=plugin.selectedColor
         smbthingRefreshPalettes()
     end

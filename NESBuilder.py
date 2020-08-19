@@ -7,20 +7,17 @@ ToDo:
     * clean up color variable names, add more
 '''
 
-import sys
+import os, sys
 import lupa
 from lupa import LuaRuntime
 from lupa import LuaError
 lua = LuaRuntime(unpack_returned_tuples=True)
 
-from tkinter import filedialog
-from tkinter import messagebox
-from tkinter import messagebox as msg
-from tkinter import simpledialog
+from tkinter import simpledialog, filedialog, messagebox
 from tkinter import EventType
 import tkinter as tk
 from tkinter import ttk
-from tkinter import *
+#from tkinter import *
 #from tkinter.ttk import *
 from PIL import ImageTk, Image, ImageDraw
 from PIL import ImageOps
@@ -42,36 +39,146 @@ import webbrowser
 
 from binascii import hexlify, unhexlify
 
-import os
-script_path = os.path.dirname(os.path.abspath( __file__ ))
-
-import importlib
-#mod = importlib.import_module(testName)
-#mod.HelloWorld()
+import importlib, pkgutil
 
 # import our include folder
 import include 
+
+import configparser, atexit
 
 # Handle exporting some stuff from python scripts to lua
 include.init(lua)
 
 
+true, false = True, False
+
+script_path = os.path.dirname(os.path.abspath( __file__ ))
 frozen = (getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'))
 
+class Cfg(configparser.ConfigParser):
+    def __init__(self):
+        # do the usual init
+        super().__init__()
+        # can do extra stuff here
+    def load(self, filename = "config.ini"):
+        self.read(os.path.join(script_path, filename))
+        self.filename = filename
+    def save(self):
+        with open(os.path.join(script_path, self.filename), 'w') as configfile:
+            self.write(configfile)
+    def makeSections(self, *sections):
+        for section in sections:
+            if not section in self.sections():
+                self[section] = {}
+    # Set a default value only if it doesn't already exist.
+    # Also creates a section if it doesn't exist.
+    def setDefault(self, section,key,value):
+        if not section in self.sections():
+            self[section] = {}
+        if type(value) is not str:
+            value = str(value)
+        self.set(section, key, self[section].get(key, value))
+    # Check if given string is a number, including
+    # negative numbers and decimals.
+    def isnumber(self, s):
+        s = str(s).strip()
+        if len(s)==0:
+            return false
+        if s[0]=='-' or s[0] == '+':
+            s = s[1:]
+        if s.find('.') == s.rfind('.'):
+            s = s.replace('.', '')
+        return s.isdigit()
+    # Interprets and formats a value
+    def makeValue(self, value):
+        if type(value) is not str:
+            return value
+        if ',' in value:
+            value = value.split(',')
+            for k,v in enumerate(value):
+                v=v.strip()
+                if v.startswith('0x'):
+                    value[k] = int(v, 16)
+                elif v.startswith('-0x'):
+                    value[k] = 0-int(v[1:], 16)
+                else:
+                    if self.isnumber(v):
+                        if '.' in v:
+                            value[k] = float(v)
+                        else:
+                            value[k] = int(v)
+                    else:
+                        value[k] = v
+            return value
+        else:
+            value=value.strip()
+            if value.startswith('0x'):
+                value = int(value, 16)
+            elif value.startswith('-0x'):
+                value = 0-int(value[1:], 16)
+            else:
+                if self.isnumber(value):
+                    if '.' in value:
+                        value = float(value)
+                    else:
+                        value = int(value)
+            return value
+    def getValue(self, section, key, default=None):
+        return self.makeValue(self[section].get(key, default))
+    def setValue(self, section, key, value):
+        # make sure section exists
+        if not section in self.sections():
+            self[section] = {}
+        self.set(section, key, value)
+
+
+nesPalette=[
+[0x74,0x74,0x74],[0x24,0x18,0x8c],[0x00,0x00,0xa8],[0x44,0x00,0x9c],
+[0x8c,0x00,0x74],[0xa8,0x00,0x10],[0xa4,0x00,0x00],[0x7c,0x08,0x00],
+[0x40,0x2c,0x00],[0x00,0x44,0x00],[0x00,0x50,0x00],[0x00,0x3c,0x14],
+[0x18,0x3c,0x5c],[0x00,0x00,0x00],[0x00,0x00,0x00],[0x00,0x00,0x00],
+[0xbc,0xbc,0xbc],[0x00,0x70,0xec],[0x20,0x38,0xec],[0x80,0x00,0xf0],
+[0xbc,0x00,0xbc],[0xe4,0x00,0x58],[0xd8,0x28,0x00],[0xc8,0x4c,0x0c],
+[0x88,0x70,0x00],[0x00,0x94,0x00],[0x00,0xa8,0x00],[0x00,0x90,0x38],
+[0x00,0x80,0x88],[0x00,0x00,0x00],[0x00,0x00,0x00],[0x00,0x00,0x00],
+[0xfc,0xfc,0xfc],[0x3c,0xbc,0xfc],[0x5c,0x94,0xfc],[0xcc,0x88,0xfc],
+[0xf4,0x78,0xfc],[0xfc,0x74,0xb4],[0xfc,0x74,0x60],[0xfc,0x98,0x38],
+[0xf0,0xbc,0x3c],[0x80,0xd0,0x10],[0x4c,0xdc,0x48],[0x58,0xf8,0x98],
+[0x00,0xe8,0xd8],[0x78,0x78,0x78],[0x00,0x00,0x00],[0x00,0x00,0x00],
+[0xfc,0xfc,0xfc],[0xa8,0xe4,0xfc],[0xc4,0xd4,0xfc],[0xd4,0xc8,0xfc],
+[0xfc,0xc4,0xfc],[0xfc,0xc4,0xd8],[0xfc,0xbc,0xb0],[0xfc,0xd8,0xa8],
+[0xfc,0xe4,0xa0],[0xe0,0xfc,0xa0],[0xa8,0xf0,0xbc],[0xb0,0xfc,0xcc],
+[0x9c,0xfc,0xf0],[0xc4,0xc4,0xc4],[0x00,0x00,0x00],[0x00,0x00,0x00],
+]
+
+
+# create our config parser
+cfg = Cfg()
+
+# register a function to save cfg on exit
+atexit.register(cfg.save)
+
+# read config file if it exists
+cfg.load()
+
+cfg.setDefault('main', 'stylemenus', 1)
+cfg.setDefault('main', 'project', "newProject")
+#cfg.setDefault('main', 'nespalette', nesPalette)
+
+#cfg.setDefault('foo', 'bar', 'baz')
+#print(cfg.getValue('palettes', 'Mario'))
+#print(cfg.getValue('offsets', 'mariopalette'))
+#cfg.setValue('foo','bar','bip')
+#cfg.makeSections('hello','world')
+
+# make cfg available to lua
+lua_func = lua.eval('function(o) {0} = o return o end'.format('cfg'))
+lua_func(cfg)
+
+#nesPalette = cfg.getValue('main', 'nespalette')
+
+
 controls={}
-
-tab1=None
-tab2=None
-tab3=None
-
-color_bk='#202036'
-color_bk2='#303046'
-color_bk3='#404050' # text background
-color_bk_hover='#454560'
-color_fg = '#eef'
-color_bk_menu_highlight='#606080'
-
-import pkgutil
 
 # set up our lua function
 lua_func = lua.eval('function(o) {0} = o return o end'.format('tkConstants'))
@@ -99,25 +206,6 @@ class Text(tk.Text):
     def clear(self):
         self.delete("1.0", tk.END)
 
-nesPalette=[
-[0x74,0x74,0x74],[0x24,0x18,0x8c],[0x00,0x00,0xa8],[0x44,0x00,0x9c],
-[0x8c,0x00,0x74],[0xa8,0x00,0x10],[0xa4,0x00,0x00],[0x7c,0x08,0x00],
-[0x40,0x2c,0x00],[0x00,0x44,0x00],[0x00,0x50,0x00],[0x00,0x3c,0x14],
-[0x18,0x3c,0x5c],[0x00,0x00,0x00],[0x00,0x00,0x00],[0x00,0x00,0x00],
-[0xbc,0xbc,0xbc],[0x00,0x70,0xec],[0x20,0x38,0xec],[0x80,0x00,0xf0],
-[0xbc,0x00,0xbc],[0xe4,0x00,0x58],[0xd8,0x28,0x00],[0xc8,0x4c,0x0c],
-[0x88,0x70,0x00],[0x00,0x94,0x00],[0x00,0xa8,0x00],[0x00,0x90,0x38],
-[0x00,0x80,0x88],[0x00,0x00,0x00],[0x00,0x00,0x00],[0x00,0x00,0x00],
-[0xfc,0xfc,0xfc],[0x3c,0xbc,0xfc],[0x5c,0x94,0xfc],[0xcc,0x88,0xfc],
-[0xf4,0x78,0xfc],[0xfc,0x74,0xb4],[0xfc,0x74,0x60],[0xfc,0x98,0x38],
-[0xf0,0xbc,0x3c],[0x80,0xd0,0x10],[0x4c,0xdc,0x48],[0x58,0xf8,0x98],
-[0x00,0xe8,0xd8],[0x78,0x78,0x78],[0x00,0x00,0x00],[0x00,0x00,0x00],
-[0xfc,0xfc,0xfc],[0xa8,0xe4,0xfc],[0xc4,0xd4,0xfc],[0xd4,0xc8,0xfc],
-[0xfc,0xc4,0xfc],[0xfc,0xc4,0xd8],[0xfc,0xbc,0xb0],[0xfc,0xd8,0xa8],
-[0xfc,0xe4,0xa0],[0xe0,0xfc,0xa0],[0xa8,0xf0,0xbc],[0xb0,0xfc,0xcc],
-[0x9c,0xfc,0xf0],[0xc4,0xc4,0xc4],[0x00,0x00,0x00],[0x00,0x00,0x00],
-]
-
 def pathToFolder(p):
     return fixPath2(os.path.split(p)[0])
 
@@ -140,6 +228,23 @@ class ForLua:
     tab="Main"
     window="Main"
     canvas=False
+    
+    config = cfg
+    
+    # can't figure out item access from lua with cfg,
+    # so we'll define some methods here too.
+    def cfgLoad(self, filename = "config.ini"):
+        return cfg.load(filename)
+    def cfgSoad(self):
+        return cfg.save()
+    def cfgMakeSections(self, *sections):
+        return cfg.makeSections(*sections)
+    def cfgGetValue(self, section, key, default=None):
+        return cfg.getValue(section, key, default)
+    def cfgSetValue(self, section, key, value):
+        return cfg.setValue(section, key, value)
+    def cfgSetDefault(self, section,key,value):
+        return cfg.setDefault(section,key,value)
     
     def repr(self, item):
         return repr(item)
@@ -167,17 +272,16 @@ class ForLua:
         def addStandardProp(t):
             def _config(cfg):
                 t.control.config(dict(cfg))
-            def getEventType():
-                if not controls.get(t.name).event:
-                    return False
-                return controls.get(t.name).event.type.name
+#            def getEventType():
+#                if not controls.get(t.name).event:
+#                    return False
+#                return controls.get(t.name).event.type.name
             def update():
                 t.control.update()
                 t.height = t.control.winfo_height()
                 t.width = t.control.winfo_width()
             t.config = _config
             t.update = update
-            t.getEventType = getEventType
             return t
         def inner(self, t=None):
             # This is some patchwork stuff for methods
@@ -204,7 +308,7 @@ class ForLua:
             self.w=w
             self.h=h
             
-            t = func(self, t, (x,y,w,h,self))
+            t = func(self, t, (x,y,w,h))
             t = addStandardProp(t)
             t.control.update()
             
@@ -349,7 +453,7 @@ class ForLua:
         #print("loadImageToCanvas: {0}".format(f))
 #        Image.save(
 #        canvas.image.save(f)
-        #canvas.create_image(2, 2, image=canvas.image, anchor=NW)
+        #canvas.create_image(2, 2, image=canvas.image, anchor=tk.NW)
         #canvas.to_file(f)
     def loadImageToCanvas(self, f):
         canvas = self.getCanvas(self)
@@ -359,7 +463,7 @@ class ForLua:
                 px = im.load()
             displayImage = ImageOps.scale(im, 3.0, resample=Image.NEAREST)
             canvas.image = ImageTk.PhotoImage(displayImage)
-            canvas.create_image(0, 0, image=canvas.image, anchor=NW)
+            canvas.create_image(0, 0, image=canvas.image, anchor=tk.NW)
             canvas.configure(highlightthickness=0, borderwidth=0)
         except:
             print("error loading image")
@@ -506,7 +610,7 @@ class ForLua:
         
         canvas.chrImage = photo # keep a reference
         
-        canvas.create_image(0,0, image=photo, state="normal", anchor=NW)
+        canvas.create_image(0,0, image=photo, state="normal", anchor=tk.NW)
         canvas.configure(highlightthickness=0, borderwidth=0)
         
         return ret
@@ -574,15 +678,18 @@ class ForLua:
         print(controls[c].foobar)
     @makeControl
     def makeCanvas(self, t, variables):
-        x,y,w,h,this = variables
+        x,y,w,h = variables
         
-        canvas = Canvas(self.getTab(self), width=1, height=1, bg='black',name=t.name)
+        canvas = tk.Canvas(self.getTab(self), width=1, height=1, bg='black',name=t.name)
         canvas.place(x=x,y=y, width=w, height=h)
         control=canvas
         t=lua.table(name=t.name,
                     control=control,
                     )
-        control.bind( "<ButtonPress-1>", makeCmdNew(t))
+        
+        control.bind("<ButtonPress-1>", makeCmdNew(t, extra=dict(press=True)))
+        control.bind("<ButtonRelease-1>", makeCmdNew(t, extra=dict(press=False)))
+        control.bind("<B1-Motion>", makeCmdNew(t))
 
         canvas.config(cursor="top_left_arrow")
 
@@ -603,14 +710,18 @@ class ForLua:
         return t
     @makeControl
     def makeButton(self, t, variables):
-        x,y,w,h,this = variables
+        x,y,w,h = variables
 
         #w=20
         h=1
 
-        control = HoverButton(self.getTab(self), text=t.text, activebackground=color_bk2, activeforeground=color_fg, takefocus = 0)
-        #control.config(width=w, height=h, fg=color_fg, bg=color_bk2)
-        control.config(width=w, fg=color_fg, bg=color_bk2)
+        control = HoverButton(self.getTab(self), text=t.text, takefocus = 0)
+        control.config(width=w, 
+                       fg=config.colors.fg,
+                       bg=config.colors.bk2,
+                       activebackground=config.colors.bk2,
+                       activeforeground=config.colors.fg
+                      )
         control.place(x=t.x, y=t.y)
 
         controls.update({t.name:control})
@@ -628,8 +739,48 @@ class ForLua:
         c.setText(txt)
     
     @makeControl
+    def makePopupMenu(self, t, variables):
+        x,y,w,h = variables
+        
+        # create a popup menu
+        tab = self.getTab(self)
+        menu = tk.Menu(tab, tearoff=0)
+
+        def popup(event):
+            controls[t.name].event = event
+            menu.post(event.x_root, event.y_root)
+            #messagebox.showerror("Error", "Computer says no.")
+
+        control = menu
+        controls.update({t.name:control})
+
+        t=lua.table(name=t.name,
+                    control=control,
+                    items=t['items'],
+                    prefix=t.prefix,
+                    )
+
+        for i, item in t['items'].items():
+            name = item.name or str(i)
+            t2=lua.table(name=t.name+"_"+name,
+                        control=control,
+                        items=t['items'],
+                        )
+            if not t.prefix:
+                if item.name:
+                    t2.name = name
+                else:
+                    t2.name = "_"+name
+            #menu.add_command(label=item, command=lambda: doCommand(t.name+"_"+item))
+            entry = dict(index=i, entry = item)
+            menu.add_command(label=item.text, command=makeCmdNoEvent(t2, extra=entry))
+
+        tab.bind("<Button-3>", popup)
+        
+        return t
+    @makeControl
     def makeWindow(self, t, variables):
-        x,y,w,h,this = variables
+        x,y,w,h = variables
         
         if controls.get(t.name):
             # If the window already exists, bring it to the front
@@ -651,7 +802,7 @@ class ForLua:
         tabParent = ttk.Notebook(window)
         tabs={}
         
-        window.configure(bg=color_bk)
+        window.configure(bg=config.colors.bk)
         window.iconbitmap(sys.executable)
         if not frozen:
             photo = ImageTk.PhotoImage(file = fixPath2("icon.ico"))
@@ -673,10 +824,10 @@ class ForLua:
         
     @makeControl
     def makeList(self, t, variables):
-        x,y,w,h,this = variables
+        x,y,w,h = variables
         
         control = tk.Listbox(self.getTab(self))
-        control.config(fg=color_fg, bg=color_bk2)
+        control.config(fg=config.colors.fg, bg=config.colors.bk2)
         control.place(x=x, y=y)
         
         def getIndex():
@@ -714,10 +865,10 @@ class ForLua:
         return t
     @makeControl
     def makeText(self, t, variables):
-        x,y,w,h,this = variables
+        x,y,w,h = variables
         
         control = Text(self.getTab(self), borderwidth=0, relief="solid",height=t.lineHeight)
-        control.config(fg=color_fg, bg=color_bk3)
+        control.config(fg=config.colors.fg, bg=config.colors.bk3)
         
         control.insert(tk.END, t.text)
         control.place(x=x, y=y)
@@ -745,10 +896,10 @@ class ForLua:
         return t
     @makeControl
     def makeEntry(self, t, variables):
-        x,y,w,h,this = variables
+        x,y,w,h = variables
         
-        control = Entry(self.getTab(self), borderwidth=0, relief="solid",height=t.lineHeight)
-        control.config(fg=color_fg, bg=color_bk3)
+        control = tk.Entry(self.getTab(self), borderwidth=0, relief="solid",height=t.lineHeight)
+        control.config(fg=config.colors.fg, bg=config.colors.bk3)
         
         control.insert(tk.END, t.text)
         control.place(x=x, y=y)
@@ -778,13 +929,13 @@ class ForLua:
 
     @makeControl
     def makeLabel(self, t, variables):
-        x,y,w,h,this = variables
+        x,y,w,h = variables
         
         control = tk.Label(self.getTab(self), text=t.text, borderwidth=1, background="white", relief="solid")
-        control.config(fg=color_fg, bg=color_bk2)
+        control.config(fg=config.colors.fg, bg=config.colors.bk2)
         
         if t.clear:
-            control.config(fg=color_fg, bg=color_bk, borderwidth=0)
+            control.config(fg=config.colors.fg, bg=config.colors.bk, borderwidth=0)
         if t.clear:
             control.place(x=x, y=y)
         else:
@@ -815,7 +966,7 @@ class ForLua:
         return t
     @makeControl
     def makePaletteControl(self, t, variables):
-        x,y,w,h,this = variables
+        x,y,w,h = variables
 
         pw=len(t.palette) %0x10+1
         ph=math.floor(len(t.palette) /0x10)+1
@@ -966,11 +1117,19 @@ def makeCmd(buttonName, *args):
         return lambda *x:doCommand(buttonName, x,args)
     return lambda *x:doCommand(buttonName, x)
 
-def makeCmdNew(*args):
+def makeCmdNew(*args, extra = False):
+    if extra:
+        return lambda x:doCommandNew(args, ev = x, extra = extra)
     return lambda x:doCommandNew(args, ev = x)
+def makeCmdNoEvent(*args, extra = False):
+    if extra:
+        return lambda :doCommandNew(args, ev = lua.table(extra=extra))
+    #return lambda :doCommandNew(args, ev = lua.table(test=42,extra=lua.table(config=args[0].control.config(), foobar='baz',a=1)))
+    return lambda :doCommandNew(args)
+
 
 # a single lua table is passed
-def doCommandNew(*args, ev=False):
+def doCommandNew(*args, ev=False, extra = False):
     args = args[0][0]
     try:
         for k,v in ev.extra.items():
@@ -978,7 +1137,23 @@ def doCommandNew(*args, ev=False):
         ev.extra = False
     except:
         pass
-    args.event = ev # store the event in the table
+    
+    # now try items from the "extra" argument
+    try:
+        for k,v in extra.items():
+            args[k]=v
+    except:
+        pass
+    
+    if ev:
+        args.event = dict(
+            event = ev,
+            button = ev.num,
+            type = ev.type.name,
+            x = ev.x,
+            y = ev.y,
+        )
+    
     lua_func = lua.eval('function(o) if doCommand then doCommand(o) end end'.format(args.name))
     lua_func(args)
     lua_func = lua.eval('function(o) if {0}_command then {0}_command(o) end end'.format(args.name))
@@ -1023,16 +1198,17 @@ def onExit():
 #    redbutton['text']="foobar"
 
 def hello():
+    print("hello")
     pass
 
-root = Tk()
+root = tk.Tk()
 
 # hide the window until it's ready
 root.withdraw()
 
 #root.geometry("{0}x{1}".format(coalesce(config.width, 800), coalesce(config.height, 400)))
 root.protocol( "WM_DELETE_WINDOW", onExit )
-root.configure(bg=color_bk)
+#root.configure(bg=color_bk)
 root.iconbitmap(sys.executable)
 root.title("Some sort of tool 1.0")
 
@@ -1042,16 +1218,13 @@ if not frozen:
 
 tab_parent = ttk.Notebook(root)
 
-s = ttk.Style()
-s.configure('new.TFrame', background=color_bk)
-
 windows={'Main':root}
 
 tab_parent.pack(expand=1, fill='both')
 
-menubar = Menu(root)
+menubar = tk.Menu(root)
 
-filemenu = Menu(menubar, tearoff=0)
+filemenu = tk.Menu(menubar, tearoff=0)
 filemenu.add_command(label="New Project", command=lambda: doCommand("New"))
 filemenu.add_command(label="Open Project", command=lambda: doCommand("Open"))
 filemenu.add_command(label="Save Project", command=lambda: doCommand("Save"))
@@ -1061,33 +1234,31 @@ filemenu.add_separator()
 filemenu.add_command(label="Exit", command=lambda: doCommand("Quit"))
 menubar.add_cascade(label="File", menu=filemenu)
 
-editmenu = Menu(menubar, tearoff=0)
+editmenu = tk.Menu(menubar, tearoff=0)
 editmenu.add_command(label="Cut", command=lambda: doCommand("Cut"))
 editmenu.add_command(label="Copy", command=lambda: doCommand("Copy"))
 editmenu.add_command(label="Paste", command=lambda: doCommand("Paste"))
 menubar.add_cascade(label="Edit", menu=editmenu)
 
-helpmenu = Menu(menubar, tearoff=0)
+helpmenu = tk.Menu(menubar, tearoff=0)
 helpmenu.add_command(label="About", command=lambda: doCommand("About"))
 menubar.add_cascade(label="Help", menu=helpmenu)
-
-for item in (filemenu,editmenu,helpmenu):
-    item.config(bg=color_bk2,fg=color_fg, activebackground=color_bk_menu_highlight)
 
 filemenu["borderwidth"] = 0
 
 root.config(menu=menubar)
 
 # create a popup menu
-menu = Menu(root, tearoff=0)
-menu.add_command(label="Undo", command=hello)
-menu.add_command(label="Redo", command=hello)
+#menu = Menu(root, tearoff=0)
+#menu.add_command(label="Undo", command=hello)
+#menu.add_command(label="Redo", command=hello)
 
-def popup(event):
-    #menu.post(event.x_root, event.y_root)
-    messagebox.showerror("Error", "Computer says no.")
+#def popup(event):
+#    menu.post(event.x_root, event.y_root)
+    #messagebox.showerror("Error", "Computer says no.")
 
 #tab1.bind("<Button-3>", popup)
+#root.bind("<Button-3>", popup)
 
 #filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("jpeg files","*.jpg"),("all files","*.*")))
 #print (filename)
@@ -1096,7 +1267,7 @@ def popup(event):
 #photo = PhotoImage(file=R"file.png")
 
 #frame = Frame(root, width=800,height=400)
-#frame.pack(side = LEFT, anchor=NW)
+#frame.pack(side = LEFT, anchor=tk.NW)
 #frame.place(x=0,y=0)
 
 #photo = PhotoImage(file=R"1.png")
@@ -1113,11 +1284,11 @@ class HoverButton(tk.Button):
 
     def on_enter(self, e):
         #self['background'] = self['activebackground']
-        self['background'] = color_bk_hover
+        self['background'] = config.colors.bk_hover
 
     def on_leave(self, e):
         #self['background'] = self.defaultBackground
-        self['background'] = color_bk2
+        self['background'] = config.colors.bk2
         
 
 var = tk.IntVar()
@@ -1132,6 +1303,10 @@ def on_click():
 #b.config(width=w, height=h, fg=color_fg, bg=color_bk)
 #b.place(x=x, y=y)
 
+style = ttk.Style()
+style.configure('new.TFrame')
+
+lua.execute("True, False = true, false")
 
 gotError = False
 
@@ -1191,7 +1366,13 @@ if gotError:
 config  = lua.eval('config or {}')
 config.title = config.title or "SpideyGUI"
 root.title(config.title)
+root.configure(bg=config.colors.bk)
 
+if cfg.getValue("main","styleMenus"):
+    for item in (filemenu,editmenu,helpmenu):
+        item.config(bg=config.colors.bk2,fg=config.colors.fg, activebackground=config.colors.bk_menu_highlight)
+
+style.configure('new.TFrame', background=config.colors.bk, fg=config.colors.fg)
 
 t=lua.table(name="Main",
             control=root,

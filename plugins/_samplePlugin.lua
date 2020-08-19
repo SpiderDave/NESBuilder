@@ -30,10 +30,22 @@ function plugin.onInit()
     
     control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="samplePluginButton3",text="Test Window"}
     y = y + control.height + pad
+
+    -- Make a popup menu for this tab
+    local items = {
+        {name="foo", text="Foo"},
+        {name="bar", text="Bar"},
+        {name="baz", text="Baz"},
+    }
+    control = NESBuilder:makePopupMenu{name="samplePluginPopup", items=items, prefix=true}
 end
 
 function plugin.onBuild()
     print "onBuild!"
+end
+
+function samplePluginPopup_foo_cmd()
+    print("Foo!")
 end
 
 function samplePluginButton1_cmd()

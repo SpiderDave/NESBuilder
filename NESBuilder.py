@@ -46,6 +46,9 @@ import importlib, pkgutil
 # import our include folder
 import include 
 
+# import with convenient names
+from include import *
+
 import configparser, atexit
 
 # Handle exporting some stuff from python scripts to lua
@@ -59,81 +62,6 @@ initialFolder = os.getcwd()
 
 frozen = (getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'))
 
-class Cfg(configparser.ConfigParser):
-    def __init__(self):
-        # do the usual init
-        super().__init__()
-        # can do extra stuff here
-    def load(self, filename = "config.ini"):
-        self.read(os.path.join(script_path, filename))
-        self.filename = filename
-    def save(self):
-        with open(os.path.join(script_path, self.filename), 'w') as configfile:
-            self.write(configfile)
-    def makeSections(self, *sections):
-        for section in sections:
-            if not section in self.sections():
-                self[section] = {}
-    # Set a default value only if it doesn't already exist.
-    # Also creates a section if it doesn't exist.
-    def setDefault(self, section,key,value):
-        if not section in self.sections():
-            self[section] = {}
-        if type(value) is not str:
-            value = str(value)
-        self.set(section, key, self[section].get(key, value))
-    # Check if given string is a number, including
-    # negative numbers and decimals.
-    def isnumber(self, s):
-        s = str(s).strip()
-        if len(s)==0:
-            return false
-        if s[0]=='-' or s[0] == '+':
-            s = s[1:]
-        if s.find('.') == s.rfind('.'):
-            s = s.replace('.', '')
-        return s.isdigit()
-    # Interprets and formats a value
-    def makeValue(self, value):
-        if type(value) is not str:
-            return value
-        if ',' in value:
-            value = value.split(',')
-            for k,v in enumerate(value):
-                v=v.strip()
-                if v.startswith('0x'):
-                    value[k] = int(v, 16)
-                elif v.startswith('-0x'):
-                    value[k] = 0-int(v[1:], 16)
-                else:
-                    if self.isnumber(v):
-                        if '.' in v:
-                            value[k] = float(v)
-                        else:
-                            value[k] = int(v)
-                    else:
-                        value[k] = v
-            return value
-        else:
-            value=value.strip()
-            if value.startswith('0x'):
-                value = int(value, 16)
-            elif value.startswith('-0x'):
-                value = 0-int(value[1:], 16)
-            else:
-                if self.isnumber(value):
-                    if '.' in value:
-                        value = float(value)
-                    else:
-                        value = int(value)
-            return value
-    def getValue(self, section, key, default=None):
-        return self.makeValue(self[section].get(key, default))
-    def setValue(self, section, key, value):
-        # make sure section exists
-        if not section in self.sections():
-            self[section] = {}
-        self.set(section, key, str(value))
 
 
 nesPalette=[
@@ -156,8 +84,20 @@ nesPalette=[
 ]
 
 
+def pathToFolder(p):
+    return fixPath2(os.path.split(p)[0])
+
+def fixPath2(p):
+    if ":" not in p:
+        p = script_path+"/"+p
+    return p.replace("/",os.sep).replace('\\',os.sep)
+    
+def fixPath(p):
+    return p.replace("/",os.sep).replace('\\',os.sep)
+
+
 # create our config parser
-cfg = Cfg()
+cfg = Cfg(filename=fixPath2("config.ini"))
 
 # read config file if it exists
 cfg.load()
@@ -217,17 +157,6 @@ class Text(tk.Text):
 
     def clear(self):
         self.delete("1.0", tk.END)
-
-def pathToFolder(p):
-    return fixPath2(os.path.split(p)[0])
-
-def fixPath2(p):
-    if ":" not in p:
-        p = script_path+"/"+p
-    return p.replace("/",os.sep).replace('\\',os.sep)
-    
-def fixPath(p):
-    return p.replace("/",os.sep).replace('\\',os.sep)
 
 # Make stuff in this class available to lua
 # so we can do Python stuff rom lua.
@@ -339,6 +268,9 @@ class ForLua:
         return repr(item)
     def type(self, item):
         return item.__class__.__name__
+    def calc(self, s):
+        calc = Calculator()
+        return calc(s)
     def getPrintable(self, item):
         if type(item) is str: return item
         if repr(item).startswith("<"):
@@ -620,8 +552,9 @@ class ForLua:
         
         ret = self.loadCHRData(self,fileData,colors)
         return ret
-    def newCHRData(self):
-        return lua.table_from("\x00" * 0x1000)
+    def newCHRData(self, nTiles=16*16):
+        #return lua.table_from("\x00" * 0x1000)
+        return lua.table_from("\x00" * (nTiles * 16))
     def loadCHRData(self, fileData=False, colors=(0x0f,0x21,0x11,0x01)):
         control = self.getCanvas(self)
         canvas = control.control
@@ -1206,17 +1139,6 @@ class ForLua:
 
     def setTitle(self, title=''):
         root.title(title)
-    
-    #m = [func for func in dir(ForLua) if callable(getattr(ForLua, func)) and not func.startswith("__")]
-    #m = [func for func in dir(vars()) if callable(getattr(vars(), func)) and not func.startswith("__")]
-    
-#    for item in ['test', 'setTitle']:
-#        vars()[item] = lupa.unpacks_lua_table_method(vars()[item])
-    
-    #method_list = [func for func in dir(ForLua) if callable(getattr(ForLua, func)) and not func.startswith("__")]
-    #vars()['test'] = lupa.unpacks_lua_table_method(vars()['test'])
-    #test = lupa.unpacks_lua_table_method(test)
-    #imageToCHRData = lupa.unpacks_lua_table_method(imageToCHRData)
     
 # Return it from eval so we can execute it with a 
 # Python object as argument.  It will then add "NESBuilder"

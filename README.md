@@ -39,11 +39,18 @@ Plugins are Lua scripts, but can also import Python scripts.
 Create a "plugins" folder in the main folder and create a file there with 
 .lua extension.  Files starting with "_" will be ignored.
 
-See the sample plugin for more information.
+See sample plugins for more information.
 
 ### Callbacks ###
+* onPluginsLoaded
+    called after plugins are loaded
 * onInit
+    called after a plugin is loaded
 * onLoadProject
+    called when a project is loaded
 * onSaveProject
+    called when a project is saved
 * onBuild
+    called when a project is built
 * onExit
+    called when the program is exited

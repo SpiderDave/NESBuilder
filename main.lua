@@ -7,7 +7,7 @@ config = {
     cellHeight=24,
     buttonWidth=20,
     buttonWidthSmall=4,
-    aboutURL = "https://github.com/SpiderDave/NESBuilder",
+    aboutURL = "https://github.com/SpiderDave/NESBuilder#readme",
     colors = {
         bk='#202036',
         bk2='#303046',
@@ -16,7 +16,7 @@ config = {
         fg = '#eef',
         bk_menu_highlight='#606080',
     },
-    pluginFolder = "plugins",
+    pluginFolder = "plugins", -- this one is for python
 }
 
 config.launchText=[[
@@ -44,6 +44,9 @@ ToDo:
     * ability to add/remove/replace with popup menus
     * better docs
 ]]
+
+-- global stack
+stack, push, pop = NESBuilder:newStack()
 
 plugins = {}
 
@@ -104,6 +107,7 @@ data.projectID = "project1" -- this determines the folder that it will load the 
 data.folders = {
     projects = "projects/",
     tools = "tools/",
+    plugins = config.pluginFolder.."/",
 }
 
 
@@ -152,9 +156,8 @@ function init()
     NESBuilder:makeTab("Image", "CHR")
     
     NESBuilder:setTab("Image")
-    NESBuilder:makeCanvas{x=8,y=8,w=128*3,h=128*3,name="canvas"}
+    NESBuilder:makeCanvas{x=8,y=8,w=128,h=128,name="canvas", scale=3}
     NESBuilder:setCanvas("canvas")
-    
     
     pad=6
     top = pad*1.5
@@ -372,7 +375,7 @@ function doCommand(t)
         print("doCommand "..t)
         print("****")
     else
-        if t.event.type == "ButtonPress" then
+        if t.event.type == "ButtonPress" or t.event.type=="" then
             print("doCommand "..t.name)
         end
     end
@@ -546,7 +549,6 @@ function NewProject_cmd()
         end
     end
 
-
     n = NESBuilder:askText("New Project", "Please enter a name for the project")
     if (not n) or n=='' then
         print('cancelled')
@@ -619,15 +621,20 @@ function BuildTest_cmd()
 
     local workingFolder = data.folders.projects..data.project.folder
     local f = data.folders.projects..data.project.folder.."game.nes"
+    print("shellOpen "..f)
     NESBuilder:shellOpen(workingFolder, f)
 end
 
 function BuildProject_cmd()
+    local out = ""
     print("building project...")
     
-    -- make sure folder exists for this project
-    NESBuilder:makeDir(data.folders.projects..data.project.folder)
+    refreshCHR()
     
+    NESBuilder:setWorkingFolder()
+    
+    -- make sure folders exist for this project
+    NESBuilder:makeDir(data.folders.projects..data.project.folder)
     NESBuilder:makeDir(data.folders.projects..data.project.folder.."chr")
     NESBuilder:makeDir(data.folders.projects..data.project.folder.."code")
     
@@ -642,18 +649,26 @@ function BuildProject_cmd()
         end
     end
     
---    if data.project.chrData then
---        local f = data.folders.projects..data.project.folder.."output.chr"
---        print("File created "..f)
---        util.writeToFile(f, 0, data.project.chrData, true)
+    
+    local filename = data.folders.projects..projectFolder.."code/constauto.asm"
+    
+--    if NESBuilder:delete(filename) then
+--        print("deleted "..filename)
 --    end
-
-    c = NESBuilder:getControl('PaletteList')
+    
+    print("index = "..data.project.palettes.index)
+    out=""
+    out=out..string.format("SELECTED_PALETTE = $%02x\n\n", math.floor(data.project.palettes.index))
+    
+    util.writeToFile(filename,0, out, true)
+    --NESBuilder:writeToFile(filename, out)
+    
+    local c = NESBuilder:getControl('PaletteList')
     local filename = data.folders.projects..projectFolder.."code/palettes.asm"
 
     out=""
     
-    lowHigh = {{"low","<"},{"high",">"}}
+    local lowHigh = {{"low","<"},{"high",">"}}
     for i = 1,2 do
         out=out..string.format("Palettes_%s:\n",lowHigh[i][1])
         for palNum=0, #data.project.palettes do
@@ -674,7 +689,7 @@ function BuildProject_cmd()
     end
     
     for palNum=0, #data.project.palettes do
-        pal = data.project.palettes[palNum]
+        local pal = data.project.palettes[palNum]
         out=out..string.format("Palette%02x: .db ",palNum)
         for i=1,4 do
             out=out..string.format("$%02x",pal[i])
@@ -701,16 +716,24 @@ function BuildProject_cmd()
     local folder = data.folders.projects..data.project.folder
     
     -- make sure project.asm exists, or dont bother
-    if util.fileExists(folder.."project.asm") then
+    --if util.fileExists(folder.."project.asm") then
+    if NESBuilder:fileExists(folder.."project.asm") then
         -- remove old game.nes
         if NESBuilder:delete(folder.."game.nes") then
-            cmd = data.folders.tools.."asm6.exe"
-            args = "-L project.asm game.nes list.txt"
+            local cmd = data.folders.tools.."asm6.exe"
+            local args = "-L project.asm game.nes list.txt"
+            print("starting asm 6...")
+            NESBuilder:setWorkingFolder(folder)
             NESBuilder:run(folder, cmd, args)
+            --NESBuilder:shellOpen(folder, cmd.." "..args)
         else
             print("Did not assemble project.")
         end
+        print("done.")
+    else
+        print("no project.asm")
     end
+    print("---- end of build ---")
 end
 
 function SaveProject_cmd()
@@ -730,7 +753,6 @@ end
 function Label1_cmd(name, label)
     print(name)
 end
-
 
 function PaletteEntry_cmd(t)
     if not t.cellNum then return end -- the frame was clicked.
@@ -763,12 +785,12 @@ function Quit_cmd()
 end
 
 function refreshCHR()
-    p=data.project.palettes[data.project.palettes.index]
+    local p=data.project.palettes[data.project.palettes.index]
     
     NESBuilder:setCanvas("canvas")
     NESBuilder:loadCHRData(data.project.chr[data.project.chr.index], p)
 
-    c = NESBuilder:getControl('CHRNumLabel')
+    local c = NESBuilder:getControl('CHRNumLabel')
     c.control.text = string.format("%02x", data.project.chr.index)
 end
 
@@ -840,7 +862,6 @@ function LoadCHRNESmaker_cmd()
     end
 end
 
-
 function LoadCHR_cmd()
     local f = NESBuilder:openFile(nil)
     if f == "" then
@@ -884,11 +905,6 @@ function Save_cmd()
     SaveProject_cmd()
 end
 
-function Button0_cmd()
-    NESBuilder:setCanvas("canvas")
-    NESBuilder:saveCanvasImage()
-end
-
 function onExit(cancel)
     print("onExit")
     
@@ -926,13 +942,14 @@ CHR6_cmd = CHR_cmd
 CHR7_cmd = CHR_cmd
 
 function canvas_cmd(t)
-    local x = math.floor(t.event.x/3)
-    local y = math.floor(t.event.y/3)
+    local x = math.floor(t.event.x/t.scale)
+    local y = math.floor(t.event.y/t.scale)
     local tileX = math.floor(x/8)
     local tileY = math.floor(y/8)
     local tileNum = tileY*0x10+tileX
     local tileOffset = 16*tileNum
     
+    data.selectedColor = data.selectedColor or 0
     local c = data.selectedColor
     local cBits = NESBuilder:numberToBitArray(c)
     
@@ -959,5 +976,4 @@ function canvas_cmd(t)
     NESBuilder:canvasPaint(x,y,p)
     
     dataChanged()
-    --refreshCHR()
 end

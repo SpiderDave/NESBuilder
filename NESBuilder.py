@@ -5,9 +5,11 @@ ToDo:
     * make return value of control generating methods more consistant
     * makeCanvas method
     * clean up color variable names, add more
+    * phase out controls and use controlsNew, then rename controlsNew
+    * per-project plugins
 '''
 
-import os, sys
+import os, sys, time
 import lupa
 from lupa import LuaRuntime
 from lupa import LuaError
@@ -53,6 +55,8 @@ include.init(lua)
 true, false = True, False
 
 script_path = os.path.dirname(os.path.abspath( __file__ ))
+initialFolder = os.getcwd()
+
 frozen = (getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'))
 
 class Cfg(configparser.ConfigParser):
@@ -129,7 +133,7 @@ class Cfg(configparser.ConfigParser):
         # make sure section exists
         if not section in self.sections():
             self[section] = {}
-        self.set(section, key, value)
+        self.set(section, key, str(value))
 
 
 nesPalette=[
@@ -155,9 +159,6 @@ nesPalette=[
 # create our config parser
 cfg = Cfg()
 
-# register a function to save cfg on exit
-atexit.register(cfg.save)
-
 # read config file if it exists
 cfg.load()
 
@@ -180,6 +181,7 @@ lua_func(cfg)
 
 
 controls={}
+controlsNew={}
 
 # set up our lua function
 lua_func = lua.eval('function(o) {0} = o return o end'.format('tkConstants'))
@@ -196,8 +198,17 @@ def fancy(text):
 
 
 class Stack(deque):
-    def push(self, arg):
-        self.append(arg)
+    def push(self, *args):
+        for arg in args:
+            self.append(arg)
+    def pop(self, n=0):
+        if n > 0:
+            ret = []
+            for i in range(n):
+                ret.append(super().pop())
+            return tuple(ret)
+        else:
+            return super().pop()
 
 class Text(tk.Text):
     def setText(self, text):
@@ -232,42 +243,6 @@ class ForLua:
     
     config = cfg
     
-    # can't figure out item access from lua with cfg,
-    # so we'll define some methods here too.
-    def cfgLoad(self, filename = "config.ini"):
-        return cfg.load(filename)
-    def cfgSoad(self):
-        return cfg.save()
-    def cfgMakeSections(self, *sections):
-        return cfg.makeSections(*sections)
-    def cfgGetValue(self, section, key, default=None):
-        return cfg.getValue(section, key, default)
-    def cfgSetValue(self, section, key, value):
-        return cfg.setValue(section, key, value)
-    def cfgSetDefault(self, section,key,value):
-        return cfg.setDefault(section,key,value)
-    
-    def repr(self, item):
-        return repr(item)
-    def type(self, item):
-        return item.__class__.__name__
-    def getPrintable(self, item):
-        if type(item) is str: return item
-        if repr(item).startswith("<"):
-            return repr(item)
-        else:
-            return str(item)
-    def printNoPrefix(self, item):
-        if repr(item).startswith("<"):
-            print(repr(item))
-        else:
-            print(item)
-    def print(self, prefix, item):
-        print(prefix, end="")
-        if repr(item).startswith("<"):
-            print(repr(item))
-        else:
-            print(item)
     # decorator
     def makeControl(func):
         def addStandardProp(t):
@@ -318,9 +293,80 @@ class ForLua:
             
             return t
         return inner
+    def decorate(self):
+        decorator = lupa.unpacks_lua_table_method
+        for method_name in dir(self):
+            m = getattr(self, method_name)
+            if m.__class__.__name__ == 'function':
+                # these are control creation functions
+                # makedir maketab
+                makers = ['makeButton', 'makeCanvas', 'makeEntry', 'makeLabel',
+                          'makeList', 'makeMenu', 'makePaletteControl', 'makePopupMenu',
+                          'makeText', 'makeWindow']
+                
+                if method_name in makers:
+                    attr = getattr(self, method_name)
+                    wrapped = self.makeControl(attr)
+                    setattr(self, method_name, wrapped)
+                    pass
+                elif method_name in ['getNESColors', 'makeControl']:
+                    # getNESColors: excluded because it may have a table as its first parameter
+                    # makeControl: excluded because it's a decorator
+                    pass
+                else:
+                    #print(method_name, m.__class__)
+                    if method_name.startswith('make') and method_name not in ['makeDir', 'makeTab']:
+                        print("possible function to exclude from decorator: ", method_name, m.__class__)
+                    attr = getattr(self, method_name)
+                    wrapped = decorator(attr)
+                    setattr(self, method_name, wrapped)
+    
+    # can't figure out item access from lua with cfg,
+    # so we'll define some methods here too.
+    def cfgLoad(self, filename = "config.ini"):
+        return cfg.load(filename)
+    def cfgSoad(self):
+        return cfg.save()
+    def cfgMakeSections(self, *sections):
+        return cfg.makeSections(*sections)
+    def cfgGetValue(self, section, key, default=None):
+        return cfg.getValue(section, key, default)
+    def cfgSetValue(self, section, key, value):
+        return cfg.setValue(section, key, value)
+    def cfgSetDefault(self, section,key,value):
+        return cfg.setDefault(section,key,value)
+    def repr(self, item):
+        return repr(item)
+    def type(self, item):
+        return item.__class__.__name__
+    def getPrintable(self, item):
+        if type(item) is str: return item
+        if repr(item).startswith("<"):
+            return repr(item)
+        else:
+            return str(item)
+    def printNoPrefix(self, item):
+        if repr(item).startswith("<"):
+            print(repr(item))
+        else:
+            print(item)
+    def print(self, prefix, item):
+        print(prefix, end="")
+        if repr(item).startswith("<"):
+            print(repr(item))
+        else:
+            print(item)
+    def fileExists(self, f):
+        f = fixPath(script_path+"/"+f)
+        return os.path.isfile(f)
     def pathExists(self, f):
         f = fixPath(script_path+"/"+f)
         return os.path.exists(f)
+    def setWorkingFolder(self, f=""):
+        workingFolder = fixPath(script_path+"/"+f)
+        os.chdir(workingFolder)
+    def sleep(self, t):
+        time.sleep(t)
     def delete(self, filename):
         filename = fixPath(script_path+"/"+filename)
         try:
@@ -399,7 +445,7 @@ class ForLua:
         window.tab = tab
         self.tab=tab
     def getCanvas(self, canvas=None):
-        return controls[coalesce(canvas, self.canvas)]
+        return controlsNew[coalesce(canvas, self.canvas)]
     def setCanvas(self, canvas):
         self.canvas = canvas
     def fileTest(self):
@@ -447,33 +493,25 @@ class ForLua:
     def canvasPaint(self, x,y, c):
         canvas = self.getCanvas(self)
         c = "#{0:02x}{1:02x}{2:02x}".format(nesPalette[c][0],nesPalette[c][1],nesPalette[c][2])
-#        canvas.create_line(x, y, x+1, y+1,
-#                           width=1, fill=c,
-#                           capstyle=tk.ROUND, smooth=tk.TRUE, splinesteps=36)
-        canvas.create_rectangle(x*3, y*3, x*3+2, y*3+2,
+        canvas.control.create_rectangle(x*canvas.scale, y*canvas.scale, x*canvas.scale+canvas.scale-1, y*canvas.scale+canvas.scale-1,
                            width=1, outline=c, fill=c,
                            )
 
     def saveCanvasImage(self, f='test.png'):
-        canvas = self.getCanvas(self)
-        #canvas.im.save(f,"PNG")
+        canvas = self.getCanvas(self).control
         grabcanvas=ImageGrab.grab(bbox=canvas)
-        #.save("test.png")
         ttk.grabcanvas.save(f)
-
-        #print("loadImageToCanvas: {0}".format(f))
-#        Image.save(
-#        canvas.image.save(f)
-        #canvas.create_image(2, 2, image=canvas.image, anchor=tk.NW)
-        #canvas.to_file(f)
     def loadImageToCanvas(self, f):
-        canvas = self.getCanvas(self)
+        c = self.getCanvas(self).control
+        canvas = c.control
         print("loadImageToCanvas: {0}".format(f))
         try:
             with Image.open(f) as im:
                 px = im.load()
-            displayImage = ImageOps.scale(im, 3.0, resample=Image.NEAREST)
+            
+            displayImage = ImageOps.scale(im, c.scale, resample=Image.NEAREST)
             canvas.image = ImageTk.PhotoImage(displayImage)
+            
             canvas.create_image(0, 0, image=canvas.image, anchor=tk.NW)
             canvas.configure(highlightthickness=0, borderwidth=0)
         except:
@@ -500,10 +538,6 @@ class ForLua:
             if len(c) == 1:
                 return c[0]
             return c
-    def makeTable(self, t):
-        print(t)
-        t = lua.table(t)
-        return t
     def imageToCHR(self, f, outputfile="output.chr", colors=False):
         print('imageToCHR')
         data = self.imageToCHRData(self, f, colors)
@@ -512,7 +546,8 @@ class ForLua:
         f=open(outputfile,"wb")
         f.write(bytes(data))
         f.close()
-        
+    def test(self, foo=1, bar=2):
+        print(foo,bar)
     def imageToCHRData(self, f, colors=False):
         print('imageToCHRData')
         
@@ -569,6 +604,12 @@ class ForLua:
         file.write(bytes(fileData))
         file.close()
         return True
+    def writeToFile(self, f, fileData):
+        f = fixPath2(f)
+        file=open(f,"w")
+        file.write(fileData)
+        file.close()
+        return True
     def loadCHRFile(self, f='chr.chr', colors=(0x0f,0x21,0x11,0x01)):
         file=open(f,"rb")
         #file.seek(0x1000)
@@ -582,7 +623,8 @@ class ForLua:
     def newCHRData(self):
         return lua.table_from("\x00" * 0x1000)
     def loadCHRData(self, fileData=False, colors=(0x0f,0x21,0x11,0x01)):
-        canvas = self.getCanvas(self)
+        control = self.getCanvas(self)
+        canvas = control.control
         
         if not fileData:
             fileData = "\x00" * 0x1000
@@ -590,9 +632,8 @@ class ForLua:
         if type(fileData) is str:
             fileData = [ord(x) for x in fileData]
         elif lupa.lua_type(fileData)=="table":
-            #fileData = [fileData[x] for x in fileData]
             fileData = list([fileData[x] for x in fileData])
-            
+        
         # convert and re-index lua table
         if lupa.lua_type(colors)=="table":
             colors = [colors[x] for x in colors]
@@ -601,7 +642,10 @@ class ForLua:
         
         a = np.asarray(img).copy()
         
-        for tile in range(256):
+        math.floor(len(fileData)/16)
+        
+        #for tile in range(256):
+        for tile in range(math.floor(len(fileData)/16)):
             for y in range(8):
                 for x in range(8):
                     c=0
@@ -615,14 +659,18 @@ class ForLua:
         
         img = Image.fromarray(a)
         
+        #img = img.crop((0,0,50,50))
+        
         ret = lua.table_from(fileData)
         
-        photo = ImageTk.PhotoImage(ImageOps.scale(img, 3.0, resample=Image.NEAREST))
+        photo = ImageTk.PhotoImage(ImageOps.scale(img, control.scale, resample=Image.NEAREST))
         
         canvas.chrImage = photo # keep a reference
         
         canvas.create_image(0,0, image=photo, state="normal", anchor=tk.NW)
         canvas.configure(highlightthickness=0, borderwidth=0)
+        
+        control.chrData = lua.table_from(fileData)
         
         return ret
     def exportCHRDataToImage(self, filename="export.png", fileData=False, colors=(0x0f,0x21,0x11,0x01)):
@@ -687,19 +735,25 @@ class ForLua:
             x=x-1000
         controls[c].place(x=x)
         print(controls[c].foobar)
-    @makeControl
     def makeCanvas(self, t, variables):
         x,y,w,h = variables
+        
+        t.scale = t.scale or 3
+        w=w*t.scale
+        h=h*t.scale
         
         canvas = tk.Canvas(self.getTab(self), width=1, height=1, bg='black',name=t.name)
         canvas.place(x=x,y=y, width=w, height=h)
         control=canvas
         t=lua.table(name=t.name,
                     control=control,
+                    scale=t.scale,
                     )
         
         control.bind("<ButtonPress-1>", makeCmdNew(t, extra=dict(press=True)))
         control.bind("<ButtonRelease-1>", makeCmdNew(t, extra=dict(press=False)))
+        control.bind("<ButtonPress>", makeCmdNew(t))
+        control.bind("<ButtonRelease>", makeCmdNew(t))
         control.bind("<B1-Motion>", makeCmdNew(t))
 
         canvas.config(cursor="top_left_arrow")
@@ -717,9 +771,9 @@ class ForLua:
             self.setCanvas(self, t.name)
         
         controls.update({t.name:control})
+        controlsNew.update({t.name:t})
         
         return t
-    @makeControl
     def makeButton(self, t, variables):
         x,y,w,h = variables
 
@@ -749,7 +803,6 @@ class ForLua:
     def setText(c,txt):
         c.setText(txt)
     
-    @makeControl
     def makePopupMenu(self, t, variables):
         x,y,w,h = variables
         
@@ -791,7 +844,6 @@ class ForLua:
         tab.bind("<Button-3>", popup)
         
         return t
-    @makeControl
     def makeMenu(self, t, variables):
         x,y,w,h = variables
         
@@ -829,7 +881,6 @@ class ForLua:
             menu.add_command(label=item.text, command=makeCmdNoEvent(t2, extra=entry))
         
         return t
-    @makeControl
     def makeWindow(self, t, variables):
         x,y,w,h = variables
         
@@ -873,7 +924,6 @@ class ForLua:
         #control.bind( "<ButtonRelease-1>", makeCmdNew(t))
         return t
         
-    @makeControl
     def makeList(self, t, variables):
         x,y,w,h = variables
         
@@ -914,7 +964,6 @@ class ForLua:
         control.bind( "<ButtonRelease-1>", makeCmdNew(t))
         
         return t
-    @makeControl
     def makeText(self, t, variables):
         x,y,w,h = variables
         
@@ -945,7 +994,6 @@ class ForLua:
         control.bind( "<Return>", makeCmdNew(t))
         
         return t
-    @makeControl
     def makeEntry(self, t, variables):
         x,y,w,h = variables
         
@@ -978,7 +1026,6 @@ class ForLua:
         
         return t
 
-    @makeControl
     def makeLabel(self, t, variables):
         x,y,w,h = variables
         
@@ -1015,7 +1062,6 @@ class ForLua:
 
         control.bind( "<Button-1>", makeCmdNew(t))
         return t
-    @makeControl
     def makePaletteControl(self, t, variables):
         x,y,w,h = variables
 
@@ -1034,8 +1080,6 @@ class ForLua:
             control.cellNum = ev.widget.index
             ev.index = ev.widget.index
             #control.cellEvent = ev
-            
-            print(ev)
             
             # This stuff is just taking a ride on the event
             # but will be on the main table
@@ -1071,7 +1115,6 @@ class ForLua:
                 
                 controls.update({n:l})
                 controls[n].update()
-                #print(n)
                 control.allCells.append(l)
         self.x = t.x+pw*(w+1)+1
         self.y = t.y+ph*(h+1)+1
@@ -1147,14 +1190,38 @@ class ForLua:
             window.tabParent.pack(expand=1, fill='both')
     def makeTab(self, name, text):
         self.createTab(self, name, text)
+    def forceClose(self):
+        atexit.unregister(exitCleanup)
+        sys.exit()
     def restart(self):
-        os.execv(__file__, sys.argv)
+        #if onExit(skipCallback=True):
+        if onExit():
+            print("\n"+"*"*20+" RESTART "+"*"*20+"\n")
+            os.chdir(initialFolder)
+            if frozen:
+                subprocess.Popen(sys.argv)
+            else:
+                subprocess.Popen([sys.executable]+ sys.argv)
+            os.system('cls')
+
     def setTitle(self, title=''):
         root.title(title)
-
+    
+    #m = [func for func in dir(ForLua) if callable(getattr(ForLua, func)) and not func.startswith("__")]
+    #m = [func for func in dir(vars()) if callable(getattr(vars(), func)) and not func.startswith("__")]
+    
+#    for item in ['test', 'setTitle']:
+#        vars()[item] = lupa.unpacks_lua_table_method(vars()[item])
+    
+    #method_list = [func for func in dir(ForLua) if callable(getattr(ForLua, func)) and not func.startswith("__")]
+    #vars()['test'] = lupa.unpacks_lua_table_method(vars()['test'])
+    #test = lupa.unpacks_lua_table_method(test)
+    #imageToCHRData = lupa.unpacks_lua_table_method(imageToCHRData)
+    
 # Return it from eval so we can execute it with a 
 # Python object as argument.  It will then add "NESBuilder"
 # to Lua
+ForLua.decorate(ForLua)
 lua_func = lua.eval('function(o) {0} = o return o end'.format('NESBuilder'))
 lua_func(ForLua)
 
@@ -1207,7 +1274,7 @@ def doCommandNew(*args, ev=False, extra = False):
         try:
             event.type = ev.type.name
         except:
-            event.update(type="")
+            event.update(type=str(ev.type))
         
         args.event = event
     
@@ -1236,38 +1303,38 @@ def doCommand(ctrl, *args):
         a = 'nil'
         comma = ''
 
-#    print("if doCommand then doCommand('{0}',Python.getControl('{0}'),{1}) end".format(ctrl,a))
-#    print("if {0}_command then {0}_command('{0}',Python.getControl('{0}'),{1}) end".format(ctrl,a))
-#    print("if {0}_cmd then {0}_cmd('{0}',Python.getControl('{0}'),{1}) end".format(ctrl,a))
-
-
     lua.execute("if doCommand then doCommand('{0}',NESBuilder:getControl('{0}'),{1}) end".format(ctrl,a))
     lua.execute("if {0}_command then {0}_command('{0}',NESBuilder:getControl('{0}'),{1}) end".format(ctrl,a))
     lua.execute("if {0}_cmd then {0}_cmd('{0}',NESBuilder:getControl('{0}'),{1}) end".format(ctrl,a))
-def onExit():
-    if lua.eval('type(onExit)') == 'function':
-        if lua.eval('onExit()') != True:
-            root.destroy()
-    else:
-        root.destroy()
+def onExit(skipCallback=False):
+    print('onExit')
+    exit = True
+    if (not skipCallback) and lua.eval('type(onExit)') == 'function':
+        exit = not lua.eval('onExit()')
+    if exit:
+        exitCleanup()
+        root.quit()
+        return true
 
-#def test():
-#    redbutton['text']="foobar"
+def exitCleanup():
+    w,h = root.winfo_width(), root.winfo_height()
+    if w==200 and h==200: return
+    
+    cfg.setValue('main','x', root.winfo_x())
+    cfg.setValue('main','y', root.winfo_y())
+    cfg.setValue('main','w', root.winfo_width())
+    cfg.setValue('main','h', root.winfo_height())
+    cfg.save()
 
-def hello():
-    print("hello")
-    pass
+# run function on exit
+atexit.register(exitCleanup)
 
 root = tk.Tk()
 
 # hide the window until it's ready
 root.withdraw()
-
-#root.geometry("{0}x{1}".format(coalesce(config.width, 800), coalesce(config.height, 400)))
 root.protocol( "WM_DELETE_WINDOW", onExit )
-#root.configure(bg=color_bk)
 root.iconbitmap(sys.executable)
-root.title("Some sort of tool 1.0")
 
 if not frozen:
     photo = ImageTk.PhotoImage(file = fixPath2("icon.ico"))
@@ -1380,7 +1447,6 @@ except LuaError as err:
     err = "\n".join(err)
     err = textwrap.indent(err, " "*4)
     
-    
     print("-"*80)
     print("LuaError:\n")
     print(err)
@@ -1416,28 +1482,36 @@ print("This console is for debugging purposes.\n")
 lua.execute("if init then init() end")
 
 # load lua plugins
-dir = config.pluginFolder
-dir = fixPath(script_path + "/" + dir)
-if os.path.exists(dir):
+folder = config.pluginFolder
+folder = fixPath(script_path + "/" + folder)
+if os.path.exists(folder):
     lua.execute("""
     local _plugin
     """)
-    for file in os.listdir(dir):
+    for file in os.listdir(folder):
         if file.endswith(".lua") and not file.startswith("_"):
             print("Loading plugin: "+file)
-
             code = """
                 _plugin = require("{0}.{1}")
                 if type(_plugin) =="table" then
                     plugins[_plugin.name or "{1}"]=_plugin
                     _plugin.file = "{2}"
+                    _plugin.name = _plugin.name or "{1}"
                 end
             """.format(config.pluginFolder,os.path.splitext(file)[0], file)
             #print(fancy(code))
             lua.execute(code)
     lua.execute("if onPluginsLoaded then onPluginsLoaded() end")
 
-root.geometry("{0}x{1}".format(coalesce(config.width, 800), coalesce(config.height, 400)))
+w = cfg.getValue('main', 'w', default=coalesce(config.width, 800))
+h = cfg.getValue('main', 'h', default=coalesce(config.height, 800))
+
+x,y = cfg.getValue('main', 'x'), cfg.getValue('main', 'y')
+if x and y:
+    root.geometry("{0}x{1}+{2}+{3}".format(w,h, x,y))
+else:
+    root.geometry("{0}x{1}".format(w,h))
+
 
 # show the window
 root.deiconify()

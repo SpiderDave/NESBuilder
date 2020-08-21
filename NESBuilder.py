@@ -542,9 +542,9 @@ class ForLua:
         file.write(fileData)
         file.close()
         return True
-    def loadCHRFile(self, f='chr.chr', colors=(0x0f,0x21,0x11,0x01)):
+    def loadCHRFile(self, f='chr.chr', colors=(0x0f,0x21,0x11,0x01), start=0):
         file=open(f,"rb")
-        #file.seek(0x1000)
+        file.seek(start)
         fileData = file.read()
         file.close()
         
@@ -649,6 +649,14 @@ class ForLua:
         # store the eval return value so we can pass return value to lua space.
         exec('ForLua.execRet = {0}'.format(s))
         return ForLua.execRet
+    def getControlNew(self, n):
+        if not n:
+            return controlsNew
+        else:
+            if n in controlsNew:
+                return controlsNew[n]
+            elif "_"+n in controlsNew:
+                return controlsNew["_"+n]
     def getControl(self, n):
         if not n:
             return controls
@@ -780,6 +788,12 @@ class ForLua:
     def makeMenu(self, t, variables):
         x,y,w,h = variables
         
+        window = self.getWindow(self)
+        if not window.menu:
+            menubar = tk.Menu(window.control)
+            window.menu = menubar
+            window.control.config(menu = menubar)
+        
         # create a popup menu
         tab = self.getTab(self)
         menu = tk.Menu(tab, tearoff=tearoff)
@@ -787,7 +801,8 @@ class ForLua:
         if cfg.getValue("main","styleMenus"):
             menu.config(bg=config.colors.bk2,fg=config.colors.fg, activebackground=config.colors.bk_menu_highlight)
         
-        menubar.add_cascade(label=t.text, menu=menu)
+        #menubar.add_cascade(label=t.text, menu=menu)
+        window.menu.add_cascade(label=t.text, menu=menu)
 
         control = menu
         controls.update({t.name:control})
@@ -811,7 +826,10 @@ class ForLua:
                     t2.name = "_"+name
             
             entry = dict(index=i, entry = item)
-            menu.add_command(label=item.text, command=makeCmdNoEvent(t2, extra=entry))
+            if item.text == "-":
+                menu.add_separator()
+            else:
+                menu.add_command(label=item.text, command=makeCmdNoEvent(t2, extra=entry))
         
         return t
     def makeWindow(self, t, variables):
@@ -838,11 +856,30 @@ class ForLua:
         tabs={}
         
         window.configure(bg=config.colors.bk)
+        
+        # Set the window icon and override when applicable in this order:
+        # 1. executable icon 
+        # 2. external icon if not frozen
+        # 3. custom icon
+        # 4. custom icon relative to plugins folder
         window.iconbitmap(sys.executable)
         if not frozen:
-            photo = ImageTk.PhotoImage(file = fixPath2("icon.ico"))
-            window.iconphoto(False, photo)
-        
+            try:
+                photo = ImageTk.PhotoImage(file = fixPath2("icon.ico"))
+                window.iconphoto(False, photo)
+            except:
+                pass
+        if t.icon:
+            try:
+                photo = ImageTk.PhotoImage(file = fixPath2(t.icon))
+                window.iconphoto(False, photo)
+            except:
+                try:
+                    photo = ImageTk.PhotoImage(file = fixPath2(config.pluginFolder+"/"+t.icon))
+                    window.iconphoto(False, photo)
+                except:
+                    pass
+
         control = window
         t=lua.table(name=t.name,
                     control=control,
@@ -852,7 +889,8 @@ class ForLua:
                     )
         
         controls.update({t.name:t})
-        windows.update({t.name:window})
+        windows.update({t.name:t})
+        #windows.update({t.name:window})
         
         #control.bind( "<ButtonRelease-1>", makeCmdNew(t))
         return t
@@ -1264,35 +1302,11 @@ if not frozen:
 
 tab_parent = ttk.Notebook(root)
 
-windows={'Main':root}
+windows={}
 
 tab_parent.pack(expand=1, fill='both')
 
 tearoff = cfg.getValue("main","tearoff")
-
-menubar = tk.Menu(root)
-
-filemenu = tk.Menu(menubar, tearoff=tearoff)
-filemenu.add_command(label="New Project", command=lambda: doCommand("New"))
-filemenu.add_command(label="Open Project", command=lambda: doCommand("Open"))
-filemenu.add_command(label="Save Project", command=lambda: doCommand("Save"))
-filemenu.add_command(label="Build Project", command=lambda: doCommand("Build"))
-filemenu.add_command(label="Build Project and Test", command=lambda: doCommand("BuildTest"))
-filemenu.add_separator()
-filemenu.add_command(label="Exit", command=lambda: doCommand("Quit"))
-menubar.add_cascade(label="File", menu=filemenu)
-
-editmenu = tk.Menu(menubar, tearoff=tearoff)
-editmenu.add_command(label="Cut", command=lambda: doCommand("Cut"))
-editmenu.add_command(label="Copy", command=lambda: doCommand("Copy"))
-editmenu.add_command(label="Paste", command=lambda: doCommand("Paste"))
-menubar.add_cascade(label="Edit", menu=editmenu)
-
-helpmenu = tk.Menu(menubar, tearoff=tearoff)
-helpmenu.add_command(label="About", command=lambda: doCommand("About"))
-menubar.add_cascade(label="Help", menu=helpmenu)
-
-root.config(menu=menubar)
 
 class HoverButton(tk.Button):
     def __init__(self, master, **kw):
@@ -1344,6 +1358,10 @@ try:
         f.close()
     pass
 except LuaError as err:
+    handleLuaError(err)
+    gotError = True
+    
+def handleLuaError(err):
     err = str(err).replace('error loading code: ','')
     err = err.replace('[string "<python>"]',"[main.lua]")
     err = err.replace('[C]',"[lua]")
@@ -1374,21 +1392,20 @@ except LuaError as err:
     print(err)
     print()
     print("-"*80)
-    gotError = True
 
 if gotError:
     sys.exit(1)
     
+    
+    
 config  = lua.eval('config or {}')
+
+style.configure('new.TFrame', background=config.colors.bk, fg=config.colors.fg)
+
 config.title = config.title or "SpideyGUI"
 root.title(config.title)
 root.configure(bg=config.colors.bk)
 
-if cfg.getValue("main","styleMenus"):
-    for item in (filemenu,editmenu,helpmenu):
-        item.config(bg=config.colors.bk2,fg=config.colors.fg, activebackground=config.colors.bk_menu_highlight)
-
-style.configure('new.TFrame', background=config.colors.bk, fg=config.colors.fg)
 
 t=lua.table(name="Main",
             control=root,
@@ -1398,7 +1415,7 @@ t=lua.table(name="Main",
             )
 
 controls.update({"Main":t})
-
+windows.update({"Main":t})
 print("This console is for debugging purposes.\n")
 
 lua.execute("if init then init() end")
@@ -1422,8 +1439,14 @@ if os.path.exists(folder):
                 end
             """.format(config.pluginFolder,os.path.splitext(file)[0], file)
             #print(fancy(code))
-            lua.execute(code)
+            try:
+                lua.execute(code)
+            except LuaError as err:
+                print("*** Failed to load plugin: "+file)
+                handleLuaError(err)
+            
     lua.execute("if onPluginsLoaded then onPluginsLoaded() end")
+lua.execute("if onReady then onReady() end")
 
 w = cfg.getValue('main', 'w', default=coalesce(config.width, 800))
 h = cfg.getValue('main', 'h', default=coalesce(config.height, 800))

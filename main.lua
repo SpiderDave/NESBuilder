@@ -155,6 +155,29 @@ function init()
     NESBuilder:makeTab("Palette", "Palette")
     NESBuilder:makeTab("Image", "CHR")
     
+    local items = {
+        {name="New", text="New Project"},
+        {name="Open", text="Open Project"},
+        {name="Save", text="Save Project"},
+        {name="Build", text="Build Project"},
+        {name="BuildTest", text="Build Project and Test"},
+        {text="-"},
+        {name="Quit", text="Exit"},
+    }
+    control = NESBuilder:makeMenu{name="menuFile", text="File", items=items, prefix=false}
+    
+    local items = {
+        {name="Cut", text="Cut"},
+        {name="Copy", text="Copy"},
+        {name="Paste", text="Paste"},
+    }
+    control = NESBuilder:makeMenu{name="menuEdit", text="Edit", items=items, prefix=false}
+    
+    local items = {
+        {name="About", text="About"},
+    }
+    control = NESBuilder:makeMenu{name="menuHelp", text="Help", items=items, prefix=false}
+    
     NESBuilder:setTab("Image")
     NESBuilder:makeCanvas{x=8,y=8,w=128,h=128,name="canvas", scale=3}
     NESBuilder:setCanvas("canvas")
@@ -339,12 +362,14 @@ function init()
     end
     
     loadSettings()
-    
-    LoadProject_cmd()
 end
 
 function onPluginsLoaded()
     handlePluginCallback("onInit")
+end
+
+function onReady()
+    LoadProject_cmd()
 end
 
 function handlePluginCallback(f)
@@ -823,7 +848,7 @@ end
 
 function ExportCHRImage_cmd()
     local filename = string.format("chr%02x_export.png",data.project.palettes.index)
-    local f = NESBuilder:saveFileAs({{"CHR", ".chr"}},filename)
+    local f = NESBuilder:saveFileAs({{"PNG", ".png"}},filename)
     if f == "" then
         print("Export cancelled.")
     else

@@ -25,6 +25,7 @@ function plugin.onInit()
         {name="restart", text="Restart"},
         {name="forceClose", text="Force Close"},
         {name="openMainFolder", text="Open Main Folder"},
+        {name="openProjectFolder", text="Open Project Folder"},
         {name="openPluginFolder", text="Open Plugin Folder"},
     }
     control = NESBuilder:makeMenu{name="debugMenu", text="Debug", items=items, prefix=true}
@@ -42,6 +43,8 @@ function debugMenu_openMainFolder_cmd()
     local workingFolder = data.folders.projects..data.project.folder
     NESBuilder:shellOpen(workingFolder, "")
 end
+
+debugMenu_openProjectFolder_cmd = OpenProjectFolder_cmd
 
 function debugMenu_openPluginFolder_cmd()
     local workingFolder = data.folders.projects..data.project.folder

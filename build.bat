@@ -37,6 +37,11 @@ rem run pyinstaller
 echo starting pyinstaller...
 pyinstaller --onefile -%parameter% -i icon.ico -n NESBuilder%suffix%.exe ^
             --add-binary "main.lua;include" ^
+            --add-binary "icons\folder32.png;icons" ^
+            --add-binary "icons\folderplus32.png;icons" ^
+            --add-binary "icons\gear32.png;icons" ^
+            --add-binary "icons\note32.png;icons" ^
+            --add-binary "icons\clock32.png;icons" ^
             --add-binary "include\Tserial.lua;include" ^
             --add-binary "include\util.lua;include" ^
             --add-binary "cursors\pencil.cur;cursors" ^

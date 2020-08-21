@@ -150,7 +150,7 @@ function init()
     NESBuilder:makeDir(data.folders.projects)
     
     NESBuilder:setWindow("Main")
-    NESBuilder:makeTab("Launch", "Info")
+    NESBuilder:makeTab("Launcher", "Launcher")
     NESBuilder:makeTab("Main", "Main")
     NESBuilder:makeTab("Palette", "Palette")
     NESBuilder:makeTab("Image", "CHR")
@@ -186,20 +186,6 @@ function init()
     top = pad*1.5
     left = pad*1.5
     x,y = left,top
-    
-    NESBuilder:setTab("Launch")
-    
-    control = NESBuilder:makeLabel{x=x,y=y,name="launchLabel",clear=true,text="NESBuilder"}
-    control.setFont("Verdana", 24)
-    
-    -- Getting wrong height here for some reason.  Doesn't happen in a plugin.
-    control.height = 26
-    
-    y = y + control.height + pad*1.5
-    
-    control = NESBuilder:makeLabel{x=x,y=y,name="launchLabel2",clear=true,text=config.launchText}
-    control.setFont("Verdana", 12)
-    control.setJustify("left")
     
     
     NESBuilder:setTab("Main")
@@ -360,6 +346,73 @@ function init()
         b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="CHR"..i,text="CHR "..i}
         y = y + b.height + pad
     end
+    
+    
+    NESBuilder:setTab("Launcher")
+    left = pad*2
+    top = pad*2
+    x,y,pad = left,top,8
+    local startY
+    
+    control = NESBuilder:makeLabel{x=x,y=y,name="testRecentTitle",clear=true,text="NESBuilder"}
+    control.setFont("Verdana", 28)
+    
+    y = y + control.height + pad
+    push(y)
+    
+    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonRecent",text="Recent Projects", image="icons/clock32.png", iconMod=true}
+    y = y + control.height + pad
+    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonOpen",text="Open Project", image="icons/folder32.png", iconMod=true}
+    y = y + control.height + pad
+    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonNew",text="New Project", image="icons/folderplus32.png", iconMod=true}
+    y = y + control.height + pad
+    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonTemplates",text="Templates", image="icons/folder32.png", iconMod=true}
+    y = y + control.height + pad
+    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonPreferences",text="Preferences", image="icons/gear32.png", iconMod=true}
+    y = y + control.height + pad
+    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonInfo",text="Info", image="icons/note32.png", iconMod=true}
+    y = y + control.height + pad
+    
+    x=x+control.width+pad
+    y=top
+    startY=pop()
+    
+    local c = {
+        {text="Days"},
+        {text="go"},
+        {text="by"},
+        {text="and"},
+        {text="still"},
+        {text="I"},
+        {text="think"},
+        {text="of"},
+        {text="you."},
+        {text="Days"},
+        {text="when"},
+        {text="I"},
+        {text="couldn't"},
+        {text="live"},
+        {text="my"},
+        {text="life"},
+        {text="without"},
+        {text="you."},
+        {text="Without"},
+        {text="you."},
+    }
+    local columns = 5
+    for i, item in pairs(c) do
+        x = 250+((i-1) % columns)*100
+        y = startY+math.floor((i-1)/columns)*150
+        
+        --control = NESBuilder:makeButton{x=x,y=y,h=110, w=11, name="testRecent"..i, text=""}
+        control = NESBuilder:makeLabel{x=x,y=y,h=110, w=80, name="testRecentIcon"..i,text=""}
+        y = y + control.height + pad*.5
+        control = NESBuilder:makeLabel{x=x,y=y,name="testRecent"..i,clear=true,text=item.text}
+        control.setFont("Verdana", 10)
+        y = y + control.height + pad
+        
+    end
+    
     
     loadSettings()
 end
@@ -608,16 +661,46 @@ function NewProject_cmd()
     LoadProject_cmd()
 end
 
-function Cut_cmd()
-    NESBuilder:showError("Error", "Not yet implemented.")
-end
-function Copy_cmd()
-    NESBuilder:showError("Error", "Not yet implemented.")
-end
-function Paste_cmd()
+
+function notImplemented()
     NESBuilder:showError("Error", "Not yet implemented.")
 end
 
+function Cut_cmd() notImplemented() end
+function Copy_cmd() notImplemented() end
+function Paste_cmd() notImplemented() end
+
+function launcherButtonOpen_cmd() Open_cmd() end
+function launcherButtonNew_cmd() NewProject_cmd() end
+function launcherButtonRecent_cmd() notImplemented() end
+function launcherButtonTemplates_cmd() notImplemented() end
+function launcherButtonPreferences_cmd() notImplemented() end
+
+function launcherButtonInfo_cmd()
+    local x,y,left,top,pad
+    pad = 6
+    left = pad*2
+    top = pad*2
+    x,y = left,top
+
+
+    NESBuilder:makeWindow{x=0,y=0,w=760,h=600, name="infoWindow",title="Info"}
+    NESBuilder:setWindow("infoWindow")
+
+    control = NESBuilder:makeLabel{x=x,y=y,name="launchLabel",clear=true,text="NESBuilder"}
+    control.setFont("Verdana", 24)
+    
+    -- Getting wrong height here for some reason.  Doesn't happen in a plugin.
+    control.height = 26
+    
+    y = y + control.height + pad*1.5
+    
+    control = NESBuilder:makeLabel{x=x,y=y,name="launchLabel2",clear=true,text=config.launchText}
+    control.setFont("Verdana", 12)
+    control.setJustify("left")
+
+
+end
 
 function New_cmd()
     NewProject_cmd()

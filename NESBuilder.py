@@ -27,6 +27,8 @@ from PIL import ImageGrab
 from collections import deque
 import re
 
+from io import BytesIO
+
 import textwrap
 
 import numpy as np
@@ -46,6 +48,13 @@ import importlib, pkgutil
 # import our include folder
 import include 
 
+# This helps make things work in the frozen version
+# All that python imports here is an empty init file.
+try:    import icons
+except: pass
+try:    import cursors
+except: pass
+
 # import with convenient names
 from include import *
 
@@ -54,7 +63,6 @@ import configparser, atexit
 # Handle exporting some stuff from python scripts to lua
 include.init(lua)
 
-
 true, false = True, False
 
 script_path = os.path.dirname(os.path.abspath( __file__ ))
@@ -62,7 +70,11 @@ initialFolder = os.getcwd()
 
 frozen = (getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'))
 
-
+application_path = False
+if frozen:
+    application_path = sys._MEIPASS
+else:
+    application_path = os.path.dirname(os.path.abspath(__file__))
 
 nesPalette=[
 [0x74,0x74,0x74],[0x24,0x18,0x8c],[0x00,0x00,0xa8],[0x44,0x00,0x9c],
@@ -229,7 +241,7 @@ class ForLua:
             if m.__class__.__name__ == 'function':
                 # these are control creation functions
                 # makedir maketab
-                makers = ['makeButton', 'makeCanvas', 'makeEntry', 'makeLabel',
+                makers = ['makeButton', 'makeCanvas', 'makeEntry', 'makeLabel', "makeTree",
                           'makeList', 'makeMenu', 'makePaletteControl', 'makePopupMenu',
                           'makeText', 'makeWindow']
                 
@@ -698,14 +710,13 @@ class ForLua:
         control.bind("<B1-Motion>", makeCmdNew(t))
 
         canvas.config(cursor="top_left_arrow")
-
+        
         try:
-            canvas.config(cursor="@cursors/pencil.cur")
+            d = os.path.dirname(sys.modules["cursors"].__file__)
+            f = os.path.join(d, "pencil.cur").replace("\\","/")
+            canvas.config(cursor="@"+f)
         except:
-            try:
-                canvas.config(cursor="@_cursors/pencil.cur")
-            except:
-                pass
+            pass
         
         if not self.canvas:
             # set as default canvas
@@ -717,23 +728,65 @@ class ForLua:
         return t
     def makeButton(self, t, variables):
         x,y,w,h = variables
+        imgctrl = False
 
         #w=20
-        h=1
+        #h=1
+        img = None
+        image = None
+        inverted_image = None
+        if t.image:
+            try:
+                # the frozen version will still try to load it manually first
+                image = Image.open(t.image)
+            except:
+                folder, file = os.path.split(t.image)
+                image = Image.open(BytesIO(pkgutil.get_data(folder, file)))
+            
+            if t.iconMod:
+                if image.mode == 'RGBA':
+                    r,g,b,a = image.split()
+                    rgb_image = Image.merge('RGB', (r,g,b))
 
-        control = HoverButton(self.getTab(self), text=t.text, takefocus = 0)
-        control.config(width=w, 
+                    inverted_image = ImageOps.invert(rgb_image)
+
+                    r2,g2,b2 = inverted_image.split()
+
+                    image = Image.merge('RGBA', (r2,g2,b2,a))
+
+                else:
+                    image = ImageOps.invert(image)
+                
+                image = ImageOps.expand(image, border=5)
+                image = ImageTk.PhotoImage(image)
+            else:
+                image = ImageTk.PhotoImage(file=t.image)
+            
+            control = HoverButton(self.getTab(self), text=t.text, takefocus = 0, image=image, compound=tk.LEFT, anchor=tk.W, justify=tk.LEFT)
+        else:
+            control = HoverButton(self.getTab(self), text=t.text, takefocus = 0)
+        
+        #root.wm_attributes("-transparentcolor", "#eed5ee")
+        #root.attributes("-transparentcolor", "#eed5ee")
+        #root.attributes("-alpha", 0.9)
+        #root.config(bg='systemTransparent')
+        
+        
+        control.config(width=w,
                        fg=config.colors.fg,
                        bg=config.colors.bk2,
                        activebackground=config.colors.bk2,
-                       activeforeground=config.colors.fg
+                       activeforeground=config.colors.fg,
                       )
+                      
         control.place(x=t.x, y=t.y)
-
+        if t.h:
+            control.place(height = t.h)
         controls.update({t.name:control})
 
         t=lua.table(name=t.name,
                     control=control,
+                    imageRef=image,
                     )
         
         control.bind( "<ButtonRelease-1>", makeCmdNew(t))
@@ -967,15 +1020,21 @@ class ForLua:
         return t
     def makeEntry(self, t, variables):
         x,y,w,h = variables
+        style=None
+        control=None
+        padX=5
+        padY=1
+        frame = tk.Frame(self.getTab(self), borderwidth=0, relief="solid")
+        frame.config(bg=config.colors.bk3)
+        frame.place(x=x,y=y, width=w, height=h)
         
         control = tk.Entry(self.getTab(self), borderwidth=0, relief="solid",height=t.lineHeight)
-        control.config(fg=config.colors.fg, bg=config.colors.bk3)
-        
+        control.config(fg=config.colors.fg, bg=config.colors.bk3, insertbackground = config.colors.fg)
         control.insert(tk.END, t.text)
-        control.place(x=x, y=y)
+        control.place(x=x+padX, y=y+padY)
         if not t.lineHeight:
-            control.place(height=h)
-        control.place(width=w)
+            control.place(height=h-padY*2)
+        control.place(width=w-padX*2)
         
         def setText(text=""):
             control.delete(0, tk.END)
@@ -995,6 +1054,21 @@ class ForLua:
         control.bind( "<ButtonRelease-1>", makeCmdNew(t))
         control.bind( "<Return>", makeCmdNew(t))
         
+        return t
+    def makeTree(self, t, variables):
+        x,y,w,h = variables
+        control = tk.Label(self.getTab(self))
+        #control.place(x=x, y=y)
+        control.place(x=x, y=y, height=h, width=w)
+        
+        t=lua.table(name=t.name,
+                    control=control,
+                    height=h,
+                    width=w,
+                    )
+        controls.update({t.name:t})
+
+        control.bind( "<Button-1>", makeCmdNew(t))
         return t
 
     def makeLabel(self, t, variables):
@@ -1159,6 +1233,10 @@ class ForLua:
             window.tabs.update({name:tab})
             window.tabParent.add(tab, text=text)
             window.tabParent.pack(expand=1, fill='both')
+    def selectTab(self, tab):
+        window = self.getWindow(self)
+        window.tabParent.select(list(window.tabs).index(tab))
+        print(list(window.tabParent.tabs))
     def makeTab(self, name, text):
         self.createTab(self, name, text)
     def forceClose(self):
@@ -1290,6 +1368,7 @@ def exitCleanup():
 atexit.register(exitCleanup)
 
 root = tk.Tk()
+#root.tk_setPalette("red")
 
 # hide the window until it's ready
 root.withdraw()

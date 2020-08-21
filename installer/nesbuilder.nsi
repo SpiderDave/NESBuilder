@@ -126,11 +126,8 @@ Section "NESBuilder Executable"
     ; Put file there
     ;File "example2.nsi"
 
-    CreateDirectory $INSTDIR\cursors
-
     inetc::get \
         "${GitURL}README.md" "README.md"\
-        "${GitURL}cursors/pencil.cur" "cursors/pencil.cur"\
         "${GitURL}dist/NESBuilder.exe" "NESBuilder.exe"\
         /END
     Pop $0
@@ -147,6 +144,7 @@ Section "NESBuilder Source"
     CreateDirectory $INSTDIR\include
     CreateDirectory $INSTDIR\dist
     CreateDirectory $INSTDIR\cursors
+    CreateDirectory $INSTDIR\icons
 
     inetc::get \
         "${GitURL}README.md" "README.md"\
@@ -164,6 +162,11 @@ Section "NESBuilder Source"
         "${GitURL}include/util.lua" "include/util.lua"\
         "${GitURL}include/SMBLevelExtract.py" "include/SMBLevelExtract.py"\
         "${GitURL}chr.png" "chr.png"\
+        "${GitURL}icons/folder32.png" "icons/folder32.png"\
+        "${GitURL}icons/folderplus32.png" "icons/folderplus32.png"\
+        "${GitURL}icons/gear32.png" "icons/gear32.png"\
+        "${GitURL}icons/note32.png" "icons/note32.png"\
+        "${GitURL}icons/clock32.png" "icons/clock32.png"\
         /END
     Pop $0
 
@@ -226,6 +229,7 @@ Section "Uninstall"
     RMDir /r /REBOOTOK $INSTDIR\__pycache__
     RMDir /r /REBOOTOK $INSTDIR\build
     RMDir /r /REBOOTOK $INSTDIR\cursors
+    RMDir /r /REBOOTOK $INSTDIR\icons
     RMDir /r /REBOOTOK $INSTDIR\dist
     RMDir /r /REBOOTOK $INSTDIR\include
     RMDir /r /REBOOTOK $INSTDIR\installer

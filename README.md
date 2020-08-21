@@ -42,15 +42,25 @@ Create a "plugins" folder in the main folder and create a file there with
 See sample plugins for more information.
 
 ### Callbacks ###
+## Main Callbacks ##
+* init
+    called after loading the main program file
 * onPluginsLoaded
-    called after plugins are loaded
-* onInit
+    called after plugins are loaded, if there are any.
+* onReady
+    called when the program is in a ready state.  This happens after plugins are loaded, if there are any.
+
+## Plugin Callbacks ###
+These are localized to plugins.
+* plugin.onInit
     called after a plugin is loaded
-* onLoadProject
+* plugin.onLoadProject
     called when a project is loaded
-* onSaveProject
+* plugin.onSaveProject
     called when a project is saved
-* onBuild
+* plugin.onBuild
     called when a project is built
-* onExit
+* plugin.onExit
     called when the program is exited
+
+

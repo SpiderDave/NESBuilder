@@ -161,7 +161,14 @@ class Stack(deque):
             return tuple(ret)
         else:
             return super().pop()
-
+    def remove(self,value):
+        try:
+            super().remove(value)
+            return True
+        except:
+            return False
+    def asList(self):
+        return list(self)
 class Text(tk.Text):
     def setText(self, text):
         self.clear()
@@ -225,6 +232,8 @@ class ForLua:
             self.w=w
             self.h=h
             
+            index = t.index
+            
             t = func(self, t, (x,y,w,h))
             t = addStandardProp(t)
             t.control.update()
@@ -232,6 +241,7 @@ class ForLua:
             t.height=t.control.winfo_height()
             t.width=t.control.winfo_width()
             
+            t.index = index
             return t
         return inner
     def decorate(self):
@@ -460,9 +470,16 @@ class ForLua:
             canvas.configure(highlightthickness=0, borderwidth=0)
         except:
             print("error loading image")
-    def newStack(self, arg=[]):
-        stack = Stack(arg)
-        return stack, stack.push, stack.pop
+    def newStack(self, arg=[], maxlen=None):
+        stack = Stack(arg, maxlen)
+        t = lua.table(
+                        stack=stack,
+                        push=stack.push,
+                        pop=stack.pop,
+                        remove=stack.remove,
+                        asList=stack.asList,
+                     )
+        return t, stack.push, stack.pop
     def getNESmakerColors(self):
         return [
             [0,0,0],
@@ -490,6 +507,9 @@ class ForLua:
         f=open(outputfile,"wb")
         f.write(bytes(data))
         f.close()
+    def getLen(self, item):
+        # todo: make work for lua stuff
+        return len(item)
     def test(self, foo=1, bar=2):
         print(foo,bar)
     def imageToCHRData(self, f, colors=False):
@@ -787,6 +807,7 @@ class ForLua:
         t=lua.table(name=t.name,
                     control=control,
                     imageRef=image,
+                    text = t.text,
                     )
         
         control.bind( "<ButtonRelease-1>", makeCmdNew(t))
@@ -1020,7 +1041,6 @@ class ForLua:
         return t
     def makeEntry(self, t, variables):
         x,y,w,h = variables
-        style=None
         control=None
         padX=5
         padY=1
@@ -1057,9 +1077,29 @@ class ForLua:
         return t
     def makeTree(self, t, variables):
         x,y,w,h = variables
-        control = tk.Label(self.getTab(self))
-        #control.place(x=x, y=y)
-        control.place(x=x, y=y, height=h, width=w)
+        
+        style.configure('new.Treeview', background=config.colors.bk, fg=config.colors.fg)
+        
+        control = ttk.Treeview(self.getTab(self), style = "new.Treeview")
+        control.place(x=x, y=y)
+        #control.place(x=x, y=y, height=h, width=w)
+        
+        tree = control
+        tree["columns"]=("one","two","three")
+        tree['show'] = 'headings'
+        tree.column("#0", width=50, minwidth=50, stretch=tk.NO)
+        tree.column("one", width=50, minwidth=50, stretch=tk.NO)
+        tree.column("two", width=50, minwidth=50, stretch=tk.NO)
+        tree.column("three", width=50, minwidth=50, stretch=tk.NO)
+        
+        tree.heading(0, text ="Foo") 
+        tree.heading(1, text ="Bar") 
+        tree.heading(2, text ="Baz")
+        
+        id = tree.insert("", 'end', "test", text ="test1",  values =("a", "b", "c")) 
+        tree.insert("", '0', "test2", text ="test2",  values =("a", "b", "c")) 
+        tree.insert("", 'end', "test3", text ="test3",  values =("a", "b", "c")) 
+        tree.insert(id, 'end', "test4", text ="test4",  values =("a", "b", "c")) 
         
         t=lua.table(name=t.name,
                     control=control,
@@ -1087,7 +1127,8 @@ class ForLua:
         def setFont(fontName="Verdana", size=12):
             control.config(font=(fontName, size))
             t.update()
-            
+        def setText(text):
+            control.config(text=text)
         def setJustify(j):
             t = {
                 "left":tk.LEFT,
@@ -1099,6 +1140,7 @@ class ForLua:
                     control=control,
                     height=h,
                     width=w,
+                    setText = setText,
                     setFont = setFont,
                     setJustify = setJustify,
                     )
@@ -1416,30 +1458,7 @@ def on_click():
 style = ttk.Style()
 style.configure('new.TFrame')
 
-lua.execute("True, False = true, false")
 
-gotError = False
-
-try:
-    if len(sys.argv)>1:
-        # use file specified in argument
-        f = open(sys.argv[1],"r")
-        lua.execute(f.read())
-        f.close()
-    elif frozen:
-        # use internal main.lua
-        filedata = pkgutil.get_data('include', 'main.lua' )
-        lua.execute(filedata)
-    else:
-        # use external main.lua
-        f = open("main.lua","r")
-        lua.execute(f.read())
-        f.close()
-    pass
-except LuaError as err:
-    handleLuaError(err)
-    gotError = True
-    
 def handleLuaError(err):
     err = str(err).replace('error loading code: ','')
     err = err.replace('[string "<python>"]',"[main.lua]")
@@ -1472,6 +1491,30 @@ def handleLuaError(err):
     print()
     print("-"*80)
 
+lua.execute("True, False = true, false")
+
+gotError = False
+
+try:
+    if len(sys.argv)>1:
+        # use file specified in argument
+        f = open(sys.argv[1],"r")
+        lua.execute(f.read())
+        f.close()
+    elif frozen:
+        # use internal main.lua
+        filedata = pkgutil.get_data('include', 'main.lua' )
+        lua.execute(filedata)
+    else:
+        # use external main.lua
+        f = open("main.lua","r")
+        lua.execute(f.read())
+        f.close()
+    pass
+except LuaError as err:
+    handleLuaError(err)
+    gotError = True
+    
 if gotError:
     sys.exit(1)
     
@@ -1492,12 +1535,25 @@ t=lua.table(name="Main",
             tabs={},
             tab="Main",
             )
-
 controls.update({"Main":t})
 windows.update({"Main":t})
+
+t2=lua.table(name="onTabChanged",
+            control=tab_parent,
+            window = t,
+            tab = lambda:list(t.tabs)[tab_parent.index("current")]
+            )
+
+root.bind("<<NotebookTabChanged>>", makeCmdNew(t2))
+
 print("This console is for debugging purposes.\n")
 
-lua.execute("if init then init() end")
+try:
+    lua.execute("if init then init() end")
+except LuaError as err:
+    print("*** init() Failed")
+    handleLuaError(err)
+
 
 # load lua plugins
 folder = config.pluginFolder
@@ -1525,7 +1581,11 @@ if os.path.exists(folder):
                 handleLuaError(err)
             
     lua.execute("if onPluginsLoaded then onPluginsLoaded() end")
-lua.execute("if onReady then onReady() end")
+try:
+    lua.execute("if onReady then onReady() end")
+except LuaError as err:
+    print("*** onReady() Failed")
+    handleLuaError(err)
 
 w = cfg.getValue('main', 'w', default=coalesce(config.width, 800))
 h = cfg.getValue('main', 'h', default=coalesce(config.height, 800))

@@ -17,6 +17,7 @@ config = {
         bk_menu_highlight='#606080',
     },
     pluginFolder = "plugins", -- this one is for python
+    nRecentFiles = 20,
 }
 
 config.launchText=[[
@@ -45,8 +46,11 @@ ToDo:
     * better docs
 ]]
 
--- global stack
+-- global stacks
 stack, push, pop = NESBuilder:newStack()
+recentProjects = NESBuilder:newStack{maxlen=config.nRecentFiles}
+
+len = function(item) return NESBuilder:getLen(item) end
 
 plugins = {}
 
@@ -354,7 +358,7 @@ function init()
     x,y,pad = left,top,8
     local startY
     
-    control = NESBuilder:makeLabel{x=x,y=y,name="testRecentTitle",clear=true,text="NESBuilder"}
+    control = NESBuilder:makeLabel{x=x,y=y,name="launcherRecentTitle",clear=true,text="NESBuilder"}
     control.setFont("Verdana", 28)
     
     y = y + control.height + pad
@@ -400,19 +404,67 @@ function init()
         {text="you."},
     }
     local columns = 5
+    recentData = {}
     for i, item in pairs(c) do
+        recentData[i-1]={}
         x = 250+((i-1) % columns)*100
         y = startY+math.floor((i-1)/columns)*150
         
-        --control = NESBuilder:makeButton{x=x,y=y,h=110, w=11, name="testRecent"..i, text=""}
-        control = NESBuilder:makeLabel{x=x,y=y,h=110, w=80, name="testRecentIcon"..i,text=""}
+        control = NESBuilder:makeLabel{x=x,y=y,h=110, w=80, name="launcherRecentIcon",text="", index=i-1}
+        recentData[i-1].icon = control
         y = y + control.height + pad*.5
-        control = NESBuilder:makeLabel{x=x,y=y,name="testRecent"..i,clear=true,text=item.text}
+        control = NESBuilder:makeLabel{x=x,y=y,name="launcherRecent",clear=true,text=item.text, index=i-1}
+        recentData[i-1].label = control
         control.setFont("Verdana", 10)
         y = y + control.height + pad
         
     end
     
+    
+    NESBuilder:makeTab("tsa", "TSA")
+    NESBuilder:setTab("tsa")
+    x,y=left,top
+    
+    push(y)
+    control = NESBuilder:makeCanvas{x=x,y=y,w=128,h=128,name="tsaCanvas", scale=2}
+    push(x+control.width+pad)
+    --p=data.project.palettes[data.project.palettes.index]
+    
+    --NESBuilder:setCanvas("tsaCanvas")
+    --NESBuilder:loadCHRFile{"smb_new.chr", p, start=0x1000} 
+    
+    --CHRData = NESBuilder:imageToCHRData("chr.png",NESBuilder:getNESColors(p))
+    --NESBuilder:loadCHRData(CHRData, p)
+    
+    x = left
+    y=y + control.height + pad
+    
+    control = NESBuilder:makeCanvas{x=x,y=y,w=16,h=16,name="tsaCanvas2", scale=6}
+    NESBuilder:setCanvas("tsaCanvas2")
+    NESBuilder:loadCHRData(nil, p)
+    
+    y=y + control.height + pad
+    
+    push(y)
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidPrev",text="<"}
+    y=pop()
+    x= x + control.width+pad
+    
+    push(y)
+    control=NESBuilder:makeEntry{x=x,y=y,w=20,h=buttonHeight, name="tsaSquareoidNumber",text="0"}
+    y=pop()
+    x= x + control.width+pad
+    
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidNext",text=">"}
+    x = left
+    y = y + control.height + pad
+    
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="tsaTest",text="Update"}
+    
+    x= pop()
+    y = pop()
+    control = NESBuilder:makeCanvas{x=x,y=y,w=8,h=8,name="tsaTileCanvas", scale=8}
+
     
     loadSettings()
 end
@@ -442,10 +494,26 @@ end
 
 function loadSettings()
     data.projectID = NESBuilder:cfgGetValue("main", "project", data.projectID)
+
+    -- load recent projects list
+    local k,v
+    for i=1, config.nRecentFiles do
+        k = string.format("recentproject%d", i)
+        v = NESBuilder:cfgGetValue("main", k, false)
+        if not v then break end
+        recentProjects.push(v)
+    end
 end
 
 function saveSettings()
+    local k
     NESBuilder:cfgSetValue("main", "project", data.projectID)
+
+    -- save recent projects list
+    for i,v in python.enumerate(recentProjects.asList()) do
+        k = string.format("recentproject%d", i+1)
+        NESBuilder:cfgSetValue("main", k,v)
+    end
 end
 
 function doCommand(t)
@@ -454,6 +522,8 @@ function doCommand(t)
         print("****")
     else
         if t.event.type == "ButtonPress" or t.event.type=="" then
+            print("doCommand "..t.name)
+        else
             print("doCommand "..t.name)
         end
     end
@@ -560,44 +630,6 @@ function ButtonLevelExtract_cmd()
             SMBLevelExtract(f,f2)
         end
     end
-end
-
-function LoadProject_cmd()
-    print("loading project "..data.projectID)
-    
-    projectFolder = data.projectID.."/"
-    
-    local filename = data.folders.projects..projectFolder.."project.dat"
-    data.project = util.unserialize(util.getFileContents(filename))
-    
-    if not data.project then
-        data.project = {}
-    end
-    
-    -- update project folder in case it's been moved
-    data.project.folder = projectFolder
-    
-    -- use default palettes if not found
-    data.project.palettes = data.project.palettes or util.deepCopy(data.palettes)
-    
-    
-    data.project.chr = data.project.chr or {index=0}
-    
-    handlePluginCallback("onLoadProject")
-    
-    -- update palette entry
-    data.project.palettes.index = 0
-    PaletteEntryUpdate()
-    
-    dataChanged(false)
-    
---    c = NESBuilder:getControl('PaletteList')
---    c.set(data.project.paletteIndex or 0)
-    
---    f=data.folders.projects..projectFolder.."chr.png"
---    NESBuilder:loadImageToCanvas(f)
-    
-    updateTitle()
 end
 
 function dataChanged(changed)
@@ -820,6 +852,14 @@ function BuildProject_cmd()
     
     util.writeToFile(filename,0, out, true)
     
+    out = "Metatiles:\n"
+    filename = data.folders.projects..projectFolder.."code/tiles.asm"
+    for i=0, #data.project.squareoids do
+        local tile = data.project.squareoids[i]
+        out=out..string.format('    .db $%02x, $%02x, $%02x, $%02x\n',tile[0], tile[1], tile[2], tile[3])
+    end
+    util.writeToFile(filename,0, out, true)
+    
     -- assemble project
     local folder = data.folders.projects..data.project.folder
     
@@ -842,6 +882,59 @@ function BuildProject_cmd()
         print("no project.asm")
     end
     print("---- end of build ---")
+end
+
+function LoadProject_cmd()
+    print("loading project "..data.projectID)
+    
+    projectFolder = data.projectID.."/"
+    
+    local filename = data.folders.projects..projectFolder.."project.dat"
+    data.project = util.unserialize(util.getFileContents(filename))
+    
+    if not data.project then
+        data.project = {}
+    end
+    
+    -- Wipe data stored on the canvas control
+    NESBuilder:setCanvas('tsaCanvas')
+    NESBuilder:loadCHRData()
+    
+    -- reset selected tile canvas
+    NESBuilder:setCanvas("tsaTileCanvas")
+    NESBuilder:loadCHRData({0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, {[0]=0x0f,0x0f,0x0f,0x0f})
+    
+    -- update project folder in case it's been moved
+    data.project.folder = projectFolder
+    
+    -- use default palettes if not found
+    data.project.palettes = data.project.palettes or util.deepCopy(data.palettes)
+    
+    data.project.squareoids = data.project.squareoids or {index=0}
+    
+    data.project.chr = data.project.chr or {index=0}
+    
+    handlePluginCallback("onLoadProject")
+    
+    -- update palette entry
+    data.project.palettes.index = 0
+    PaletteEntryUpdate()
+    
+    dataChanged(false)
+    
+    --recentProjects.stack.push(42)
+    
+    recentProjects.remove(data.projectID)
+    recentProjects.push(data.projectID)
+    updateRecentProjects()
+    
+--    c = NESBuilder:getControl('PaletteList')
+--    c.set(data.project.paletteIndex or 0)
+    
+--    f=data.folders.projects..projectFolder.."chr.png"
+--    NESBuilder:loadImageToCanvas(f)
+    
+    updateTitle()
 end
 
 function SaveProject_cmd()
@@ -979,7 +1072,9 @@ function LoadCHR_cmd()
     
     NESBuilder:setCanvas("canvas")
     p=data.project.palettes[data.project.palettes.index]
-    data.project.chr[data.project.chr.index] = NESBuilder:loadCHRFile(f,p)
+    data.project.chr[data.project.chr.index] = NESBuilder:loadCHRFile{f,p}
+    
+    --NESBuilder:loadCHRFile{"smb_new.chr", p, start=0x1000} 
     
     c = NESBuilder:getControl('CHRPalette')
     c.setAll(p)
@@ -1084,4 +1179,166 @@ function canvas_cmd(t)
     NESBuilder:canvasPaint(x,y,p)
     
     dataChanged()
+end
+
+
+function tsaCanvas_cmd(t)
+    local x = math.floor(t.event.x/t.scale)
+    local y = math.floor(t.event.y/t.scale)
+    local tileX = math.floor(x/8)
+    local tileY = math.floor(y/8)
+    local tileNum = tileY*0x10+tileX
+    local tileOffset = 16*tileNum
+    local CHRData, TileData
+    
+    if x<0 or y<0 or x>=128 or y>=128 then return end
+    
+    local p=data.project.palettes[data.project.palettes.index]
+    
+    if t.event.type == "ButtonPress" then
+        if t.event.button == 1 then
+            print(string.format("%02x", tileNum))
+            
+            NESBuilder:setCanvas("tsaTileCanvas")
+            local TileData = {}
+            
+            for i=0,15 do
+                TileData[i+1] = t.chrData[tileOffset+i+1]
+            end
+            
+            data.project.tileData = TileData
+            data.project.tileNum = tileNum
+            
+            NESBuilder:loadCHRData(TileData, p)
+        elseif t.event.button == 3 and data.project.tileData then
+            for i=0,15 do
+                t.chrData[tileOffset+i+1] = data.project.tileData[i+1]
+            end
+            NESBuilder:setCanvas(t.name)
+            
+            if t.name == "tsaCanvas2" then
+                data.project.squareoids[data.project.squareoids.index] = data.project.squareoids[data.project.squareoids.index] or {[0]=0,0,0,0}
+                if tileX<=1 and tileY<=1 then
+                    -- 02
+                    -- 13
+                    data.project.squareoids[data.project.squareoids.index][tileX*2+tileY] = data.project.tileNum
+                    data.project.squareoids[data.project.squareoids.index].palette = data.project.palettes.index
+                    print(data.project.squareoids[data.project.squareoids.index])
+                end
+            end
+            NESBuilder:loadCHRData(t.chrData, p)
+            dataChanged()
+        end
+    end
+end
+
+tsaCanvas2_cmd = tsaCanvas_cmd
+
+function tsaSquareoidPrev_cmd()
+    data.project.squareoids.index = math.max(0, data.project.squareoids.index - 1)
+    updateSquareoid()
+end
+function tsaSquareoidNext_cmd()
+    data.project.squareoids.index = math.min(255, data.project.squareoids.index + 1)
+    updateSquareoid()
+end
+
+function tsaSquareoidNumber_cmd(t)
+    if t.event.type == "KeyPress" and t.event.event.keycode==13 then
+        data.project.squareoids.index = tonumber(NESBuilder:getControl("tsaSquareoidNumber").getText())
+    end
+end
+
+function updateSquareoid()
+    local tileNum
+    local tileOffset1, tileOffset2
+    
+    local controlFrom = NESBuilder:getControlNew("tsaCanvas")
+    local controlTo = NESBuilder:getControlNew("tsaCanvas2")
+    
+    data.project.squareoids[data.project.squareoids.index] = data.project.squareoids[data.project.squareoids.index] or {[0]=0,0,0,0}
+    
+    --local p = data.project.squareoids[data.project.squareoids.index].palette or data.project.palettes[data.project.palettes.index]
+    local p = data.project.palettes[data.project.squareoids[data.project.squareoids.index].palette or 0]
+    
+    
+    squareoidTileOffsets = {[0]=0,0x10,1,0x11}
+    for sqTileNum=0,3 do
+        tileNum = data.project.squareoids[data.project.squareoids.index][sqTileNum]
+        tileOffset1 = 16 * tileNum
+        tileOffset2 = 16 * squareoidTileOffsets[sqTileNum]
+        
+        for i=0,15 do
+            controlTo.chrData[tileOffset2+i+1] = controlFrom.chrData[tileOffset1+i+1]
+        end
+    end
+    
+    NESBuilder:setCanvas(controlTo.name)
+    NESBuilder:loadCHRData(controlTo.chrData, p)
+    
+    local control = NESBuilder:getControl("tsaSquareoidNumber")
+    control.setText(data.project.squareoids.index)
+end
+
+
+function tsaTest_cmd()
+    local p=data.project.palettes[data.project.palettes.index]
+    NESBuilder:setCanvas("tsaCanvas")
+    NESBuilder:loadCHRData(data.project.chr[data.project.chr.index], p)
+
+    --NESBuilder:loadCHRFile{"smb_new.chr", p, start=0x1000} 
+end
+
+function onTabChanged_cmd(t)
+    local tab = t.tab()
+    if t.window.name == "Main" then
+        if tab == "tsa" then
+            local p=data.project.palettes[data.project.palettes.index]
+            
+            local control = NESBuilder:getControlNew("tsaCanvas")
+            NESBuilder:setCanvas("tsaCanvas")
+            --NESBuilder:loadCHRData(control.chrData, p)
+            NESBuilder:loadCHRData(data.project.chr[data.project.chr.index], p)
+            
+            updateSquareoid()
+        end
+    end
+end
+
+function updateRecentProjects()
+    local stack = NESBuilder:newStack(recentProjects.stack)
+    local id
+    
+    for _, control in pairs(recentData) do
+        control.label.setText("")
+    end
+    
+    for i=1, len(recentProjects.stack) do
+        id = stack.pop()
+        recentData[i-1].label.setText(id)
+    end
+end
+
+function launcherRecentIcon_cmd(t)
+    local id,n
+    updateRecentProjects()
+    --if t.index<len(recentProjects.stack)-1 then
+    if t.index<=len(recentProjects.stack)-1 then
+        n = len(recentProjects.stack)- 1 - t.index
+        id = recentProjects.stack[n]
+
+        if data.project.changed then
+            q= NESBuilder:askyesnocancel("", string.format("Save changes to %s?",data.projectID))
+            
+            -- cancel
+            if q==nil then return end
+            
+            if q==true then
+                SaveProject_cmd()
+            end
+        end
+        
+        data.projectID = id
+        LoadProject_cmd()
+    end
 end

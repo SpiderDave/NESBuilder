@@ -17,7 +17,7 @@ local smbPaletteData = {
     {name = 'Ground7', offset = 0xce3, nColors = 4},
     {name = 'Ground8', offset = 0xce7, nColors = 4},
     
-    {name = 'Water1', offset = 0xca7, nColors = 4, newCol=True},
+    {name = 'Water1', offset = 0xca7, nColors = 4, newCol=true},
     {name = 'Water2', offset = 0xcab, nColors = 4},
     {name = 'Water3', offset = 0xcaf, nColors = 4},
     {name = 'Water4', offset = 0xcb3, nColors = 4},
@@ -26,7 +26,7 @@ local smbPaletteData = {
     {name = 'Water7', offset = 0xcbf, nColors = 4},
     {name = 'Water8', offset = 0xcc3, nColors = 4},
 
-    {name = 'Underground1', offset = 0xcef, nColors = 4, newCol=True},
+    {name = 'Underground1', offset = 0xcef, nColors = 4, newCol=true},
     {name = 'Underground2', offset = 0xcf3, nColors = 4},
     {name = 'Underground3', offset = 0xcf7, nColors = 4},
     {name = 'Underground4', offset = 0xcfb, nColors = 4},
@@ -35,7 +35,7 @@ local smbPaletteData = {
     {name = 'Underground7', offset = 0xd07, nColors = 4},
     {name = 'Underground8', offset = 0xd0b, nColors = 4},
 
-    {name = 'Castle1', offset = 0xd13, nColors = 4, newCol=True},
+    {name = 'Castle1', offset = 0xd13, nColors = 4, newCol=true},
     {name = 'Castle2', offset = 0xd17, nColors = 4},
     {name = 'Castle3', offset = 0xd1b, nColors = 4},
     {name = 'Castle4', offset = 0xd1f, nColors = 4},
@@ -44,7 +44,7 @@ local smbPaletteData = {
     {name = 'Castle7', offset = 0xd2b, nColors = 4},
     {name = 'Castle8', offset = 0xd2f, nColors = 4},
 
-    {name = 'Mario', offset = 0x5d7, nColors = 4, newCol=True},
+    {name = 'Mario', offset = 0x5d7, nColors = 4, newSection=true},
     {name = 'Rotate', offset = 0x9c3, nColors = 6},
     {name = 'Palette3Data1', offset = 0x9d1, nColors = 4},
     {name = 'Palette3Data2', offset = 0x9d5, nColors = 4},
@@ -63,16 +63,19 @@ function plugin.onInit()
     
     local stack, push, pop = NESBuilder:newStack()
     local x,y,control,pad
-    local top,left
+    local top,left,bottom
     
     pad=6
     left=pad*1.5
     top=pad*1.5
+    bottom=0
     x,y=left,top
     
     control = NESBuilder:makeLabel{x=x,y=y,name="testLabel",clear=true,text="SMB Thing!"}
     control.setFont("Verdana", 24)
     y = y + control.height + pad
+    
+    push(y)
     
     control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingLoadRom",text="Load rom"}
     y = y + control.height + pad
@@ -83,8 +86,10 @@ function plugin.onInit()
     control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingSaveRomAs",text="Save rom as..."}
     y = y + control.height + pad
     
-    control=NESBuilder:makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbthingPalette", palette=nespalette}
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingTest",text="Test rom"}
     y = y + control.height + pad
+    
+    push(x + control.width+pad*2)
     
     local p = {[0]=0x0f,0x0f,0x0f,0x0f}
     
@@ -94,11 +99,18 @@ function plugin.onInit()
     end
     
     x=left
-    push(y)
+    
+    push(y) -- This is here since the loop may start with a pop
     for k,item in ipairs(smbPaletteData) do
-        if item.newCol then
-            x=x+250
+        if item.newCol or item.newSection then
+            x=x+200
             y=pop()
+            
+            if item.newSection then
+                x=left
+                y= bottom+pad*2
+            end
+            
             push(y)
         end
 
@@ -118,17 +130,16 @@ function plugin.onInit()
         
         y = y + control.height + pad
         
+        bottom = math.max(y, bottom)
+        
         x=pop()
     end
+    pop() -- consume the pop and discard
     
---    control = NESBuilder:makeCheckbox{x=x,y=y,name="smbRotateMod", text="Palette Rotation Mod"}
---    y = y + control.height + pad
+    x,y = pop(2)
     
-    x = left
-    y=y+100
-    
-    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingTest",text="Test rom"}
-    y = y + control.height + pad
+    control=NESBuilder:makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbthingPalette", palette=nespalette}
+    y = y + control.height + pad*2
     
     plugin.selectedColor=0x0f
 end

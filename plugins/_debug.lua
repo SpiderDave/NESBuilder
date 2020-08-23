@@ -8,19 +8,6 @@ local plugin = {
 }
 
 function plugin.onInit()
---    NESBuilder:makeTab("debug", "Debug")
---    NESBuilder:setTab("debug")
-    
-    local x,y,control,pad,left,right
-    
-    pad=6
-    left = pad*1.5
-    top = pad*1.5
-    x,y = left,top
-    
---    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="testButton",text="Test 1"}
---    y = y + control.height + pad
-    
     local items = {
         {name="restart", text="Restart"},
         {name="forceClose", text="Force Close"},

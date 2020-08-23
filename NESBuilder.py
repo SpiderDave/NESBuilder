@@ -188,7 +188,8 @@ class ForLua:
     tab="Main"
     window="Main"
     canvas=False
-    
+    images={}
+    images2=[]
     config = cfg
     
     # decorator
@@ -253,14 +254,14 @@ class ForLua:
                 # makedir maketab
                 makers = ['makeButton', 'makeCanvas', 'makeEntry', 'makeLabel', "makeTree",
                           'makeList', 'makeMenu', 'makePaletteControl', 'makePopupMenu',
-                          'makeText', 'makeWindow']
+                          'makeText', 'makeWindow', 'makeCheckbox']
                 
                 if method_name in makers:
                     attr = getattr(self, method_name)
                     wrapped = self.makeControl(attr)
                     setattr(self, method_name, wrapped)
                     pass
-                elif method_name in ['getNESColors', 'makeControl']:
+                elif method_name in ['getNESColors', 'makeControl', 'getLen']:
                     # getNESColors: excluded because it may have a table as its first parameter
                     # makeControl: excluded because it's a decorator
                     pass
@@ -510,8 +511,70 @@ class ForLua:
     def getLen(self, item):
         # todo: make work for lua stuff
         return len(item)
-    def test(self, foo=1, bar=2):
-        print(foo,bar)
+    def test(self, x=0,y=0):
+#        canvas = self.getCanvas(self, 'canvas')
+#        rect = canvas.control.create_rectangle(0,0,(x+canvas.scale*8),(y+canvas.scale*8),outline = "red")
+#        canvas.control.coords(rect, 0, 0, canvas.scale*8, canvas.scale*8)
+#        canvas.control.place()
+        
+        canvas = self.getCanvas(self, 'tsaTileCanvas')
+        #grabcanvas = ImageGrab.grab(bbox=canvas.control.bbox())
+        #grabcanvas = ImageGrab.grab(bbox=canvas.control)
+        
+        #img = ImageGrab.grab(bbox=canvas.control.bbox())
+        #img = ImageGrab.grab(bbox=canvas.control)
+        #img = ImageGrab.grab(canvas.control)
+        #canvas.grabcanvas = grabcanvas
+        
+        #img = ImageGrab.grabclipboard()
+        f = r"J:\svn\NESBuilder\mtile.png"
+#        if self.images.get(f,False):
+#            img = Image.open(f)
+#            photo = ImageTk.PhotoImage(ImageOps.scale(img, 2, resample=Image.NEAREST))
+#            self.images.update(f=photo)
+        
+        
+        img = Image.open(f)
+        photo = ImageTk.PhotoImage(ImageOps.scale(img, 2, resample=Image.NEAREST))
+        #self.images.update({f:photo})
+        
+        self.images2.append(photo)
+        
+        #print(type(photo))
+        
+        #photo = self.images.get(f)
+        
+        
+#        x,y,x1,y1 = 42,42,80,80
+#        x,y,x1,y1 = canvas.control.bbox()
+#        img = ImageGrab.grab().crop((x,y,x1,y1))
+        
+#        img.save(r"J:\svn\NESBuilder\test2.png")
+        
+#        grabcanvas=ImageGrab.grab(bbox=canvas)
+#        ttk.grabcanvas.save(f)
+        
+        #ttk.grabcanvas.save(r"J:\svn\NESBuilder\test.png")
+        
+        #img = grab
+        
+        #img = ImageTk.PhotoImage(grab)
+        
+        #photo = ImageTk.PhotoImage(ImageOps.scale(img, 2, resample=Image.NEAREST))
+        #photo = ImageTk.PhotoImage(ImageOps.scale(img, 2, resample=Image.NEAREST))
+        #photo = img
+        
+        canvas = self.getCanvas(self, 'testCanvas')
+        
+        #canvas.photo = photo
+        canvas.control.create_image(x, y, image=photo, anchor=tk.NW)
+        
+#        displayImage = ImageOps.scale(im, c.scale, resample=Image.NEAREST)
+#        canvas.image = ImageTk.PhotoImage(displayImage)
+        
+#        canvas.create_image(0, 0, image=canvas.image, anchor=tk.NW)
+#        canvas.configure(highlightthickness=0, borderwidth=0)
+
     def imageToCHRData(self, f, colors=False):
         print('imageToCHRData')
         
@@ -584,15 +647,14 @@ class ForLua:
         
         ret = self.loadCHRData(self,fileData,colors)
         return ret
-    def newCHRData(self, nTiles=16*16):
-        #return lua.table_from("\x00" * 0x1000)
-        return lua.table_from("\x00" * (nTiles * 16))
-    def loadCHRData(self, fileData=False, colors=(0x0f,0x21,0x11,0x01)):
+#    def newCHRData(self, nTiles=16*16):
+#        return lua.table_from("\x00" * (nTiles * 16))
+    def loadCHRData(self, fileData=False, colors=(0x0f,0x21,0x11,0x01), columns=16, rows=16):
         control = self.getCanvas(self)
         canvas = control.control
         
         if not fileData:
-            fileData = "\x00" * 0x1000
+            fileData = "\x00" * (16 * columns * rows)
         
         if type(fileData) is str:
             fileData = [ord(x) for x in fileData]
@@ -603,19 +665,16 @@ class ForLua:
         if lupa.lua_type(colors)=="table":
             colors = [colors[x] for x in colors]
         
-        img=Image.new("RGB", size=(256,256))
+        img=Image.new("RGB", size=(columns*8,rows*8))
         
         a = np.asarray(img).copy()
         
-        math.floor(len(fileData)/16)
-        
-        #for tile in range(256):
         for tile in range(math.floor(len(fileData)/16)):
             for y in range(8):
                 for x in range(8):
                     c=0
-                    x1=tile%16*8+(7-x)
-                    y1=math.floor(tile/16)*8+y
+                    x1=(tile % columns)*8+(7-x)
+                    y1=math.floor(tile/columns)*8+y
                     if (fileData[tile*16+y] & (1<<x)):
                         c=c+1
                     if (fileData[tile*16+y+8] & (1<<x)):
@@ -721,6 +780,8 @@ class ForLua:
         t=lua.table(name=t.name,
                     control=control,
                     scale=t.scale,
+                    columns=t.columns,
+                    rows=t.rows,
                     )
         
         control.bind("<ButtonPress-1>", makeCmdNew(t, extra=dict(press=True)))
@@ -969,6 +1030,36 @@ class ForLua:
         #control.bind( "<ButtonRelease-1>", makeCmdNew(t))
         return t
         
+    def makeCheckbox(self, t, variables):
+        x,y,w,h = variables
+        
+        v = tk.IntVar()
+        
+        control = tk.Checkbutton(self.getTab(self), variable = v, text=t.text)
+        control.config(fg=config.colors.fg, bg=config.colors.bk, activebackground=config.colors.bk, activeforeground=config.colors.fg,selectcolor=config.colors.bk2)
+        control.place(x=x, y=y)
+        
+        def get():
+            root.update()
+            return v.get()
+            
+        t=lua.table(name=t.name,
+                    control=control,
+                    text = t.text,
+                    variable = v,
+                    get = get,
+                    )
+        
+        # have to do this differently because a click
+        # event binding would fire before the check
+        # state change.
+        cmd = makeCmdNew(t)
+        control.config(command=lambda: cmd(t))
+        
+        controls.update({t.name:t})
+        
+        return t
+
     def makeList(self, t, variables):
         x,y,w,h = variables
         
@@ -1162,6 +1253,7 @@ class ForLua:
         control.place(x=t.x,y=t.y)
         
         control.cellNum = 0
+        
         
         def cellClick(ev):
             control.cellNum = ev.widget.index
@@ -1412,6 +1504,9 @@ atexit.register(exitCleanup)
 root = tk.Tk()
 #root.tk_setPalette("red")
 
+#root.option_add("*Font",("verdana", 10))
+#root.option_add("*Menu.Font","verdana 12")
+
 # hide the window until it's ready
 root.withdraw()
 root.protocol( "WM_DELETE_WINDOW", onExit )
@@ -1527,7 +1622,6 @@ style.configure('new.TFrame', background=config.colors.bk, fg=config.colors.fg)
 config.title = config.title or "SpideyGUI"
 root.title(config.title)
 root.configure(bg=config.colors.bk)
-
 
 t=lua.table(name="Main",
             control=root,

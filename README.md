@@ -11,6 +11,7 @@ Current Stage: Alpha
 * Palette editor
 * Import CHR banks from .chr, .png, .png (nesmaker).
 * Export CHR banks to .png with chosen palette.
+* Tile Squareoid Assembler (Metatile) creator
 * plugin system (Lua/Python)
 
 ## Installing ##

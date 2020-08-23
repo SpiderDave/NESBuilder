@@ -117,6 +117,7 @@ cfg.load()
 cfg.setDefault('main', 'stylemenus', 1)
 cfg.setDefault("main", "tearoff", 0)
 cfg.setDefault('main', 'project', "newProject")
+cfg.setDefault('main', 'upperhex', 0)
 #cfg.setDefault('main', 'nespalette', nesPalette)
 
 #cfg.setDefault('foo', 'bar', 'baz')
@@ -191,6 +192,7 @@ class ForLua:
     images={}
     images2=[]
     config = cfg
+    anonCounter = 1
     
     # decorator
     def makeControl(func):
@@ -235,14 +237,27 @@ class ForLua:
             
             index = t.index
             
+            anonymous = False
+            if not t.name:
+                anonymous = True
+            
             t = func(self, t, (x,y,w,h))
+            
+            
             t = addStandardProp(t)
+            
             t.control.update()
             
             t.height=t.control.winfo_height()
             t.width=t.control.winfo_width()
             
             t.index = index
+            
+            if not t.name:
+                t.name = "anonymous{0}".format(ForLua.anonCounter)
+                ForLua.anonCounter = ForLua.anonCounter + 1
+                t.anonymous=True
+
             return t
         return inner
     def decorate(self):
@@ -267,7 +282,7 @@ class ForLua:
                     pass
                 else:
                     #print(method_name, m.__class__)
-                    if method_name.startswith('make') and method_name not in ['makeDir', 'makeTab']:
+                    if method_name.startswith('make') and method_name not in ['makeDir', 'makeTab', 'makeIps']:
                         print("possible function to exclude from decorator: ", method_name, m.__class__)
                     attr = getattr(self, method_name)
                     wrapped = decorator(attr)
@@ -732,6 +747,11 @@ class ForLua:
         
         img = Image.fromarray(a)
         img.save(filename)
+#    def makeIps(self, originalFile, modifiedFile, patchFile):
+#        originalFile = fixPath2(originalFile)
+#        modifiedFile = fixPath2(modifiedFile)
+#        patchFile = fixPath2(patchFile)
+#        ips.createPatch(originalFile, modifiedFile, patchFile)
     def Quit(self):
         onExit()
     def exec(self, s):
@@ -1033,21 +1053,25 @@ class ForLua:
     def makeCheckbox(self, t, variables):
         x,y,w,h = variables
         
-        v = tk.IntVar()
+        v=tk.IntVar()
+        if t.value:
+            v.set(t.value)
         
         control = tk.Checkbutton(self.getTab(self), variable = v, text=t.text)
         control.config(fg=config.colors.fg, bg=config.colors.bk, activebackground=config.colors.bk, activeforeground=config.colors.fg,selectcolor=config.colors.bk2)
         control.place(x=x, y=y)
         
         def get():
-            root.update()
-            return v.get()
+            return int(v.get())
+        def set(value):
+            return v.sett(value)
             
         t=lua.table(name=t.name,
                     control=control,
                     text = t.text,
                     variable = v,
                     get = get,
+                    set = set,
                     )
         
         # have to do this differently because a click
@@ -1238,7 +1262,7 @@ class ForLua:
         
         controls.update({t.name:t})
 
-        control.bind( "<Button-1>", makeCmdNew(t))
+        if t.name: control.bind( "<Button-1>", makeCmdNew(t))
         return t
     def makePaletteControl(self, t, variables):
         x,y,w,h = variables
@@ -1278,7 +1302,7 @@ class ForLua:
                 # These values are the first white text of each row
                 fg = 'white' if x>=(0x00,0x01,0x0d,0x0e)[y] else 'black'
                 
-                if config.upperHex:
+                if cfg.getValue("main","upperhex")==1:
                     l = tk.Label(control, text="{0:02X}".format(t.palette[i].index), borderwidth=0, bg=bg, fg=fg, relief="solid")
                 else:
                     l = tk.Label(control, text="{0:02x}".format(t.palette[i].index), borderwidth=0, bg=bg, fg=fg, relief="solid")
@@ -1308,7 +1332,10 @@ class ForLua:
             fg = 'white' if (colorIndex % 16)>=(0x00,0x01,0x0d,0x0e)[math.floor(colorIndex/16)] else 'black'
             
             c = '#{0:02x}{1:02x}{2:02x}'.format(nesPalette[colorIndex][0],nesPalette[colorIndex][1],nesPalette[colorIndex][2])
-            text="{0:02X}".format(colorIndex)
+            
+            text="{0:02x}".format(colorIndex)
+            if cfg.getValue("main","upperhex")==1:
+                text=text.upper()
             if cell['text'] != text:
                 changed = True
             cell.config(bg=c, fg=fg, text=text)
@@ -1322,7 +1349,10 @@ class ForLua:
                 fg = 'white' if (colorIndex % 16)>=(0x00,0x01,0x0d,0x0e)[math.floor(colorIndex/16)] else 'black'
                 
                 c = '#{0:02x}{1:02x}{2:02x}'.format(nesPalette[colorIndex][0],nesPalette[colorIndex][1],nesPalette[colorIndex][2])
-                text="{0:02X}".format(colorIndex)
+                text="{0:02x}".format(colorIndex)
+                if cfg.getValue("main","upperhex")==1:
+                    text=text.upper()
+
                 if cell['text'] != text:
                     changed = True
                 cell.config(bg=c, fg=fg, text=text)
@@ -1408,6 +1438,8 @@ def makeCmd(buttonName, *args):
     return lambda *x:doCommand(buttonName, x)
 
 def makeCmdNew(*args, extra = False):
+    if args[0].anonymous:
+        print('anon')
     if extra:
         return lambda x:doCommandNew(args, ev = x, extra = extra)
     return lambda x:doCommandNew(args, ev = x)
@@ -1622,6 +1654,7 @@ style.configure('new.TFrame', background=config.colors.bk, fg=config.colors.fg)
 config.title = config.title or "SpideyGUI"
 root.title(config.title)
 root.configure(bg=config.colors.bk)
+root.tk_setPalette(config.colors.tkDefault)
 
 t=lua.table(name="Main",
             control=root,

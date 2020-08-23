@@ -2,7 +2,6 @@ config = {
     title="NESBuilder",
     width=850,
     height=700,
-    upperHex=false,
     cellWidth=24,
     cellHeight=24,
     buttonWidth=20,
@@ -15,6 +14,7 @@ config = {
         bk_hover='#454560',
         fg = '#eef',
         bk_menu_highlight='#606080',
+        tkDefault='#656570',
     },
     pluginFolder = "plugins", -- this one is for python
     nRecentFiles = 20,
@@ -81,7 +81,7 @@ print = function(item)
 end
 
 makeHex = function(n)
-    if config.upperHex then
+    if NESBuilder:cfgGetValue("main", "upperhex")==1 then
         return string.format("%02X",n)
     else
         return string.format("%02x",n)
@@ -704,7 +704,7 @@ function launcherButtonRecent_cmd() notImplemented() end
 function launcherButtonTemplates_cmd() notImplemented() end
 
 function launcherButtonPreferences_cmd()
-    local x,y,left,top,pad
+    local x,y,left,top,pad,control
     pad = 6
     left = pad*2
     top = pad*2
@@ -714,14 +714,26 @@ function launcherButtonPreferences_cmd()
     NESBuilder:makeWindow{x=0,y=0,w=760,h=600, name="prefWindow",title="Preferences"}
     NESBuilder:setWindow("prefWindow")
     
-    for i=1, 10 do
-    control = NESBuilder:makeCheckbox{x=x,y=y,name="prefCheck1", text="option"}
-        y = y + control.height
-    end
+    control = NESBuilder:makeLabel{x=x,y=y, clear=true,text="Note: Some preferences may require a restart."}
+    y = y + control.height
+    
+    local upperhex=math.floor(NESBuilder:cfgGetValue("main", 'upperhex'))
+    control = NESBuilder:makeCheckbox{x=x,y=y,name="prefUpperHex", text="Show hexidecimal in upper-case.", value=NESBuilder:cfgGetValue("main", 'upperhex')}
+    
+    y = y + control.height
+    
+--    for i=1, 10 do
+--    control = NESBuilder:makeCheckbox{x=x,y=y,name="prefCheck1", text="option"}
+--        y = y + control.height
+--    end
 end
 
 function Preferences_cmd()
     launcherButtonPreferences_cmd()
+end
+
+function prefUpperHex_cmd(t)
+    NESBuilder:cfgSetValue("main", "upperhex", t.get())
 end
 
 function prefCheck1_cmd(t)

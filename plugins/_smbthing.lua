@@ -159,6 +159,7 @@ function smbthingLoadRom_cmd()
     end
     plugin.fileData = NESBuilder:getFileAsArray(f)
     plugin.inputFile = f
+    plugin.outputFile = plugin.inputFile
     
     smbthingRefreshPalettes()
 end
@@ -195,6 +196,7 @@ function smbthingSaveRomAs_cmd()
         print("file: "..f)
         NESBuilder:saveArrayToFile(plugin.fileData, f)
         plugin.outputFile = f
+        plugin.inputFile = plugin.outputFile
     end
 end
 
@@ -294,7 +296,5 @@ function smbPaletteCmd(t)
         smbthingRefreshPalettes()
     end
 end
-
-
 
 return plugin

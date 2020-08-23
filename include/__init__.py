@@ -1,11 +1,13 @@
 from . import SMBLevelExtract
 from . import calc
 from . import config
+#from .ips import ips
 
 __all__ = [
             'SMBLevelExtract',
             'Calculator',
             'Cfg',
+#            'ips',
           ]
 
 Calculator = calc.Calculator

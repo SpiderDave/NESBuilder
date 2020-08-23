@@ -8,7 +8,6 @@ local plugin = {
 }
 
 local smbPaletteData = {
-    {name = 'Mario', offset = 0x5d7, nColors = 4},
     {name = 'Ground1', offset = 0xccb, nColors = 4},
     {name = 'Ground2', offset = 0xccf, nColors = 4},
     {name = 'Ground3', offset = 0xcd3, nColors = 4},
@@ -17,7 +16,41 @@ local smbPaletteData = {
     {name = 'Ground6', offset = 0xcdf, nColors = 4},
     {name = 'Ground7', offset = 0xce3, nColors = 4},
     {name = 'Ground8', offset = 0xce7, nColors = 4},
+    
+    {name = 'Water1', offset = 0xca7, nColors = 4, newCol=True},
+    {name = 'Water2', offset = 0xcab, nColors = 4},
+    {name = 'Water3', offset = 0xcaf, nColors = 4},
+    {name = 'Water4', offset = 0xcb3, nColors = 4},
+    {name = 'Water5', offset = 0xcb7, nColors = 4},
+    {name = 'Water6', offset = 0xcbb, nColors = 4},
+    {name = 'Water7', offset = 0xcbf, nColors = 4},
+    {name = 'Water8', offset = 0xcc3, nColors = 4},
+
+    {name = 'Underground1', offset = 0xcef, nColors = 4, newCol=True},
+    {name = 'Underground2', offset = 0xcf3, nColors = 4},
+    {name = 'Underground3', offset = 0xcf7, nColors = 4},
+    {name = 'Underground4', offset = 0xcfb, nColors = 4},
+    {name = 'Underground5', offset = 0xcff, nColors = 4},
+    {name = 'Underground6', offset = 0xd03, nColors = 4},
+    {name = 'Underground7', offset = 0xd07, nColors = 4},
+    {name = 'Underground8', offset = 0xd0b, nColors = 4},
+
+    {name = 'Castle1', offset = 0xd13, nColors = 4, newCol=True},
+    {name = 'Castle2', offset = 0xd17, nColors = 4},
+    {name = 'Castle3', offset = 0xd1b, nColors = 4},
+    {name = 'Castle4', offset = 0xd1f, nColors = 4},
+    {name = 'Castle5', offset = 0xd23, nColors = 4},
+    {name = 'Castle6', offset = 0xd27, nColors = 4},
+    {name = 'Castle7', offset = 0xd2b, nColors = 4},
+    {name = 'Castle8', offset = 0xd2f, nColors = 4},
+
+    {name = 'Mario', offset = 0x5d7, nColors = 4, newCol=True},
     {name = 'Rotate', offset = 0x9c3, nColors = 6},
+    {name = 'Palette3Data1', offset = 0x9d1, nColors = 4},
+    {name = 'Palette3Data2', offset = 0x9d5, nColors = 4},
+    {name = 'Palette3Data3', offset = 0x9d9, nColors = 4},
+    {name = 'Palette3Data4', offset = 0x9dd, nColors = 4},
+
 }
 
 for k,v in ipairs(smbPaletteData) do
@@ -61,11 +94,18 @@ function plugin.onInit()
     end
     
     x=left
+    push(y)
     for k,item in ipairs(smbPaletteData) do
+        if item.newCol then
+            x=x+250
+            y=pop()
+            push(y)
+        end
+
         push(x)
         push(y)
         control = NESBuilder:makeLabel{x=x,y=y+4,name="smbPalette"..item.name.."Label",clear=true,text=item.name}
-        x=x+100+pad
+        x=x+80+pad
         
         local palette = {}
         for i=0,item.nColors-1 do
@@ -78,13 +118,14 @@ function plugin.onInit()
         
         y = y + control.height + pad
         
-        
         x=pop()
-        
     end
     
-    control = NESBuilder:makeCheckbox{x=x,y=y,name="smbRotateMod", text="Palette Rotation Mod"}
-    y = y + control.height + pad
+--    control = NESBuilder:makeCheckbox{x=x,y=y,name="smbRotateMod", text="Palette Rotation Mod"}
+--    y = y + control.height + pad
+    
+    x = left
+    y=y+100
     
     control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingTest",text="Test rom"}
     y = y + control.height + pad
@@ -115,22 +156,19 @@ function smbthingSaveRom_cmd()
     if not plugin.fileData then return end
     plugin.outputFile = plugin.inputFile
     
-    if NESBuilder:getControl('smbRotateMod').get() == 1 then
---        plugin.fileData[0x10+0x9e1]=0x60 -- disable palette rotation
---        plugin.fileData[0x10+0x9e1]=0xa5 -- enable palette rotation
-        
+--    if NESBuilder:getControl('smbRotateMod').get() == 1 then
         -- replace the last two entries in "BlankPalette" with the last two from Ground4
-        plugin.fileData[0x10+0x9ce]= plugin.fileData[0x10 + smbPaletteData.Ground4.offset+2]
-        plugin.fileData[0x10+0x9cf]= plugin.fileData[0x10 + smbPaletteData.Ground4.offset+3]
+--        plugin.fileData[0x10+0x9ce]= plugin.fileData[0x10 + smbPaletteData.Ground4.offset+2]
+--        plugin.fileData[0x10+0x9cf]= plugin.fileData[0x10 + smbPaletteData.Ground4.offset+3]
         
         -- Modify a counter so the last two colors of area type aren't used for palette 3
         -- It will instead fall back to the entries in BlankPalette above.
-        plugin.fileData[0x10+0x9ff]=0x01
-    else
-        plugin.fileData[0x10+0x9ce]= 0xff
-        plugin.fileData[0x10+0x9cf]= 0xff
-        plugin.fileData[0x10+0x9ff]= 0x03
-    end
+--        plugin.fileData[0x10+0x9ff]=0x01
+--    else
+--        plugin.fileData[0x10+0x9ce]= 0xff
+--        plugin.fileData[0x10+0x9cf]= 0xff
+--        plugin.fileData[0x10+0x9ff]= 0x03
+--    end
     
     
     NESBuilder:saveArrayToFile(plugin.fileData, plugin.inputFile)
@@ -179,6 +217,14 @@ end
 function smbPaletteMario_cmd(t)
     smbPaletteCmd(t)
 end
+function smbPaletteWater1_cmd(t) smbPaletteCmd(t) end
+function smbPaletteWater2_cmd(t) smbPaletteCmd(t) end
+function smbPaletteWater3_cmd(t) smbPaletteCmd(t) end
+function smbPaletteWater4_cmd(t) smbPaletteCmd(t) end
+function smbPaletteWater5_cmd(t) smbPaletteCmd(t) end
+function smbPaletteWater6_cmd(t) smbPaletteCmd(t) end
+function smbPaletteWater7_cmd(t) smbPaletteCmd(t) end
+function smbPaletteWater8_cmd(t) smbPaletteCmd(t) end
 function smbPaletteGround1_cmd(t) smbPaletteCmd(t) end
 function smbPaletteGround2_cmd(t) smbPaletteCmd(t) end
 function smbPaletteGround3_cmd(t) smbPaletteCmd(t) end
@@ -187,7 +233,31 @@ function smbPaletteGround5_cmd(t) smbPaletteCmd(t) end
 function smbPaletteGround6_cmd(t) smbPaletteCmd(t) end
 function smbPaletteGround7_cmd(t) smbPaletteCmd(t) end
 function smbPaletteGround8_cmd(t) smbPaletteCmd(t) end
+function smbPaletteCastle1_cmd(t) smbPaletteCmd(t) end
+function smbPaletteCastle2_cmd(t) smbPaletteCmd(t) end
+function smbPaletteCastle3_cmd(t) smbPaletteCmd(t) end
+function smbPaletteCastle4_cmd(t) smbPaletteCmd(t) end
+function smbPaletteCastle5_cmd(t) smbPaletteCmd(t) end
+function smbPaletteCastle6_cmd(t) smbPaletteCmd(t) end
+function smbPaletteCastle7_cmd(t) smbPaletteCmd(t) end
+function smbPaletteCastle8_cmd(t) smbPaletteCmd(t) end
+function smbPaletteUnderground1_cmd(t) smbPaletteCmd(t) end
+function smbPaletteUnderground2_cmd(t) smbPaletteCmd(t) end
+function smbPaletteUnderground3_cmd(t) smbPaletteCmd(t) end
+function smbPaletteUnderground4_cmd(t) smbPaletteCmd(t) end
+function smbPaletteUnderground5_cmd(t) smbPaletteCmd(t) end
+function smbPaletteUnderground6_cmd(t) smbPaletteCmd(t) end
+function smbPaletteUnderground7_cmd(t) smbPaletteCmd(t) end
+function smbPaletteUnderground8_cmd(t) smbPaletteCmd(t) end
+
+
+
 function smbPaletteRotate_cmd(t) smbPaletteCmd(t) end
+
+function smbPalettePalette3Data1_cmd(t) smbPaletteCmd(t) end
+function smbPalettePalette3Data2_cmd(t) smbPaletteCmd(t) end
+function smbPalettePalette3Data3_cmd(t) smbPaletteCmd(t) end
+function smbPalettePalette3Data4_cmd(t) smbPaletteCmd(t) end
 
 function smbPaletteCmd(t)
     local offset

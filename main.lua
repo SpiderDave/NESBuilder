@@ -50,11 +50,11 @@ plugins = {}
 -- Overriding print and adding all sorts of neat things.
 -- This is really complicated and should probably move to
 -- the Python side of things.
-__print = print
+_print = print
 local prefix = "[Lua] "
 print = function(item)
     if type(item)=="userdata" then
-        __print(prefix..NESBuilder:getPrintable(item))
+        _print(prefix..NESBuilder:getPrintable(item))
     elseif type(item)=="table" then
         print("{")
         for k,v in pairs(item) do
@@ -74,9 +74,9 @@ print = function(item)
         -- seems like this would do nothing but it actually changes
         -- python numbers that would display like "42.0" to "42".
         if item == math.floor(item) then item = math.floor(item) end
-        __print(prefix..item)
+        _print(prefix..item)
     else
-        __print(prefix..(item or ''))
+        _print(prefix..(item or ''))
     end
 end
 
@@ -152,24 +152,28 @@ function init()
     NESBuilder:makeTab("Palette", "Palette")
     NESBuilder:makeTab("Image", "CHR")
     
+    -- The separator and Quit items will be added
+    -- in onReady() so plugins can add items before them.
     local items = {
         {name="New", text="New Project"},
         {name="Open", text="Open Project"},
         {name="Save", text="Save Project"},
-        {name="Build", text="Build Project"},
-        {name="BuildTest", text="Build Project and Test"},
         {name="Preferences", text="Preferences"},
-        {text="-"},
-        {name="Quit", text="Exit"},
     }
     control = NESBuilder:makeMenu{name="menuFile", text="File", items=items, prefix=false}
     
+--    local items = {
+--        {name="Cut", text="Cut"},
+--        {name="Copy", text="Copy"},
+--        {name="Paste", text="Paste"},
+--    }
+--    control = NESBuilder:makeMenu{name="menuEdit", text="Edit", items=items, prefix=false}
+    
     local items = {
-        {name="Cut", text="Cut"},
-        {name="Copy", text="Copy"},
-        {name="Paste", text="Paste"},
+        {name="Build", text="Build"},
+        {name="BuildTest", text="Build and Test"},
     }
-    control = NESBuilder:makeMenu{name="menuEdit", text="Edit", items=items, prefix=false}
+    control = NESBuilder:makeMenu{name="menuProject", text="Project", items=items, prefix=false}
     
     local items = {
         {name="About", text="About"},
@@ -204,8 +208,8 @@ function init()
     b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="BuildProjectTest",text="Build Project and Test"}
     y = y + b.height + pad
     
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="OpenProjectFolder",text="Open Project Folder"}
-    y = y + b.height + pad
+--    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="OpenProjectFolder",text="Open Project Folder"}
+--    y = y + b.height + pad
 
 --    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonLevelExtract",text="Extract Level"}
 --    y = y + b.height + pad
@@ -470,6 +474,20 @@ function onPluginsLoaded()
 end
 
 function onReady()
+    local items = {
+        {text="-"},
+        {name="Quit", text="Exit"},
+    }
+    control = NESBuilder:makeMenu{name="menuFile", text="File", items=items, prefix=false}
+    
+    local items = {
+        {text="-"},
+        {name="openProjectFolder", text="Open Project Folder"},
+    }
+    control = NESBuilder:makeMenu{name="menuProject", text="Project", items=items, prefix=false}
+
+
+
     LoadProject_cmd()
 end
 
@@ -782,7 +800,7 @@ function BuildProjectTest_cmd()
     BuildTest_cmd()
 end
 
-function OpenProjectFolder_cmd()
+function openProjectFolder_cmd()
     local workingFolder = data.folders.projects..data.project.folder
     NESBuilder:shellOpen(workingFolder, data.folders.projects..data.project.folder)
 end
@@ -891,7 +909,9 @@ function BuildProject_cmd()
     filename = data.folders.projects..projectFolder.."code/tiles.asm"
     for i=0, #data.project.squareoids do
         local tile = data.project.squareoids[i]
-        out=out..string.format('    .db $%02x, $%02x, $%02x, $%02x\n',tile[0], tile[1], tile[2], tile[3])
+        if tile then
+            out=out..string.format('    .db $%02x, $%02x, $%02x, $%02x\n',tile[0], tile[1], tile[2], tile[3])
+        end
     end
     util.writeToFile(filename,0, out, true)
     

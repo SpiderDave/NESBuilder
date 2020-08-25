@@ -178,6 +178,19 @@ class Text(tk.Text):
     def clear(self):
         self.delete("1.0", tk.END)
 
+def getTopWindow(root, include_root=True):
+    def stackorder(root):
+        c = root.children
+        s = root.tk.eval('wm stackorder {}'.format(root))
+        L = [x.lstrip('.') for x in s.split()]
+        return [(c[x] if x else root) for x in L]
+
+    L = stackorder(root)
+    if include_root:
+        return L[-1]
+    else:
+        return L[-2] if L[-1] is root else L[-1]
+
 # Make stuff in this class available to lua
 # so we can do Python stuff rom lua.
 class ForLua:
@@ -335,6 +348,8 @@ class ForLua:
     def setWorkingFolder(self, f=""):
         workingFolder = fixPath(script_path+"/"+f)
         os.chdir(workingFolder)
+    def getWorkingFolder(self):
+        return os.getcwd()
     def sleep(self, t):
         time.sleep(t)
     def delete(self, filename):
@@ -430,16 +445,25 @@ class ForLua:
         initial = fixPath(script_path + "/" + initial)
         foldername =  filedialog.askdirectory(initialdir = initial, title = "Select folder")
         return foldername, os.path.split(foldername)[1]
-    def openFile(self, filetypes, initial=None):
+    def openFile(self, filetypes, initial=None, parent=None):
+        
+        topWindow = getTopWindow(root)
+        
         types = list()
         if filetypes:
             for t in filetypes:
                 types.append([filetypes[t][1],filetypes[t][2]])
         
         types.append(["All files","*.*"])
-        #filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("all files","*.*"),))
-        filename =  filedialog.askopenfilename(title = "Select file",filetypes = types)
+        filename =  filedialog.askopenfilename(title = "Select file",filetypes = types, parent=topWindow)
+        
         return filename
+    def lift(self, window=None):
+        window = self.getWindow(self, window)
+        window.control.lift()
+        window.control.focus_force()
+        #print(self.getWindow(self, window).name)
+
     def saveFileAs(self, filetypes, initial=None):
         types = list()
         
@@ -949,24 +973,38 @@ class ForLua:
             window.menu = menubar
             window.control.config(menu = menubar)
         
-        # create a popup menu
         tab = self.getTab(self)
-        menu = tk.Menu(tab, tearoff=tearoff)
         
-        if cfg.getValue("main","styleMenus"):
-            menu.config(bg=config.colors.bk2,fg=config.colors.fg, activebackground=config.colors.bk_menu_highlight)
+        menu = False
+        control = False
         
-        #menubar.add_cascade(label=t.text, menu=menu)
-        window.menu.add_cascade(label=t.text, menu=menu)
+        if controls.get(t.name):
+            # menu already exists, add to it instead.
+            menu = controls.get(t.name)
+            control = menu
+            
+            t=lua.table(name=t.name,
+                        control=control,
+                        items=t['items'],
+                        prefix=t.prefix,
+                        )
+        else:
+            # create menu
+            menu = tk.Menu(tab, tearoff=tearoff)
+            
+            if cfg.getValue("main","styleMenus"):
+                menu.config(bg=config.colors.bk2,fg=config.colors.fg, activebackground=config.colors.bk_menu_highlight)
+            
+            window.menu.add_cascade(label=t.text, menu=menu)
 
-        control = menu
-        controls.update({t.name:control})
+            control = menu
+            controls.update({t.name:control})
 
-        t=lua.table(name=t.name,
-                    control=control,
-                    items=t['items'],
-                    prefix=t.prefix,
-                    )
+            t=lua.table(name=t.name,
+                        control=control,
+                        items=t['items'],
+                        prefix=t.prefix,
+                        )
 
         for i, item in t['items'].items():
             name = item.name or str(i)
@@ -991,12 +1029,14 @@ class ForLua:
         x,y,w,h = variables
         
         if controls.get(t.name):
-            # If the window already exists, bring it to the front
-            # and return its table.
-            t = controls.get(t.name)
-            t.alreadyCreated = True
-            t.control.lift()
-            return t
+            if controls.get(t.name).exists():
+                # If the window already exists, bring it to the front
+                # and return its table.
+                t = controls.get(t.name)
+                t.alreadyCreated = True
+                t.control.deiconify()
+                t.control.lift()
+                return t
         
         window = tk.Toplevel(root)
         window.title(t.title or "Window")
@@ -1005,6 +1045,11 @@ class ForLua:
         def close():
             del controls[t.name]
             window.destroy()
+        def front():
+            window.focus_force()
+        def exists():
+            return window.winfo_exists()
+            #return window.winfo_ismapped()
         window.protocol( "WM_DELETE_WINDOW", close)
         
         tabParent = ttk.Notebook(window)
@@ -1041,6 +1086,8 @@ class ForLua:
                     tabParent=tabParent,
                     tabs=tabs,
                     close=close,
+                    front=front,
+                    exists=exists,
                     )
         
         controls.update({t.name:t})
@@ -1139,12 +1186,21 @@ class ForLua:
         def setText(text):
             control.delete(1.0, tk.END)
             control.insert(tk.END, text)
-            
+        def addText(text):
+            control.insert(tk.END, text)
+        def print(text=''):
+            text=str(text)
+            control.insert(tk.END, text+"\n")
+        def clear():
+            control.delete(1.0, tk.END)
         t=lua.table(name=t.name,
                     control=control,
                     height=h,
                     width=w,
                     setText = setText,
+                    addText = addText,
+                    print = print,
+                    clear = clear,
                     )
 
         controls.update({t.name:t})
@@ -1483,11 +1539,21 @@ def doCommandNew(*args, ev=False, extra = False):
         args.event = event
     
     lua_func = lua.eval('function(o) if doCommand then doCommand(o) end end'.format(args.name))
-    lua_func(args)
+    try:
+        lua_func(args)
+    except LuaError as err:
+        handleLuaError(err)
     lua_func = lua.eval('function(o) if {0}_command then {0}_command(o) end end'.format(args.name))
-    lua_func(args)
+    try:
+        lua_func(args)
+    except LuaError as err:
+        handleLuaError(err)
     lua_func = lua.eval('function(o) if {0}_cmd then {0}_cmd(o) end end'.format(args.name))
-    lua_func(args)
+    try:
+        lua_func(args)
+    except LuaError as err:
+        handleLuaError(err)
+
 
 def doCommand(ctrl, *args):
     # process the tkinter event
@@ -1693,6 +1759,7 @@ if os.path.exists(folder):
         if file.endswith(".lua") and not file.startswith("_"):
             print("Loading plugin: "+file)
             code = """
+                NESBuilder:setWorkingFolder()
                 _plugin = require("{0}.{1}")
                 if type(_plugin) =="table" then
                     plugins[_plugin.name or "{1}"]=_plugin

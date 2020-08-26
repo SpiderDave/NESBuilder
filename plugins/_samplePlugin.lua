@@ -8,6 +8,7 @@ local plugin = {
 }
 
 function plugin.onInit()
+    NESBuilder:setWindow("Main")
     NESBuilder:createTab("sampleplugin", "Sample Plugin")
     NESBuilder:setTab("sampleplugin")
     

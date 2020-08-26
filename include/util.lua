@@ -1,5 +1,11 @@
 local util = {}
 
+-- Remove all spaces from a string
+util.stripSpaces = function(s)
+    return string.gsub(s, "%s", "")
+end
+
+
 util.serialize = function(t)
     if not t then return end
     return Tserial.pack(t)
@@ -61,5 +67,53 @@ function util.deepCopy(orig)
     end
     return copy
 end
+
+function util.bin2hex(str)
+    local output = ""
+    for i = 1, #str do
+        local c = string.byte(str:sub(i,i))
+        output=output..string.format("%02x", c)
+    end
+    return output
+end
+
+function util.hex2bin(str)
+    str = util.stripSpaces(str)
+    
+    local output = ""
+    for i = 1, (#str/2) do
+        local c = str:sub(i*2-1,i*2)
+        
+        -- Not a hex digit, return nil
+        if not tonumber(c, 16) then return end
+        
+        output=output..string.char(tonumber(c, 16))
+    end
+    return output
+end
+
+function util.hexToTable(str)
+    str = util.stripSpaces(str)
+    
+    local output = {}
+    for i = 1, (#str/2) do
+        local c = str:sub(i*2-1,i*2)
+        
+        -- Not a hex digit, return nil
+        if not tonumber(c, 16) then return end
+        
+        table.insert(output, tonumber(c, 16))
+    end
+    return output
+end
+
+function util.tableToHex(t)
+    local output = ""
+    for _,v in pairs(t) do
+        output=output..string.format("%02x", v)
+    end
+    return output
+end
+
 
 return util

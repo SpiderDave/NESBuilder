@@ -43,8 +43,6 @@ Features:
 stack, push, pop = NESBuilder:newStack()
 recentProjects = NESBuilder:newStack{maxlen=config.nRecentFiles}
 
-len = function(item) return NESBuilder:getLen(item) end
-
 plugins = {}
 
 -- Overriding print and adding all sorts of neat things.
@@ -148,7 +146,6 @@ function init()
     
     NESBuilder:setWindow("Main")
     NESBuilder:makeTab("Launcher", "Launcher")
-    NESBuilder:makeTab("Main", "Main")
     NESBuilder:makeTab("Palette", "Palette")
     NESBuilder:makeTab("Image", "CHR")
     
@@ -189,52 +186,6 @@ function init()
     left = pad*1.5
     x,y = left,top
     
-    
-    NESBuilder:setTab("Main")
-    x,y = left,top
-    
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="NewProject",text="New Project"}
-    y = y + b.height + pad
-    
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="OpenProject",text="Open Project"}
-    y = y + b.height + pad
-
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="SaveProject",text="Save Project"}
-    y = y + b.height + pad
-
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="BuildProject",text="Build Project"}
-    y = y + b.height + pad
-    
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="BuildProjectTest",text="Build Project and Test"}
-    y = y + b.height + pad
-    
---    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="OpenProjectFolder",text="Open Project Folder"}
---    y = y + b.height + pad
-
---    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonLevelExtract",text="Extract Level"}
---    y = y + b.height + pad
-    
---    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="ButtonMakeCHR",text="Make CHR"}
---    y = y + b.height + pad
-    
-    buttonHeight = b.height
-
---    for i=0,4 do
---        b=NESBuilder:makeButton{x=x,y=y,name="Button"..i,text="Button"..i}
---        y = y + b.height + pad
---    end
-    
-    --b=NESBuilder:makeText{x=x,y=y, lineHeight=20,lineWidth=80, name="Text1",text="Text1"}
-    
---    x2,y2=x,y
---    b=NESBuilder:makeText{x=x,y=y,w=20, w=150,h=buttonHeight, name="Text1",text="Text1"}
---    y = y + b.height + pad
-    
---    b=NESBuilder:makeButton{x=left+150+pad,y=y2,w=config.buttonWidth,name="ButtonSetText1",text="Set"}
---    x=left
---    y = y + b.height + pad
-    
-    
     NESBuilder:setTab("Palette")
     NESBuilder:setDirection("h")
     x,y=left,top
@@ -256,6 +207,7 @@ function init()
     x=left
     y=top + 100+pad*1.5
     b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonPrevPalette",text="<"}
+    buttonHeight = b.height
     
     x = x + b.width + pad
     b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonNextPalette",text=">"}
@@ -426,22 +378,12 @@ function init()
     push(y)
     control = NESBuilder:makeCanvas{x=x,y=y,w=128,h=128,name="tsaCanvas", scale=2}
     push(x+control.width+pad)
-    --p=data.project.palettes[data.project.palettes.index]
-    
-    --NESBuilder:setCanvas("tsaCanvas")
-    --NESBuilder:loadCHRFile{"smb_new.chr", p, start=0x1000} 
-    
-    --CHRData = NESBuilder:imageToCHRData("chr.png",NESBuilder:getNESColors(p))
-    --NESBuilder:loadCHRData(CHRData, p)
     
     x = left
     y=y + control.height + pad
     
     control = NESBuilder:makeCanvas{x=x,y=y,w=16,h=16,name="tsaCanvas2", scale=6}
-    NESBuilder:setCanvas("tsaCanvas2")
-    
-    NESBuilder:loadCHRData{nil, p, columns=2, rows=2}
-    --NESBuilder:loadCHRData{nil, p, columns=16, rows=16}
+    control.loadCHRData{nil, p, columns=2, rows=2}
     
     y=y + control.height + pad
     
@@ -464,7 +406,6 @@ function init()
     x= pop()
     y = pop()
     control = NESBuilder:makeCanvas{x=x,y=y,w=8,h=8,name="tsaTileCanvas", scale=8, columns=1, rows=1}
-
     
     loadSettings()
 end
@@ -567,13 +508,13 @@ function CHRPalette_cmd(t)
 end
 
 function ButtonMakeCHR_cmd()
-    local f = NESBuilder:openFile({{"Images", ".png"}})
+    local f = NESBuilder:openFile{filetypes={{"Images", ".png"}}}
     if f == "" then
         print("Open cancelled.")
     else
         print("file: "..f)
         
-        f2 = NESBuilder:saveFileAs({{"CHR", ".chr"}},'output.chr')
+        f2 = NESBuilder:saveFileAs{filetypes={{"CHR", ".chr"}},'output.chr'}
         if f2 == "" then
             print("Save cancelled.")
         else
@@ -630,7 +571,7 @@ ButtonPrevPaletteCHR_cmd = ButtonPrevPalette_cmd
 ButtonNextPaletteCHR_cmd = ButtonNextPalette_cmd
 
 function ButtonLevelExtract_cmd()
-    local f = NESBuilder:openFile({{"NES rom", ".nes"}})
+    local f = NESBuilder:openFile{filetypes={{"NES rom", ".nes"}}}
     if f == "" then
         print("Open cancelled.")
     else
@@ -952,12 +893,9 @@ function LoadProject_cmd()
     end
     
     -- Wipe data stored on the canvas control
-    NESBuilder:setCanvas('tsaCanvas')
-    NESBuilder:loadCHRData()
+    NESBuilder:getControlNew('tsaCanvas').loadCHRData()
     
-    -- reset selected tile canvas
-    NESBuilder:setCanvas("tsaTileCanvas")
-    NESBuilder:loadCHRData({0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, {[0]=0x0f,0x0f,0x0f,0x0f})
+    NESBuilder:getControlNew('tsaCanvas').loadCHRData({0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, {[0]=0x0f,0x0f,0x0f,0x0f})
     
     -- update project folder in case it's been moved
     data.project.folder = projectFolder
@@ -972,7 +910,7 @@ function LoadProject_cmd()
     handlePluginCallback("onLoadProject")
     
     -- update palette entry
-    data.project.palettes.index = 0
+    --data.project.palettes.index = 0
     PaletteEntryUpdate()
     
     dataChanged(false)
@@ -1041,18 +979,19 @@ function Quit_cmd()
 end
 
 function refreshCHR()
+    local c
     local p=data.project.palettes[data.project.palettes.index]
     
-    NESBuilder:setCanvas("canvas")
-    NESBuilder:loadCHRData(data.project.chr[data.project.chr.index], p)
-
+    c = NESBuilder:getControlNew('canvas')
+    c.loadCHRData{data.project.chr[data.project.chr.index], p}
+    
     local c = NESBuilder:getControl('CHRNumLabel')
     c.control.text = string.format("%02x", data.project.chr.index)
 end
 
 function LoadCHRImage_cmd()
     local CHRData
-    local f = NESBuilder:openFile(nil)
+    local f = NESBuilder:openFile{filetypes={{"Images", ".png"}}}
     if f == "" then
         print("Open cancelled.")
     else
@@ -1067,9 +1006,9 @@ function LoadCHRImage_cmd()
         data.project.chr[data.project.chr.index] = CHRData
         
         -- Load CHR data and display on canvas
-        NESBuilder:setCanvas("canvas")
-        NESBuilder:loadCHRData(CHRData, p)
-
+        c = NESBuilder:getControlNew('canvas')
+        c.loadCHRData{CHRData, p}
+        
         c = NESBuilder:getControl('CHRPalette')
         c.setAll(p)
         
@@ -1094,7 +1033,7 @@ end
 
 function LoadCHRNESmaker_cmd()
     local CHRData
-    local f = NESBuilder:openFile(nil)
+    local f = NESBuilder:openFile{filetypes={{"Images", ".png"}}}
     if f == "" then
         print("Open cancelled.")
     else
@@ -1108,8 +1047,8 @@ function LoadCHRNESmaker_cmd()
         data.project.chr[data.project.chr.index] = CHRData
         
         -- Load CHR data and display on canvas
-        NESBuilder:setCanvas("canvas")
-        NESBuilder:loadCHRData(CHRData, p)
+        c = NESBuilder:getControlNew('canvas')
+        c.loadCHRData{CHRData, p}
 
         c = NESBuilder:getControl('CHRPalette')
         c.setAll(p)
@@ -1119,7 +1058,7 @@ function LoadCHRNESmaker_cmd()
 end
 
 function LoadCHR_cmd()
-    local f = NESBuilder:openFile(nil)
+    local f = NESBuilder:openFile{filetypes={{"CHR", ".chr"}}}
     if f == "" then
         print("Open cancelled.")
         return
@@ -1215,7 +1154,9 @@ function canvas_cmd(t)
     if not data.project.chr[data.project.chr.index] then
         -- Load in blank CHR if drawing on empty CHR.
         NESBuilder:setCanvas("canvas")
-        data.project.chr[data.project.chr.index] = NESBuilder:loadCHRData()
+        data.project.chr[data.project.chr.index] = NESBuilder:newCHRData()
+        print(data.project.chr[data.project.chr.index][0])
+        return
     end
     
     if x<0 or y<0 or x>=128 or y>=128 then return end
@@ -1226,6 +1167,10 @@ function canvas_cmd(t)
         l[x%8]=cBits[7-i]
         b = NESBuilder:bitArrayToNumber(l)
         data.project.chr[data.project.chr.index][tileOffset+1+(i*8)+y%8] = b
+    end
+    local chr = data.project.chr[data.project.chr.index]
+    if chr[0] then
+        print(string.format("bad chr %04x %s %s %s",len(chr), chr[0] or "-", type(chr), type(chr[0])))
     end
     
     NESBuilder:setCanvas("canvas")
@@ -1254,7 +1199,6 @@ function tsaCanvas_cmd(t)
         if t.event.button == 1 then
             print(string.format("%02x", tileNum))
             
-            NESBuilder:setCanvas("tsaTileCanvas")
             local TileData = {}
             
             for i=0,15 do
@@ -1263,8 +1207,7 @@ function tsaCanvas_cmd(t)
             
             data.project.tileData = TileData
             data.project.tileNum = tileNum
-            
-            NESBuilder:loadCHRData(TileData, p)
+            NESBuilder:getControlNew("tsaTileCanvas").loadCHRData(TileData, p)
         end
     end
 end
@@ -1303,8 +1246,7 @@ function tsaCanvas2_cmd(t)
             data.project.tileData = TileData
             data.project.tileNum = tileNum
             
-            
-            NESBuilder:loadCHRData(TileData, p)
+            NESBuilder:getControlNew("tsaTileCanvas").loadCHRData(TileData, p)
         elseif t.event.button == 3 and data.project.tileData then
             NESBuilder:setCanvas(t.name)
             
@@ -1320,7 +1262,7 @@ function tsaCanvas2_cmd(t)
                     data.project.squareoids[data.project.squareoids.index][tileX*2+tileY] = data.project.tileNum
                     data.project.squareoids[data.project.squareoids.index].palette = data.project.palettes.index
                 end
-                NESBuilder:loadCHRData{t.chrData, p, rows=2, columns=2}
+                NESBuilder:getControlNew(t.name).loadCHRData{t.chrData, p, rows=2, columns=2}
             else
             end
             
@@ -1370,8 +1312,7 @@ function updateSquareoid()
         end
     end
     
-    NESBuilder:setCanvas(controlTo.name)
-    NESBuilder:loadCHRData{controlTo.chrData, p, rows=2, columns=2}
+    controlTo.loadCHRData{controlTo.chrData, p, rows=2, columns=2}
     
     local control = NESBuilder:getControl("tsaSquareoidNumber")
     control.setText(data.project.squareoids.index)
@@ -1380,10 +1321,8 @@ end
 
 function tsaTest_cmd()
     local p=data.project.palettes[data.project.palettes.index]
-    NESBuilder:setCanvas("tsaCanvas")
-    NESBuilder:loadCHRData(data.project.chr[data.project.chr.index], p)
-
-    --NESBuilder:loadCHRFile{"smb_new.chr", p, start=0x1000} 
+    
+    NESBuilder:getControlNew("tsaCanvas").loadCHRData(data.project.chr[data.project.chr.index], p)
 end
 
 function onTabChanged_cmd(t)
@@ -1393,8 +1332,7 @@ function onTabChanged_cmd(t)
             local p=data.project.palettes[data.project.palettes.index]
             
             local control = NESBuilder:getControlNew("tsaCanvas")
-            NESBuilder:setCanvas("tsaCanvas")
-            NESBuilder:loadCHRData(data.project.chr[data.project.chr.index], p)
+            NESBuilder:getControlNew("tsaCanvas").loadCHRData(data.project.chr[data.project.chr.index], p)
             
             updateSquareoid()
         end
@@ -1418,7 +1356,6 @@ end
 function launcherRecentIcon_cmd(t)
     local id,n
     updateRecentProjects()
-    --if t.index<len(recentProjects.stack)-1 then
     if t.index<=len(recentProjects.stack)-1 then
         n = len(recentProjects.stack)- 1 - t.index
         id = recentProjects.stack[n]

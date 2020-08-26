@@ -199,7 +199,6 @@ class ForLua:
     w=16
     h=16
     direction="v"
-    tab="Main"
     window="Main"
     canvas=False
     images={}
@@ -212,10 +211,6 @@ class ForLua:
         def addStandardProp(t):
             def _config(cfg):
                 t.control.config(dict(cfg))
-#            def getEventType():
-#                if not controls.get(t.name).event:
-#                    return False
-#                return controls.get(t.name).event.type.name
             def update():
                 t.control.update()
                 t.height = t.control.winfo_height()
@@ -255,12 +250,8 @@ class ForLua:
                 anonymous = True
             
             t = func(self, t, (x,y,w,h))
-            
-            
             t = addStandardProp(t)
-            
             t.control.update()
-            
             t.height=t.control.winfo_height()
             t.width=t.control.winfo_width()
             
@@ -434,7 +425,7 @@ class ForLua:
     def setCanvas(self, canvas):
         self.canvas = canvas
     def fileTest(self):
-        filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("jpeg files","*.jpg"),("all files","*.*")))
+        filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("jpeg files","*.jpg"),("all files","*.*")), parent=getTopWindow(root))
         return filename
     def makeDir(self,dir):
         dir = fixPath(script_path + "/" + dir)
@@ -443,19 +434,16 @@ class ForLua:
             os.makedirs(dir)
     def openFolder(self, initial=None):
         initial = fixPath(script_path + "/" + initial)
-        foldername =  filedialog.askdirectory(initialdir = initial, title = "Select folder")
+        foldername =  filedialog.askdirectory(initialdir = initial, title = "Select folder", parent=getTopWindow(root))
         return foldername, os.path.split(foldername)[1]
     def openFile(self, filetypes, initial=None, parent=None):
-        
-        topWindow = getTopWindow(root)
-        
         types = list()
         if filetypes:
             for t in filetypes:
                 types.append([filetypes[t][1],filetypes[t][2]])
         
         types.append(["All files","*.*"])
-        filename =  filedialog.askopenfilename(title = "Select file",filetypes = types, parent=topWindow)
+        filename =  filedialog.askopenfilename(title = "Select file",filetypes = types, parent=getTopWindow(root))
         
         return filename
     def lift(self, window=None):
@@ -472,7 +460,7 @@ class ForLua:
                 types.append([filetypes[t][1],filetypes[t][2]])
         
         types.append(["All files","*.*"])
-        filename =  filedialog.asksaveasfilename(title = "Select file",filetypes = types, initialfile=initial)
+        filename =  filedialog.asksaveasfilename(title = "Select file",filetypes = types, initialfile=initial, parent=getTopWindow(root))
         return filename
     def importFunction(self, mod, f):
         m = importlib.import_module(mod)
@@ -676,21 +664,34 @@ class ForLua:
         file.write(fileData)
         file.close()
         return True
+    def unHex(self, s):
+        return unhexlify(str(s))
+    def hexStringToList(self, s):
+        return list(unhexlify(s))
     def loadCHRFile(self, f='chr.chr', colors=(0x0f,0x21,0x11,0x01), start=0):
         file=open(f,"rb")
         file.seek(start)
         fileData = file.read()
         file.close()
-        
         fileData = list(fileData)
         
         ret = self.loadCHRData(self,fileData,colors)
         return ret
 #    def newCHRData(self, nTiles=16*16):
 #        return lua.table_from("\x00" * (nTiles * 16))
-    def loadCHRData(self, fileData=False, colors=(0x0f,0x21,0x11,0x01), columns=16, rows=16):
+    def newCHRData(self, columns=16,rows=16):
+        imageData = lua.table()
+        for i in range(0, 16*columns*rows):
+            imageData[i+1] = 0
+        return imageData
+    def loadCHRData(self, fileData=False, colors=(0x0f,0x21,0x11,0x01), columns=16, rows=16, fromHexString=False):
+        print('DEPRECIATED: loadCHRData')
         control = self.getCanvas(self)
+        
         canvas = control.control
+        
+        if fromHexString:
+            fileData = list(unhexlify(fileData))
         
         if not fileData:
             fileData = "\x00" * (16 * columns * rows)
@@ -698,7 +699,7 @@ class ForLua:
         if type(fileData) is str:
             fileData = [ord(x) for x in fileData]
         elif lupa.lua_type(fileData)=="table":
-            fileData = list([fileData[x] for x in fileData])
+            fileData = [fileData[x] for x in fileData]
         
         # convert and re-index lua table
         if lupa.lua_type(colors)=="table":
@@ -709,6 +710,8 @@ class ForLua:
         a = np.asarray(img).copy()
         
         for tile in range(math.floor(len(fileData)/16)):
+            if tile >= (columns * rows):
+                break
             for y in range(8):
                 for x in range(8):
                     c=0
@@ -803,14 +806,12 @@ class ForLua:
     def removeControl(c):
         controls[c].destroy()
     def hideControl(c):
-        controls[c].foobar ='baz'
         x = controls[c].winfo_x()
         if x<0:
             x=x+1000
         else:
             x=x-1000
         controls[c].place(x=x)
-        print(controls[c].foobar)
     def makeCanvas(self, t, variables):
         x,y,w,h = variables
         
@@ -821,11 +822,60 @@ class ForLua:
         canvas = tk.Canvas(self.getTab(self), width=1, height=1, bg='black',name=t.name)
         canvas.place(x=x,y=y, width=w, height=h)
         control=canvas
+        
+        photo = False
+        @lupa.unpacks_lua_table
+        def loadCHRData(imageData=False, colors=(0x0f,0x21,0x11,0x01), columns=16, rows=16):
+            
+            if not imageData:
+                imageData = lua.table()
+                for i in range(0, columns*rows):
+                    imageData[i+1] = 0
+            
+            if lupa.lua_type(imageData)!="table":
+                print('bad imageData for loadCHRData')
+                return False
+            
+            control = self.getControlNew(self, t.name)
+            canvas = control.control
+            
+            control.chrData = imageData
+            imageData = [imageData[x] for x in list(imageData)]
+            
+            # convert and re-index lua table
+            if lupa.lua_type(colors)=="table":
+                colors = [colors[x] for x in colors]
+            
+            control.colors = colors
+            img=Image.new("RGB", size=(columns*8,rows*8))
+            a = np.asarray(img).copy()
+            for tile in range(math.floor(len(imageData)/16)):
+                if tile >= (columns * rows):
+                    break
+                for y in range(8):
+                    for x in range(8):
+                        c=0
+                        x1=(tile % columns)*8+(7-x)
+                        y1=math.floor(tile/columns)*8+y
+                        if (imageData[tile*16+y] & (1<<x)):
+                            c=c+1
+                        if (imageData[tile*16+y+8] & (1<<x)):
+                            c=c+2
+                        a[y1][x1] = nesPalette[colors[c]]
+            img = Image.fromarray(a)
+            #photo = ImageTk.PhotoImage(ImageOps.scale(img, t.scale, resample=Image.NEAREST))
+            photo = ImageTk.PhotoImage(ImageOps.scale(img, control.scale, resample=Image.NEAREST))
+            control.photo = photo
+            control.test = "test!"
+            canvas.create_image(0,0, image=photo, state="normal", anchor=tk.NW)
+            canvas.configure(highlightthickness=0, borderwidth=0)
+            
         t=lua.table(name=t.name,
                     control=control,
                     scale=t.scale,
                     columns=t.columns,
                     rows=t.rows,
+                    loadCHRData=loadCHRData,
                     )
         
         control.bind("<ButtonPress-1>", makeCmdNew(t, extra=dict(press=True)))
@@ -1685,6 +1735,7 @@ def handleLuaError(err):
     print("-"*80)
 
 lua.execute("True, False = true, false")
+lua.execute("len = function(item) return NESBuilder:getLen(item) end")
 
 gotError = False
 

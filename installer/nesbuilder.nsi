@@ -110,6 +110,9 @@ Section "-DefaultStuff"
         "${GitURL}plugins/_samplePlugin.lua" "plugins/_samplePlugin.lua"\
         "${GitURL}plugins/hello.py" "plugins/hello.py"\
         "${GitURL}plugins/_smbthing.lua" "plugins/_smbthing.lua"\
+        "${GitURL}plugins/_romifno.lua" "plugins/_rominfo.lua"\
+        "${GitURL}plugins/hash.py" "plugins/hash.py"\
+        "${GitURL}plugins/debug.lua" "plugins/debug.lua"\
         /END
     Pop $0
 SectionEnd

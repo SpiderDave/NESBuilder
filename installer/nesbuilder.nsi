@@ -154,16 +154,20 @@ Section "NESBuilder Source"
         "${GitURL}main.lua" "main.lua"\
         "${GitURL}cursors/pencil.cur" "cursors/pencil.cur"\
         "${GitURL}NESBuilder.py" "NESBuilder.py"\
+        "${GitURL}makeVersion.py" "makeVersion.py"\
         "${GitURL}icon.ico" "icon.ico"\
         "${GitURL}build.bat" "build.bat"\
         "${GitURL}build_console.bat" "build_console.bat"\
         "${GitURL}install dependencies.bat" "install dependencies.bat"\
         "${GitURL}run script.bat" "run script.bat"\
+        "${GitURL}findpython.bat" "findpython.bat"\
         "${GitURL}include/__init__.py" "include/__init__.py"\
         "${GitURL}include/Tserial.lua" "include/Tserial.lua"\
         "${GitURL}include/util.lua" "include/util.lua"\
         "${GitURL}include/SMBLevelExtract.py" "include/SMBLevelExtract.py"\
         "${GitURL}include/tkDave.py" "include/tkDave.py"\
+        "${GitURL}include/config.py" "include/config.py"\
+        "${GitURL}include/calc.py" "include/calc.py"\
         "${GitURL}chr.png" "chr.png"\
         "${GitURL}icons/folder32.png" "icons/folder32.png"\
         "${GitURL}icons/folderplus32.png" "icons/folderplus32.png"\
@@ -219,11 +223,12 @@ Section "Uninstall"
     Delete $INSTDIR\main.lua
     Delete $INSTDIR\cursors
     Delete $INSTDIR\NESBuilder.py
+    Delete $INSTDIR\makeVersion.py
     Delete $INSTDIR\icon.ico
     Delete $INSTDIR\build.bat
     Delete $INSTDIR\build_console.bat
     Delete "$INSTDIR\install dependencies.bat"
-    Delete "$INSTDIR\run script and pause.bat"
+    Delete $INSTDIR\findpython.bat
     Delete "$INSTDIR\run script.bat"
     Delete $INSTDIR\build.bat
     Delete $INSTDIR\include

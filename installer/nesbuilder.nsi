@@ -158,7 +158,6 @@ Section "NESBuilder Source"
         "${GitURL}build.bat" "build.bat"\
         "${GitURL}build_console.bat" "build_console.bat"\
         "${GitURL}install dependencies.bat" "install dependencies.bat"\
-        "${GitURL}run script and pause.bat" "run script and pause.bat"\
         "${GitURL}run script.bat" "run script.bat"\
         "${GitURL}include/__init__.py" "include/__init__.py"\
         "${GitURL}include/Tserial.lua" "include/Tserial.lua"\

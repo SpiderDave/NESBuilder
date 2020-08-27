@@ -15,6 +15,8 @@ config = {
         fg = '#eef',
         bk_menu_highlight='#606080',
         tkDefault='#656570',
+        link="#88f",
+        linkHover="white",
     },
     pluginFolder = "plugins", -- this one is for python
     nRecentFiles = 20,
@@ -35,15 +37,11 @@ Features:
  *  CHR Import/export and editing.
  *  Metatiles
  *  plugin system (Lua/Python)
-
-
 ]]
 
 -- global stacks
 stack, push, pop = NESBuilder:newStack()
 recentProjects = NESBuilder:newStack{maxlen=config.nRecentFiles}
-
-plugins = {}
 
 -- Overriding print and adding all sorts of neat things.
 -- This is really complicated and should probably move to
@@ -440,6 +438,7 @@ function handlePluginCallback(f)
     table.sort(keys)
     
     for _,n in pairs(keys) do
+        _getPlugin = function() return plugins[n] end
         if plugins[n][f] then
             print(string.format("(Plugin %s): %s",n,f))
             plugins[n][f]()
@@ -473,15 +472,21 @@ end
 
 function doCommand(t)
     if type(t) == 'string' then
-        print("doCommand "..t)
-        print("****")
+        print("**** doCommand "..t)
     else
         if t.event and t.event.type == "ButtonPress" or t.event.type=="" then
             print("doCommand "..t.name)
         else
             print("doCommand "..t.name)
         end
+        if t.plugin then
+            if t.plugin[t.name.."_cmd"] then
+                t.plugin[t.name.."_cmd"](t)
+                return false
+            end
+        end
     end
+    return true
 end
 
 function Palette_cmd(t)
@@ -726,6 +731,11 @@ function launcherButtonInfo_cmd()
     control = NESBuilder:makeLabel{x=x,y=y,name="launchLabel2",clear=true,text=config.launchText}
     control.setFont("Verdana", 12)
     control.setJustify("left")
+    
+    y = y + control.height + pad
+    control = NESBuilder:makeLink{x=x,y=y,name="launcherLink",clear=true,text="NESBuilder on GitHub", url=config.aboutURL}
+    control.setFont("Verdana", 12)
+    
 end
 
 function New_cmd()

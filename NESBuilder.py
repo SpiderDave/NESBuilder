@@ -170,26 +170,6 @@ class Stack(deque):
             return False
     def asList(self):
         return list(self)
-class Text(tk.Text):
-    def setText(self, text):
-        self.clear()
-        self.insert(tk.END, text)
-
-    def clear(self):
-        self.delete("1.0", tk.END)
-
-def getTopWindow(root, include_root=True):
-    def stackorder(root):
-        c = root.children
-        s = root.tk.eval('wm stackorder {}'.format(root))
-        L = [x.lstrip('.') for x in s.split()]
-        return [(c[x] if x else root) for x in L]
-
-    L = stackorder(root)
-    if include_root:
-        return L[-1]
-    else:
-        return L[-2] if L[-1] is root else L[-1]
 
 # Make stuff in this class available to lua
 # so we can do Python stuff rom lua.
@@ -217,6 +197,7 @@ class ForLua:
                 t.width = t.control.winfo_width()
             t.config = _config
             t.update = update
+            t.plugin = lua.eval("_getPlugin and _getPlugin() or false")
             return t
         def inner(self, t=None):
             # This is some patchwork stuff for methods
@@ -273,13 +254,12 @@ class ForLua:
                 # makedir maketab
                 makers = ['makeButton', 'makeCanvas', 'makeEntry', 'makeLabel', "makeTree",
                           'makeList', 'makeMenu', 'makePaletteControl', 'makePopupMenu',
-                          'makeText', 'makeWindow', 'makeCheckbox']
+                          'makeText', 'makeWindow', 'makeCheckbox', 'makeLink']
                 
                 if method_name in makers:
                     attr = getattr(self, method_name)
                     wrapped = self.makeControl(attr)
                     setattr(self, method_name, wrapped)
-                    pass
                 elif method_name in ['getNESColors', 'makeControl', 'getLen']:
                     # getNESColors: excluded because it may have a table as its first parameter
                     # makeControl: excluded because it's a decorator
@@ -333,11 +313,13 @@ class ForLua:
     def fileExists(self, f):
         f = fixPath(script_path+"/"+f)
         return os.path.isfile(f)
+    def pathToFolder(self, path):
+        return pathToFolder(path)
     def pathExists(self, f):
         f = fixPath(script_path+"/"+f)
         return os.path.exists(f)
     def setWorkingFolder(self, f=""):
-        workingFolder = fixPath(script_path+"/"+f)
+        workingFolder = fixPath2(f)
         os.chdir(workingFolder)
     def getWorkingFolder(self):
         return os.getcwd()
@@ -425,7 +407,7 @@ class ForLua:
     def setCanvas(self, canvas):
         self.canvas = canvas
     def fileTest(self):
-        filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("jpeg files","*.jpg"),("all files","*.*")), parent=getTopWindow(root))
+        filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("jpeg files","*.jpg"),("all files","*.*")), parent=root.getTopWindow())
         return filename
     def makeDir(self,dir):
         dir = fixPath(script_path + "/" + dir)
@@ -434,7 +416,7 @@ class ForLua:
             os.makedirs(dir)
     def openFolder(self, initial=None):
         initial = fixPath(script_path + "/" + initial)
-        foldername =  filedialog.askdirectory(initialdir = initial, title = "Select folder", parent=getTopWindow(root))
+        foldername =  filedialog.askdirectory(initialdir = initial, title = "Select folder", parent=root.getTopWindow())
         return foldername, os.path.split(foldername)[1]
     def openFile(self, filetypes, initial=None, parent=None):
         types = list()
@@ -443,7 +425,7 @@ class ForLua:
                 types.append([filetypes[t][1],filetypes[t][2]])
         
         types.append(["All files","*.*"])
-        filename =  filedialog.askopenfilename(title = "Select file",filetypes = types, parent=getTopWindow(root))
+        filename =  filedialog.askopenfilename(title = "Select file",filetypes = types, parent=root.getTopWindow())
         
         return filename
     def lift(self, window=None):
@@ -460,7 +442,7 @@ class ForLua:
                 types.append([filetypes[t][1],filetypes[t][2]])
         
         types.append(["All files","*.*"])
-        filename =  filedialog.asksaveasfilename(title = "Select file",filetypes = types, initialfile=initial, parent=getTopWindow(root))
+        filename =  filedialog.asksaveasfilename(title = "Select file",filetypes = types, initialfile=initial, parent=root.getTopWindow())
         return filename
     def importFunction(self, mod, f):
         m = importlib.import_module(mod)
@@ -819,7 +801,7 @@ class ForLua:
         w=w*t.scale
         h=h*t.scale
         
-        canvas = tk.Canvas(self.getTab(self), width=1, height=1, bg='black',name=t.name)
+        canvas = tkDave.Canvas(self.getTab(self), width=1, height=1, bg='black',name=t.name)
         canvas.place(x=x,y=y, width=w, height=h)
         control=canvas
         
@@ -866,7 +848,6 @@ class ForLua:
             #photo = ImageTk.PhotoImage(ImageOps.scale(img, t.scale, resample=Image.NEAREST))
             photo = ImageTk.PhotoImage(ImageOps.scale(img, control.scale, resample=Image.NEAREST))
             control.photo = photo
-            control.test = "test!"
             canvas.create_image(0,0, image=photo, state="normal", anchor=tk.NW)
             canvas.configure(highlightthickness=0, borderwidth=0)
             
@@ -937,15 +918,9 @@ class ForLua:
             else:
                 image = ImageTk.PhotoImage(file=t.image)
             
-            control = HoverButton(self.getTab(self), text=t.text, takefocus = 0, image=image, compound=tk.LEFT, anchor=tk.W, justify=tk.LEFT)
+            control = tkDave.Button(self.getTab(self), text=t.text, takefocus = 0, image=image, compound=tk.LEFT, anchor=tk.W, justify=tk.LEFT)
         else:
-            control = HoverButton(self.getTab(self), text=t.text, takefocus = 0)
-        
-        #root.wm_attributes("-transparentcolor", "#eed5ee")
-        #root.attributes("-transparentcolor", "#eed5ee")
-        #root.attributes("-alpha", 0.9)
-        #root.config(bg='systemTransparent')
-        
+            control = tkDave.Button(self.getTab(self), text=t.text, takefocus = 0)
         
         control.config(width=w,
                        fg=config.colors.fg,
@@ -954,11 +929,12 @@ class ForLua:
                        activeforeground=config.colors.fg,
                       )
                       
+        control.setHoverColor(config.colors.bk_hover, "white")
         control.place(x=t.x, y=t.y)
         if t.h:
             control.place(height = t.h)
         controls.update({t.name:control})
-
+        
         t=lua.table(name=t.name,
                     control=control,
                     imageRef=image,
@@ -968,7 +944,6 @@ class ForLua:
         control.bind( "<ButtonRelease-1>", makeCmdNew(t))
         
         return t
-
 
     def setText(c,txt):
         c.setText(txt)
@@ -1154,21 +1129,25 @@ class ForLua:
         if t.value:
             v.set(t.value)
         
-        control = tk.Checkbutton(self.getTab(self), variable = v, text=t.text)
-        control.config(fg=config.colors.fg, bg=config.colors.bk, activebackground=config.colors.bk, activeforeground=config.colors.fg,selectcolor=config.colors.bk2)
+        control = tkDave.CheckBox(self.getTab(self), variable = v, text=t.text)
+        control.config(fg=config.colors.fg, bg=config.colors.bk, activebackground=config.colors.bk, activeforeground=config.colors.fg,selectcolor=config.colors.bk2, takefocus = 0)
         control.place(x=x, y=y)
         
         def get():
             return int(v.get())
         def set(value):
             return v.sett(value)
-            
+        def setFont(fontName="Verdana", size=12):
+            control.config(font=(fontName, size))
+            t.update()
+
         t=lua.table(name=t.name,
                     control=control,
                     text = t.text,
                     variable = v,
                     get = get,
                     set = set,
+                    setFont = setFont,
                     )
         
         # have to do this differently because a click
@@ -1224,7 +1203,7 @@ class ForLua:
     def makeText(self, t, variables):
         x,y,w,h = variables
         
-        control = Text(self.getTab(self), borderwidth=0, relief="solid",height=t.lineHeight)
+        control = tkDave.Text(self.getTab(self), borderwidth=0, relief="solid",height=t.lineHeight)
         control.config(fg=config.colors.fg, bg=config.colors.bk3)
         
         control.insert(tk.END, t.text)
@@ -1269,7 +1248,7 @@ class ForLua:
         frame.config(bg=config.colors.bk3)
         frame.place(x=x,y=y, width=w, height=h)
         
-        control = tk.Entry(self.getTab(self), borderwidth=0, relief="solid",height=t.lineHeight)
+        control = tkDave.Entry(self.getTab(self), borderwidth=0, relief="solid",height=t.lineHeight)
         control.config(fg=config.colors.fg, bg=config.colors.bk3, insertbackground = config.colors.fg)
         control.insert(tk.END, t.text)
         control.place(x=x+padX, y=y+padY)
@@ -1331,11 +1310,54 @@ class ForLua:
 
         control.bind( "<Button-1>", makeCmdNew(t))
         return t
+    def makeLink(self, t, variables):
+        x,y,w,h = variables
+        control = tkDave.Link(self.getTab(self), text=t.text, borderwidth=1, background="white", relief="solid")
+        control.config(fg=config.colors.link, borderwidth=0)
+        control.setHoverColor(hoverforeground=config.colors.linkHover)
+        control.place(x=x, y=y)
+        
+        def setFont(fontName="Verdana", size=12):
+            control.config(font=(fontName, size))
+            t.update()
+        def setText(text):
+            control.config(text=text)
+        def setJustify(j):
+            t = {
+                "left":tk.LEFT,
+                "right":tk.RIGHT
+                }
+            control.config(justify=t.get(j, tk.LEFT))
+        
+        try:
+            d = os.path.dirname(sys.modules["cursors"].__file__)
+            f = os.path.join(d, "LinkSelect.cur").replace("\\","/")
+            control.config(cursor="@"+f)
+        except:
+            print('nope')
+            pass
+        
+        control.setUrl(t.url)
+        
+        t=lua.table(name=t.name,
+                    control=control,
+                    height=h,
+                    width=w,
+                    setText = setText,
+                    setFont = setFont,
+                    setJustify = setJustify,
+                    url = t.url
+                    )
+        
+        controls.update({t.name:t})
+
+        #if t.name: control.bind( "<Button-1>", makeCmdNew(t))
+        return t
 
     def makeLabel(self, t, variables):
         x,y,w,h = variables
         
-        control = tk.Label(self.getTab(self), text=t.text, borderwidth=1, background="white", relief="solid")
+        control = tkDave.Label(self.getTab(self), text=t.text, borderwidth=1, background="white", relief="solid")
         control.config(fg=config.colors.fg, bg=config.colors.bk2)
         
         if t.clear:
@@ -1356,6 +1378,8 @@ class ForLua:
                 "right":tk.RIGHT
                 }
             control.config(justify=t.get(j, tk.LEFT))
+        
+        #tkDave.make_draggable(control)
         
         t=lua.table(name=t.name,
                     control=control,
@@ -1415,8 +1439,6 @@ class ForLua:
                 
                 l.place(x=1+x*(w+1), y=1+y*(h+1), height=h, width=w)
                 
-                #l.bind("<Button>", makeCmd(t.name, {'cellNum':i,'cellName':n}))
-                #l.bind("<Button>", cellClick)
                 l.bind("<Button>", cellClick)
                 
                 l.index=i
@@ -1489,7 +1511,6 @@ class ForLua:
 
         controls.update({t.name:t})
 
-        #control.bind( "<Button-1>", makeCmdNew(t))
         control.cmd = makeCmdNew(t)
         control.bind( "<ButtonRelease-1>", control.cmd)
         
@@ -1538,11 +1559,6 @@ lua_func(lua.table(nesPalette))
 
 def coalesce(*arg): return next((a for a in arg if a is not None), None)
 
-def makeCmd(buttonName, *args):
-    if args and (type(args[0]) is dict):
-        return lambda *x:doCommand(buttonName, x,args)
-    return lambda *x:doCommand(buttonName, x)
-
 def makeCmdNew(*args, extra = False):
     if args[0].anonymous:
         print('anon')
@@ -1552,7 +1568,6 @@ def makeCmdNew(*args, extra = False):
 def makeCmdNoEvent(*args, extra = False):
     if extra:
         return lambda :doCommandNew(args, ev = lua.table(extra=extra))
-    #return lambda :doCommandNew(args, ev = lua.table(test=42,extra=lua.table(config=args[0].control.config(), foobar='baz',a=1)))
     return lambda :doCommandNew(args)
 
 
@@ -1588,44 +1603,25 @@ def doCommandNew(*args, ev=False, extra = False):
         
         args.event = event
     
-    lua_func = lua.eval('function(o) if doCommand then doCommand(o) end end'.format(args.name))
+    # doCommand is a command preprocessor thing.  If 
+    # It returns true then it moves on to name_command
+    # if it exists, or name_cmd otherwise.
+    lua_func = lua.eval("""function(o)
+        local status=true
+        if doCommand then status = doCommand(o) end
+        if status then
+            if {0}_command then
+                {0}_command(o)
+            elseif {0}_cmd then
+                {0}_cmd(o)
+            end
+        end
+    end""".format(args.name))
     try:
         lua_func(args)
     except LuaError as err:
         handleLuaError(err)
-    lua_func = lua.eval('function(o) if {0}_command then {0}_command(o) end end'.format(args.name))
-    try:
-        lua_func(args)
-    except LuaError as err:
-        handleLuaError(err)
-    lua_func = lua.eval('function(o) if {0}_cmd then {0}_cmd(o) end end'.format(args.name))
-    try:
-        lua_func(args)
-    except LuaError as err:
-        handleLuaError(err)
 
-
-def doCommand(ctrl, *args):
-    # process the tkinter event
-    if args and args[0]:
-        e = args[0][0]
-        a = "x={0},y={1},num={2}".format(e.x, e.y, e.num)
-        comma = ', '
-
-        # merge with a passed dictionary argument
-        if args[1] and args[1][0]:
-            for k,v in args[1][0].items():
-                # we're using repr here to wrap strings in quotes, but it will
-                # fail on many circumstances.
-                a=a+", {0}={1}".format(k,repr(v))
-        a = "{"+a+"}"
-    else:
-        a = 'nil'
-        comma = ''
-
-    lua.execute("if doCommand then doCommand('{0}',NESBuilder:getControl('{0}'),{1}) end".format(ctrl,a))
-    lua.execute("if {0}_command then {0}_command('{0}',NESBuilder:getControl('{0}'),{1}) end".format(ctrl,a))
-    lua.execute("if {0}_cmd then {0}_cmd('{0}',NESBuilder:getControl('{0}'),{1}) end".format(ctrl,a))
 def onExit(skipCallback=False):
     print('onExit')
     exit = True
@@ -1649,7 +1645,9 @@ def exitCleanup():
 # run function on exit
 atexit.register(exitCleanup)
 
-root = tk.Tk()
+#root = tk.Tk()
+root = tkDave.Tk()
+
 #root.tk_setPalette("red")
 
 #root.option_add("*Font",("verdana", 10))
@@ -1672,31 +1670,9 @@ tab_parent.pack(expand=1, fill='both')
 
 tearoff = cfg.getValue("main","tearoff")
 
-class HoverButton(tk.Button):
-    def __init__(self, master, **kw):
-        tk.Button.__init__(self,master=master,**kw)
-        self.defaultBackground = self["background"]
-        self.bind("<Enter>", self.on_enter)
-        self.bind("<Leave>", self.on_leave)
-
-    def on_enter(self, e):
-        self['background'] = config.colors.bk_hover
-
-    def on_leave(self, e):
-        self['background'] = config.colors.bk2
-        
-
 var = tk.IntVar()
 def on_click():
     print(var.get())
-
-#x=160
-#y=0
-#w=10
-#b = Checkbutton(root, text="Check", command=lambda:doCommand("Check"), variable=var, onvalue=1, offvalue=0)
-#b = Checkbutton(root, text="I Want Candy", command=on_click, variable=var, onvalue=1, offvalue=0, selectcolor=color_bk, activebackground=color_bk, activeforeground=color_fg)
-#b.config(width=w, height=h, fg=color_fg, bg=color_bk)
-#b.place(x=x, y=y)
 
 style = ttk.Style()
 style.configure('new.TFrame')
@@ -1798,6 +1774,8 @@ except LuaError as err:
     print("*** init() Failed")
     handleLuaError(err)
 
+
+lua.execute("plugins = {}")
 
 # load lua plugins
 folder = config.pluginFolder

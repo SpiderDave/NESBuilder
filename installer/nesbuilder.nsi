@@ -112,7 +112,7 @@ Section "-DefaultStuff"
         "${GitURL}plugins/_smbthing.lua" "plugins/_smbthing.lua"\
         "${GitURL}plugins/_romifno.lua" "plugins/_rominfo.lua"\
         "${GitURL}plugins/hash.py" "plugins/hash.py"\
-        "${GitURL}plugins/debug.lua" "plugins/debug.lua"\
+        "${GitURL}plugins/_debug.lua" "plugins/_debug.lua"\
         /END
     Pop $0
 SectionEnd
@@ -164,6 +164,7 @@ Section "NESBuilder Source"
         "${GitURL}include/Tserial.lua" "include/Tserial.lua"\
         "${GitURL}include/util.lua" "include/util.lua"\
         "${GitURL}include/SMBLevelExtract.py" "include/SMBLevelExtract.py"\
+        "${GitURL}include/tkDave.py" "include/tkDave.py"\
         "${GitURL}chr.png" "chr.png"\
         "${GitURL}icons/folder32.png" "icons/folder32.png"\
         "${GitURL}icons/folderplus32.png" "icons/folderplus32.png"\

@@ -254,7 +254,7 @@ class ForLua:
                 # makedir maketab
                 makers = ['makeButton', 'makeCanvas', 'makeEntry', 'makeLabel', "makeTree",
                           'makeList', 'makeMenu', 'makePaletteControl', 'makePopupMenu',
-                          'makeText', 'makeWindow', 'makeCheckbox', 'makeLink']
+                          'makeText', 'makeWindow', 'makeCheckbox', 'makeLink', 'makeSpinBox']
                 
                 if method_name in makers:
                     attr = getattr(self, method_name)
@@ -521,69 +521,13 @@ class ForLua:
         # todo: make work for lua stuff
         return len(item)
     def test(self, x=0,y=0):
-#        canvas = self.getCanvas(self, 'canvas')
-#        rect = canvas.control.create_rectangle(0,0,(x+canvas.scale*8),(y+canvas.scale*8),outline = "red")
-#        canvas.control.coords(rect, 0, 0, canvas.scale*8, canvas.scale*8)
-#        canvas.control.place()
-        
         canvas = self.getCanvas(self, 'tsaTileCanvas')
-        #grabcanvas = ImageGrab.grab(bbox=canvas.control.bbox())
-        #grabcanvas = ImageGrab.grab(bbox=canvas.control)
-        
-        #img = ImageGrab.grab(bbox=canvas.control.bbox())
-        #img = ImageGrab.grab(bbox=canvas.control)
-        #img = ImageGrab.grab(canvas.control)
-        #canvas.grabcanvas = grabcanvas
-        
-        #img = ImageGrab.grabclipboard()
         f = r"J:\svn\NESBuilder\mtile.png"
-#        if self.images.get(f,False):
-#            img = Image.open(f)
-#            photo = ImageTk.PhotoImage(ImageOps.scale(img, 2, resample=Image.NEAREST))
-#            self.images.update(f=photo)
-        
-        
         img = Image.open(f)
         photo = ImageTk.PhotoImage(ImageOps.scale(img, 2, resample=Image.NEAREST))
-        #self.images.update({f:photo})
-        
         self.images2.append(photo)
-        
-        #print(type(photo))
-        
-        #photo = self.images.get(f)
-        
-        
-#        x,y,x1,y1 = 42,42,80,80
-#        x,y,x1,y1 = canvas.control.bbox()
-#        img = ImageGrab.grab().crop((x,y,x1,y1))
-        
-#        img.save(r"J:\svn\NESBuilder\test2.png")
-        
-#        grabcanvas=ImageGrab.grab(bbox=canvas)
-#        ttk.grabcanvas.save(f)
-        
-        #ttk.grabcanvas.save(r"J:\svn\NESBuilder\test.png")
-        
-        #img = grab
-        
-        #img = ImageTk.PhotoImage(grab)
-        
-        #photo = ImageTk.PhotoImage(ImageOps.scale(img, 2, resample=Image.NEAREST))
-        #photo = ImageTk.PhotoImage(ImageOps.scale(img, 2, resample=Image.NEAREST))
-        #photo = img
-        
         canvas = self.getCanvas(self, 'testCanvas')
-        
-        #canvas.photo = photo
         canvas.control.create_image(x, y, image=photo, anchor=tk.NW)
-        
-#        displayImage = ImageOps.scale(im, c.scale, resample=Image.NEAREST)
-#        canvas.image = ImageTk.PhotoImage(displayImage)
-        
-#        canvas.create_image(0, 0, image=canvas.image, anchor=tk.NW)
-#        canvas.configure(highlightthickness=0, borderwidth=0)
-
     def imageToCHRData(self, f, colors=False):
         print('imageToCHRData')
         
@@ -802,10 +746,47 @@ class ForLua:
         h=h*t.scale
         
         canvas = tkDave.Canvas(self.getTab(self), width=1, height=1, bg='black',name=t.name)
+        canvas.configure(highlightthickness=0, borderwidth=0)
         canvas.place(x=x,y=y, width=w, height=h)
         control=canvas
         
         photo = False
+        
+        @lupa.unpacks_lua_table
+        def drawTile(x=0,y=0, tile=0, colors=(0x0f,0x23,0x13,0x03)):
+            placeX,placeY = x,y
+            control = self.getControlNew(self, t.name)
+            canvas = control.control
+            
+            # convert and re-index lua table
+            if lupa.lua_type(colors)=="table":
+                colors = [colors[x] for x in colors]
+            
+            rows, columns = t.rows, t.columns
+            imageData = control.chrData
+            imageData = [imageData[x] for x in list(imageData)]
+            
+            img=Image.new("RGB", size=(8,8))
+            a = np.asarray(img).copy()
+            
+            for y in range(8):
+                for x in range(8):
+                    c=0
+                    x1=(tile % columns)*8+(7-x)
+                    y1=math.floor(tile/columns)*8+y
+                    if (imageData[tile*16+y] & (1<<x)):
+                        c=c+1
+                    if (imageData[tile*16+y+8] & (1<<x)):
+                        c=c+2
+                    #a[y1][x1] = nesPalette[colors[c]]
+                    #a[tile*8+y][x] = nesPalette[colors[c]]
+                    a[y][(7-x)] = nesPalette[colors[c]]
+            img = Image.fromarray(a)
+            photo = ImageTk.PhotoImage(ImageOps.scale(img, control.scale, resample=Image.NEAREST))
+            control.tiles.update({"{0},{1}".format(placeX,placeY): photo})
+            canvas.create_image(placeX*control.scale,placeY*control.scale, image=photo, state="normal", anchor=tk.NW)
+        
+        
         @lupa.unpacks_lua_table
         def loadCHRData(imageData=False, colors=(0x0f,0x21,0x11,0x01), columns=16, rows=16):
             
@@ -820,6 +801,9 @@ class ForLua:
             
             control = self.getControlNew(self, t.name)
             canvas = control.control
+            
+            control.columns = columns
+            control.rows = rows
             
             control.chrData = imageData
             imageData = [imageData[x] for x in list(imageData)]
@@ -850,13 +834,13 @@ class ForLua:
             control.photo = photo
             canvas.create_image(0,0, image=photo, state="normal", anchor=tk.NW)
             canvas.configure(highlightthickness=0, borderwidth=0)
-            
+        
         t=lua.table(name=t.name,
                     control=control,
                     scale=t.scale,
-                    columns=t.columns,
-                    rows=t.rows,
                     loadCHRData=loadCHRData,
+                    drawTile=drawTile,
+                    tiles={},
                     )
         
         control.bind("<ButtonPress-1>", makeCmdNew(t, extra=dict(press=True)))
@@ -891,6 +875,7 @@ class ForLua:
         img = None
         image = None
         inverted_image = None
+        control = False
         if t.image:
             try:
                 # the frozen version will still try to load it manually first
@@ -920,7 +905,10 @@ class ForLua:
             
             control = tkDave.Button(self.getTab(self), text=t.text, takefocus = 0, image=image, compound=tk.LEFT, anchor=tk.W, justify=tk.LEFT)
         else:
-            control = tkDave.Button(self.getTab(self), text=t.text, takefocus = 0)
+            if t.toggle:
+                control = tkDave.ToggleButton(self.getTab(self), text=t.text, takefocus = 0)
+            else:
+                control = tkDave.Button(self.getTab(self), text=t.text, takefocus = 0)
         
         control.config(width=w,
                        fg=config.colors.fg,
@@ -1239,6 +1227,45 @@ class ForLua:
         control.bind( "<Return>", makeCmdNew(t))
         
         return t
+    def makeSpinBox(self, t, variables):
+        x,y,w,h = variables
+        control=None
+        padX=5
+        padY=1
+        frame = tk.Frame(self.getTab(self), borderwidth=0, relief="solid")
+        frame.config(bg=config.colors.bk3)
+        frame.place(x=x,y=y, width=w, height=h)
+        
+        control = tkDave.SpinBox(self.getTab(self), borderwidth=0, relief="solid", buttondownrelief="solid", buttonuprelief="solid", insertontime=0)
+        #control.config(fg=config.colors.fg, bg=config.colors.bk3, insertbackground = config.colors.fg, from_=0, to=255, state="readonly", readonlybackground=config.colors.bk3)
+        control.config(fg=config.colors.fg, bg=config.colors.bk3, insertbackground = config.colors.fg, from_=0, to=255, takefocus = 0)
+        control.place(x=x+padX, y=y+padY)
+        
+        control.place(height=h-padY*2)
+        control.place(width=w-padX)
+        def set(value):
+            control.delete(0, tk.END)
+            control.insert(0, value)
+        def get():
+            return int(control.get())
+            
+        t=lua.table(name=t.name,
+                    control=control,
+                    height=h,
+                    width=w,
+                    get=get,
+                    set=set,
+                    )
+        
+        cmd = makeCmdNew(t)
+        control.config(command=lambda: cmd(t))
+        
+        controls.update({t.name:t})
+        
+#        control.bind( "<ButtonRelease-1>", makeCmdNew(t))
+#        control.bind( "<Return>", makeCmdNew(t))
+        
+        return t
     def makeEntry(self, t, variables):
         x,y,w,h = variables
         control=None
@@ -1270,7 +1297,6 @@ class ForLua:
         
         controls.update({t.name:t})
 
-        #control.bind( "<Button-1>", makeCmdNew(t))
         control.bind( "<ButtonRelease-1>", makeCmdNew(t))
         control.bind( "<Return>", makeCmdNew(t))
         
@@ -1357,7 +1383,7 @@ class ForLua:
     def makeLabel(self, t, variables):
         x,y,w,h = variables
         
-        control = tkDave.Label(self.getTab(self), text=t.text, borderwidth=1, background="white", relief="solid")
+        control = tkDave.Label(self.getTab(self), text=t.text, borderwidth=0, background="white", relief="solid")
         control.config(fg=config.colors.fg, bg=config.colors.bk2)
         
         if t.clear:
@@ -1372,12 +1398,13 @@ class ForLua:
             t.update()
         def setText(text):
             control.config(text=text)
-        def setJustify(j):
+        def setJustify(j="left"):
             t = {
                 "left":tk.LEFT,
                 "right":tk.RIGHT
                 }
             control.config(justify=t.get(j, tk.LEFT))
+            control.place()
         
         #tkDave.make_draggable(control)
         
@@ -1404,6 +1431,7 @@ class ForLua:
         h=coalesce(t.cellHeight, 30)
         
         control = tk.Frame(self.getTab(self), width=pw*(w+1)+1, height=ph*(h+1)+1, name="_{0}_frame".format(t.name))
+        
         control.place(x=t.x,y=t.y)
         
         control.cellNum = 0
@@ -1420,6 +1448,11 @@ class ForLua:
             
             ev.widget.parent.cmd(ev)
         
+        def highlight(highlight=False):
+            if highlight:
+                control.config(bg=config.colors.fg)
+            else:
+                control.config(bg=config.colors.bk)
         #t.name="Palette"
         control.allCells = []
         for y in range(0,ph):
@@ -1507,6 +1540,7 @@ class ForLua:
                     set = set,
                     setAll = setAll,
                     noParentEvent = True,
+                    highlight=highlight,
                     )
 
         controls.update({t.name:t})
@@ -1794,6 +1828,7 @@ if os.path.exists(folder):
                     plugins[_plugin.name or "{1}"]=_plugin
                     _plugin.file = "{2}"
                     _plugin.name = _plugin.name or "{1}"
+                    _plugin.data = _plugin.data or {{}}
                 end
             """.format(config.pluginFolder,os.path.splitext(file)[0], file)
             #print(fancy(code))

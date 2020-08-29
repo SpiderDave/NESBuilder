@@ -113,6 +113,7 @@ Section "-DefaultStuff"
         "${GitURL}plugins/_romifno.lua" "plugins/_rominfo.lua"\
         "${GitURL}plugins/hash.py" "plugins/hash.py"\
         "${GitURL}plugins/_debug.lua" "plugins/_debug.lua"\
+        "${GitURL}plugins/_nesst.lua" "plugins/_nesst.lua"\
         /END
     Pop $0
 SectionEnd

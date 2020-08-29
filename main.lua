@@ -425,14 +425,12 @@ function onReady()
     }
     control = NESBuilder:makeMenu{name="menuProject", text="Project", items=items, prefix=false}
 
-
-
     LoadProject_cmd()
 end
 
-function handlePluginCallback(f)
+function handlePluginCallback(f, arg)
     local keys={}
-    for k,v in pairs(plugins) do
+    for k,v in pairs(plugins or {}) do
         table.insert(keys,k)
     end
     table.sort(keys)
@@ -441,7 +439,7 @@ function handlePluginCallback(f)
         _getPlugin = function() return plugins[n] end
         if plugins[n][f] then
             print(string.format("(Plugin %s): %s",n,f))
-            plugins[n][f]()
+            plugins[n][f](arg)
         end
     end
 end
@@ -474,6 +472,8 @@ function doCommand(t)
     if type(t) == 'string' then
         print("**** doCommand "..t)
     else
+        if t.anonymous then return false end
+        
         if t.event and t.event.type == "ButtonPress" or t.event.type=="" then
             print("doCommand "..t.name)
         else
@@ -793,19 +793,8 @@ function BuildProject_cmd()
         end
     end
     
-    
-    local filename = data.folders.projects..projectFolder.."code/constauto.asm"
-    
---    if NESBuilder:delete(filename) then
---        print("deleted "..filename)
---    end
-    
-    print("index = "..data.project.palettes.index)
-    out=""
-    out=out..string.format("SELECTED_PALETTE = $%02x\n\n", math.floor(data.project.palettes.index))
-    
-    util.writeToFile(filename,0, out, true)
-    --NESBuilder:writeToFile(filename, out)
+    data.project.const.nChr = len(data.project.chr)
+    if data.project.chr[0] then data.project.const.nChr = data.project.const.nChr+1 end
     
     local c = NESBuilder:getControl('PaletteList')
     local filename = data.folders.projects..projectFolder.."code/palettes.asm"
@@ -866,6 +855,20 @@ function BuildProject_cmd()
     end
     util.writeToFile(filename,0, out, true)
     
+    
+    
+    local filename = data.folders.projects..projectFolder.."code/constauto.asm"
+    out=""
+    --out=out..string.format("SELECTED_PALETTE = $%02x\n\n", math.floor(data.project.palettes.index))
+    
+    data.project.const.SELECTED_PALETTE = math.floor(data.project.palettes.index)
+    for k,v in pairs(data.project.const) do
+        out = out .. string.format("%s = $%02x\n",k, v)
+    end
+
+    util.writeToFile(filename,0, out, true)
+
+    
     -- assemble project
     local folder = data.folders.projects..data.project.folder
     
@@ -901,6 +904,7 @@ function LoadProject_cmd()
     if not data.project then
         data.project = {}
     end
+    data.project.const = data.project.const or {}
     
     -- Wipe data stored on the canvas control
     NESBuilder:getControlNew('tsaCanvas').loadCHRData()
@@ -1347,6 +1351,7 @@ function onTabChanged_cmd(t)
             updateSquareoid()
         end
     end
+    handlePluginCallback("onTabChanged", t)
 end
 
 function updateRecentProjects()

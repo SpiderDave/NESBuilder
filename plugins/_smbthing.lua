@@ -7,8 +7,6 @@ local plugin = {
     author = "SpiderDave",
 }
 
-__plugin__ = function() return plugin end
-
 local smbPaletteData = {
     {name = 'Ground1', offset = 0xccb, nColors = 4},
     {name = 'Ground2', offset = 0xccf, nColors = 4},

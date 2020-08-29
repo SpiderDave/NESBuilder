@@ -1,7 +1,9 @@
 import tkinter as tk
 from tkinter import ttk, font
 
+import math
 import webbrowser
+
 
 class Tk(tk.Tk):
     def __init__(self, **kw):
@@ -23,16 +25,28 @@ class Tk(tk.Tk):
 class Draggable():
     def __init__(self, master, **kw):
         super().__init__(master, **kw)
+        self.snap = 8
         self.make_draggable(self)
 
     def make_draggable(self, widget):
         widget.bind("<Button-2>", self.on_drag_start)
         widget.bind("<B2-Motion>", self.on_drag_motion)
+        widget.bind("<ButtonRelease-2>", self.on_drag_end)
 
     def on_drag_start(self, event):
         widget = event.widget
         widget._drag_start_x = event.x
         widget._drag_start_y = event.y
+
+    def on_drag_end(self, event):
+        widget = event.widget
+        x = widget.winfo_x()
+        y = widget.winfo_y()
+        
+        x=math.floor((x +self.snap/2)/self.snap)*self.snap
+        y=math.floor((y +self.snap/2)/self.snap)*self.snap
+        
+        widget.place(x=x, y=y)
 
     def on_drag_motion(self, event):
         widget = event.widget
@@ -69,8 +83,27 @@ class Button(Draggable, tk.Button):
         self['background'] = self['activebackground']
         self['foreground'] = self['activeforeground']
 
+
+class ToggleButton(Button):
+    def __init__(self, master, **kw):
+        super().__init__(master, **kw)
+        self.toggle = 0
+        self.bind("<Enter>", self.toggle)
+        self.bind("<Button-1>", self.toggle)
+        self.configure(relief = tk.SUNKEN)
+    def _command(self):
+        print("command")
+    def toggle(self, e):
+        print('toggle2')
+        self['toggle'] = 1 - self['toggle']
+        if self['toggle'] == 1:
+            self.configure(relief = tk.SUNKEN)
+        else:
+            self.configure(relief = tk.RAISED)
+
 class Label(Draggable, tk.Label): pass
 class Entry(Draggable, tk.Entry): pass
+class SpinBox(Draggable, tk.Spinbox): pass
 class Canvas(Draggable, tk.Canvas): pass
 class CheckBox(Draggable, tk.Checkbutton): pass
 

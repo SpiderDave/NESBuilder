@@ -44,7 +44,9 @@ pyinstaller --onefile -%parameter% -i icon.ico -n NESBuilder%suffix%.exe ^
             --add-binary "icons\clock32.png;icons" ^
             --add-binary "include\Tserial.lua;include" ^
             --add-binary "include\util.lua;include" ^
+            --add-binary "include\style.qss;include" ^
             --add-binary "cursors\pencil.cur;cursors" ^
+            --add-binary "cursors\LinkSelect.cur;cursors" ^
             --hidden-import "lupa._lupa" ^
             --version-file "version.py" ^
             NESBuilder.py

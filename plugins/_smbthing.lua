@@ -44,12 +44,18 @@ local smbPaletteData = {
     {name = 'Castle7', offset = 0xd2b, nColors = 4},
     {name = 'Castle8', offset = 0xd2f, nColors = 4},
 
-    {name = 'Mario', offset = 0x5d7, nColors = 4, newSection=true},
-    {name = 'Rotate', offset = 0x9c3, nColors = 6},
+    {name = 'Background1', offset = 0x5cf, nColors = 4, newSection=true},
+    {name = 'Background2', offset = 0x5d3, nColors = 4},
+    {name = 'Mario', offset = 0x5d7, nColors = 4},
+    {name = 'Luigi', offset = 0x5db, nColors = 4},
+    {name = 'Fire', offset = 0x5df, nColors = 4},
+    
+    {name = 'Rotate', offset = 0x9c3, nColors = 6, newCol=true},
     {name = 'Palette3Data1', offset = 0x9d1, nColors = 4},
     {name = 'Palette3Data2', offset = 0x9d5, nColors = 4},
     {name = 'Palette3Data3', offset = 0x9d9, nColors = 4},
     {name = 'Palette3Data4', offset = 0x9dd, nColors = 4},
+    
 
 }
 
@@ -58,12 +64,14 @@ for k,v in ipairs(smbPaletteData) do
 end
 
 function plugin.onInit()
-    NESBuilder:createTab("smbthing", "SMB Thing")
-    NESBuilder:setTab("smbthing")
+    NESBuilder:makeTabQt{name="smbthing", text="SMB Thing"}
+    NESBuilder:setTabQt("smbthing")
     
     local stack, push, pop = NESBuilder:newStack()
     local x,y,control,pad
     local top,left,bottom
+    local buttonWidth = config.buttonWidth*7.5
+    local buttonHeight = 27
     
     pad=6
     left=pad*1.5
@@ -71,22 +79,22 @@ function plugin.onInit()
     bottom=0
     x,y=left,top
     
-    control = NESBuilder:makeLabel{x=x,y=y,name="testLabel",clear=true,text="SMB Thing!"}
+    control = NESBuilder:makeLabelQt{x=x,y=y,name="testLabel",clear=true,text="SMB Thing!"}
     control.setFont("Verdana", 24)
     y = y + control.height + pad
     
     push(y)
     
-    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingLoadRom",text="Load rom"}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingLoadRom",text="Load rom"}
     y = y + control.height + pad
     
-    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingSaveRom",text="Save rom"}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingSaveRom",text="Save rom"}
     y = y + control.height + pad
     
-    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingSaveRomAs",text="Save rom as..."}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingSaveRomAs",text="Save rom as..."}
     y = y + control.height + pad
     
-    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="smbthingTest",text="Test rom"}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingTest",text="Test rom"}
     y = y + control.height + pad
     
     push(x + control.width+pad*2)
@@ -116,7 +124,7 @@ function plugin.onInit()
 
         push(x)
         push(y)
-        control = NESBuilder:makeLabel{x=x,y=y+4,name="smbPalette"..item.name.."Label",clear=true,text=item.name}
+        control = NESBuilder:makeLabelQt{x=x,y=y+4,name="smbPalette"..item.name.."Label",clear=true,text=item.name}
         x=x+80+pad
         
         local palette = {}
@@ -125,8 +133,8 @@ function plugin.onInit()
         end
         
         y = pop()
-        control=NESBuilder:makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbPalette"..item.name, palette=palette}
-        control.dataIndex = k
+        control=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbPalette"..item.name, palette=palette}
+        control.data.index=k
         
         y = y + control.height + pad
         
@@ -138,17 +146,24 @@ function plugin.onInit()
     
     x,y = pop(2)
     
-    control=NESBuilder:makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbthingPalette", palette=nespalette}
+    control=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbthingPalette", palette=nespalette}
     y = y + control.height + pad*2
     
     plugin.selectedColor=0x0f
 end
 
 function smbthingTest_cmd()
-    local f = plugin.outputFile or plugin.inputFile
-    if not f then return end
+--    local f = plugin.outputFile or plugin.inputFile
+--    if not f then return end
+--    local workingFolder = f
+--    NESBuilder:shellOpen(workingFolder, f)
+    
+    local f = "temp.nes"
     local workingFolder = f
+    --local workingFolder = NESBuilder:getWorkingFolder()
+    NESBuilder:saveArrayToFile(plugin.fileData, f)
     NESBuilder:shellOpen(workingFolder, f)
+    
 end
 
 function smbthingLoadRom_cmd()
@@ -227,9 +242,9 @@ function smbthingPalette_cmd(t)
     end
 end
 
-function smbPaletteMario_cmd(t)
-    smbPaletteCmd(t)
-end
+function smbPaletteMario_cmd(t) smbPaletteCmd(t) end
+function smbPaletteLuigi_cmd(t) smbPaletteCmd(t) end
+function smbPaletteFire_cmd(t) smbPaletteCmd(t) end
 function smbPaletteWater1_cmd(t) smbPaletteCmd(t) end
 function smbPaletteWater2_cmd(t) smbPaletteCmd(t) end
 function smbPaletteWater3_cmd(t) smbPaletteCmd(t) end
@@ -263,14 +278,15 @@ function smbPaletteUnderground6_cmd(t) smbPaletteCmd(t) end
 function smbPaletteUnderground7_cmd(t) smbPaletteCmd(t) end
 function smbPaletteUnderground8_cmd(t) smbPaletteCmd(t) end
 
-
-
 function smbPaletteRotate_cmd(t) smbPaletteCmd(t) end
 
 function smbPalettePalette3Data1_cmd(t) smbPaletteCmd(t) end
 function smbPalettePalette3Data2_cmd(t) smbPaletteCmd(t) end
 function smbPalettePalette3Data3_cmd(t) smbPaletteCmd(t) end
 function smbPalettePalette3Data4_cmd(t) smbPaletteCmd(t) end
+
+function smbPaletteBackground1_cmd(t) smbPaletteCmd(t) end
+function smbPaletteBackground2_cmd(t) smbPaletteCmd(t) end
 
 function smbPaletteCmd(t)
     local offset
@@ -280,7 +296,7 @@ function smbPaletteCmd(t)
     -- make sure file is loaded
     if not plugin.fileData then return end
     
-    local paletteData = smbPaletteData[t.dataIndex]
+    local paletteData = smbPaletteData[t.control.data.index]
     
     offset = 0x10+paletteData.offset
     
@@ -290,7 +306,7 @@ function smbPaletteCmd(t)
     if t.event.button == 1 then
         -- left click
         plugin.selectedColor = plugin.fileData[offset+t.cellNum]
-    elseif t.event.button == 3 then
+    elseif t.event.button == 2 then
         plugin.fileData[offset+t.cellNum]=plugin.selectedColor
         
         smbthingRefreshPalettes()

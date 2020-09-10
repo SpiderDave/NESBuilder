@@ -23,6 +23,9 @@ if %errorlevel% NEQ 0 set errormessage=Could not install Pillow&goto error
 echo Attempting to install numpy...
 %pycmd% -m pip install numpy
 if %errorlevel% NEQ 0 set errormessage=Could not install NumPy&goto error
+echo Attempting to install PyQt5...
+%pycmd% -m pip install PyQt5
+if %errorlevel% NEQ 0 set errormessage=Could not install PyQt5&goto error
 
 goto theend
 

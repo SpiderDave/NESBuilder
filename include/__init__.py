@@ -3,12 +3,14 @@ from . import calc
 from . import config
 #from .ips import ips
 from . import tkDave
+from . import QtDave
 
 __all__ = [
             'SMBLevelExtract',
             'Calculator',
             'Cfg',
             'tkDave',
+            'QtDave',
 #            'ips',
           ]
 
@@ -24,3 +26,5 @@ def _exportToLua(lua, module, n=None):
 def init(lua):
     # export the LevelExtract method to lua as SMBLevelExtract
     _exportToLua(lua, SMBLevelExtract.LevelExtract, "SMBLevelExtract")
+    #QtDave.init(lua)
+    

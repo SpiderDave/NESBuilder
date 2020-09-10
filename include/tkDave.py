@@ -22,6 +22,25 @@ class Tk(tk.Tk):
         else:
             return L[-2] if L[-1] is self else L[-1]
 
+class Hover():
+    def __init__(self, master, **kw):
+        super().__init__(master, **kw)
+        self.bind("<Enter>", self.on_enter)
+        self.bind("<Leave>", self.on_leave)
+    
+    def setHoverColor(self, hoverbackground=None, hoverforeground=None):
+        if hoverbackground: self.hoverbackground = hoverbackground
+        if hoverforeground: self.hoverforeground = hoverforeground
+    
+    def on_enter(self, e):
+        self['background'] = getattr(self, 'hoverbackground', self['background'])
+        self['foreground'] = getattr(self, 'hoverforeground', self['foreground'])
+
+    def on_leave(self, e):
+        self['background'] = self['activebackground']
+        self['foreground'] = self['activeforeground']
+
+
 class Draggable():
     def __init__(self, master, **kw):
         super().__init__(master, **kw)
@@ -54,6 +73,13 @@ class Draggable():
         y = widget.winfo_y() - widget._drag_start_y + event.y
         widget.place(x=x, y=y)
 
+class Label(Draggable, tk.Label): pass
+class Entry(Draggable, tk.Entry): pass
+class SpinBox(Draggable, tk.Spinbox): pass
+class Canvas(Draggable, tk.Canvas): pass
+class CheckBox(Draggable, tk.Checkbutton): pass
+
+
 class Text(Draggable, tk.Text):
     def __init__(self, master, **kw):
         super().__init__(master, **kw)
@@ -84,28 +110,27 @@ class Button(Draggable, tk.Button):
         self['foreground'] = self['activeforeground']
 
 
-class ToggleButton(Button):
+class ToggleButton(Hover, Label):
     def __init__(self, master, **kw):
         super().__init__(master, **kw)
-        self.toggle = 0
-        self.bind("<Enter>", self.toggle)
-        self.bind("<Button-1>", self.toggle)
-        self.configure(relief = tk.SUNKEN)
-    def _command(self):
-        print("command")
+        self.toggleValue = 0
+        self.bind("<ButtonRelease-1>", self.toggle)
+        self.configure(relief = tk.RAISED)
     def toggle(self, e):
-        print('toggle2')
-        self['toggle'] = 1 - self['toggle']
-        if self['toggle'] == 1:
+        if getattr(self, 'toggleValue')==0:
+            self.configure(relief = tk.SUNKEN)
+        else:
+            self.configure(relief = tk.RAISED)
+        setattr(self, 'toggleValue', 1-getattr(self, 'toggleValue'))
+    def getValue(self):
+        return getattr(self, 'toggleValue')
+    def setValue(self, v):
+        setattr(self, 'toggleValue', v)
+        if v==1:
             self.configure(relief = tk.SUNKEN)
         else:
             self.configure(relief = tk.RAISED)
 
-class Label(Draggable, tk.Label): pass
-class Entry(Draggable, tk.Entry): pass
-class SpinBox(Draggable, tk.Spinbox): pass
-class Canvas(Draggable, tk.Canvas): pass
-class CheckBox(Draggable, tk.Checkbutton): pass
 
 class Link(Draggable, tk.Label):
     def __init__(self, master, **kw):

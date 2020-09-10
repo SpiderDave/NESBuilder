@@ -1,6 +1,7 @@
 # needs lupa, pyinstaller, pillow, anything else?
 '''
 ToDo:
+    * move to pyQt5!
     * use @makeControl decorator on most/all control generating methods
     * make return value of control generating methods more consistant
     * makeCanvas method
@@ -10,28 +11,41 @@ ToDo:
 '''
 
 import os, sys, time
-import lupa
+
+def badImport(m):
+    print('Error: Could not import {0}.  Please run "install dependencies.bat".'.format(m))
+    sys.exit(1)
+
+
+
+try: import lupa
+except: badImport('lupa')
 from lupa import LuaRuntime
 from lupa import LuaError
 lua = LuaRuntime(unpack_returned_tuples=True)
-
+try: import PyQt5.QtWidgets
+except: badImport('PyQt5')
 from tkinter import simpledialog, filedialog, messagebox
 from tkinter import EventType
 import tkinter as tk
 from tkinter import ttk
 #from tkinter import *
 #from tkinter.ttk import *
-from PIL import ImageTk, Image, ImageDraw
+try: from PIL import ImageTk, Image, ImageDraw
+except: badImport('pillow')
 from PIL import ImageOps
 from PIL import ImageGrab
 from collections import deque
 import re
 
+from random import randrange
+
 from io import BytesIO
 
 import textwrap
 
-import numpy as np
+try: import numpy as np
+except: badImport('numpy')
 
 from shutil import copyfile
 import subprocess
@@ -57,6 +71,9 @@ except: pass
 
 # import with convenient names
 from include import *
+
+app = QtDave.App()
+main = QtDave.MainWindow()
 
 import configparser, atexit
 
@@ -95,7 +112,6 @@ nesPalette=[
 [0x9c,0xfc,0xf0],[0xc4,0xc4,0xc4],[0x00,0x00,0x00],[0x00,0x00,0x00],
 ]
 
-
 def pathToFolder(p):
     return fixPath2(os.path.split(p)[0])
 
@@ -118,20 +134,11 @@ cfg.setDefault('main', 'stylemenus', 1)
 cfg.setDefault("main", "tearoff", 0)
 cfg.setDefault('main', 'project', "newProject")
 cfg.setDefault('main', 'upperhex', 0)
-#cfg.setDefault('main', 'nespalette', nesPalette)
-
-#cfg.setDefault('foo', 'bar', 'baz')
-#print(cfg.getValue('palettes', 'Mario'))
-#print(cfg.getValue('offsets', 'mariopalette'))
-#cfg.setValue('foo','bar','bip')
-#cfg.makeSections('hello','world')
+cfg.setDefault('main', 'qtonly', 1)
 
 # make cfg available to lua
 lua_func = lua.eval('function(o) {0} = o return o end'.format('cfg'))
 lua_func(cfg)
-
-#nesPalette = cfg.getValue('main', 'nespalette')
-
 
 controls={}
 controlsNew={}
@@ -144,7 +151,6 @@ d= dict(enumerate([x for x in dir(tk.constants) if not x.startswith('_')]))
 d = {v:k for k,v in d.items()}
 # export to lua.  the values will still be python
 lua_func(lua.table_from(d))
-
 
 def fancy(text):
     return "*"*60+"\n"+text+"\n"+"*"*60
@@ -185,7 +191,15 @@ class ForLua:
     images2=[]
     config = cfg
     anonCounter = 1
+    loading = 0
+    windowQt = main
+    tabQt = main
+    Qt = True
     
+    def QtWrapper(func):
+        def inner(self, t=None):
+            return t
+        return inner
     # decorator
     def makeControl(func):
         def addStandardProp(t):
@@ -232,9 +246,10 @@ class ForLua:
             
             t = func(self, t, (x,y,w,h))
             t = addStandardProp(t)
-            t.control.update()
-            t.height=t.control.winfo_height()
-            t.width=t.control.winfo_width()
+            if t.control:
+                t.control.update()
+                t.height=t.control.winfo_height()
+                t.width=t.control.winfo_width()
             
             t.index = index
             
@@ -254,13 +269,19 @@ class ForLua:
                 # makedir maketab
                 makers = ['makeButton', 'makeCanvas', 'makeEntry', 'makeLabel', "makeTree",
                           'makeList', 'makeMenu', 'makePaletteControl', 'makePopupMenu',
-                          'makeText', 'makeWindow', 'makeCheckbox', 'makeLink', 'makeSpinBox']
+                          'makeText', 'makeWindow', 'makeCheckbox', 'makeLink', 'makeSpinBox',
+                          ]
+                QtWidgets = ['makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeCanvasQt', 'makeSideSpin']
                 
                 if method_name in makers:
                     attr = getattr(self, method_name)
                     wrapped = self.makeControl(attr)
                     setattr(self, method_name, wrapped)
-                elif method_name in ['getNESColors', 'makeControl', 'getLen']:
+                elif method_name in QtWidgets:
+                    attr = getattr(self, method_name)
+                    wrapped = self.QtWrapper(attr)
+                    setattr(self, method_name, wrapped)
+                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap']:
                     # getNESColors: excluded because it may have a table as its first parameter
                     # makeControl: excluded because it's a decorator
                     pass
@@ -359,15 +380,12 @@ class ForLua:
         return [int(x) for x in "{:08b}".format(n)]
     def bitArrayToNumber(self, l):
         return int("".join(str(x) for x in l), 2) 
-    def showError(self, title, text):
-        answer = messagebox.showerror(title, text)
-        return answer
+    def showError(self, title="Error", text=""):
+        d = QtDave.Dialog()
+        d.showError(text)
     def askText(self, title, text):
-        answer = simpledialog.askstring(title, text, parent=root)
-        if answer:
-            answer=answer.strip()
-        if answer == '': answer=None
-        return answer
+        d = QtDave.Dialog()
+        return d.askText(title, text)
     def isAlphaNumeric(self, txt):
         return txt.isalnum()
     def regexMatch(self,reString, txt):
@@ -375,13 +393,13 @@ class ForLua:
             return True
         else:
             return None
-    def askyesnocancel(self, title, message):
-        q = messagebox.askyesnocancel(title, message)
-        print(q)
-        return q
-        #return messagebox.askyesnocancel(title, message)
-    def messageBox(self, title, message):
-        return messagebox.askyesno(title, message)
+    def askyesnocancel(self, title="NESBuilder", message=""):
+        print("WARNING: deprecated; use askYesNoCancel instead of askyesnocancel.")
+        m = QtDave.Dialog()
+        return m.askYesNo(title, message)
+    def askYesNoCancel(self, title="NESBuilder", message=""):
+        m = QtDave.Dialog()
+        return m.askYesNoCancel(title, message)
     def incLua(self, n):
         filedata = pkgutil.get_data( 'include', n+'.lua' )
         return lua.execute(filedata)
@@ -398,17 +416,26 @@ class ForLua:
             tab = window.control
         return tab
         #return tabs.get(coalesce(tab, ForLua.tab))
+    def getWindowQt(self, name=None):
+        # todo: add parameter to get window by name
+        return self.windowQt
+    def getTabQt(self, name=None):
+        # todo: add parameter to get tab by name
+        return self.tabQt
     def setTab(self, tab):
         window = controls[self.window]
         window.tab = tab
         self.tab=tab
+    def setTabQt(self, tab):
+        window = self.windowQt
+        #window.tabParent.setCurrentWidget(window.tabs.get(tab))
+        self.tabQt = window.tabs.get(tab)
+    def setWindowQt(self, window):
+        self.windowQt=window
     def getCanvas(self, canvas=None):
         return controlsNew[coalesce(canvas, self.canvas)]
     def setCanvas(self, canvas):
         self.canvas = canvas
-    def fileTest(self):
-        filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("jpeg files","*.jpg"),("all files","*.*")), parent=root.getTopWindow())
-        return filename
     def makeDir(self,dir):
         dir = fixPath(script_path + "/" + dir)
         print(dir)
@@ -416,25 +443,24 @@ class ForLua:
             os.makedirs(dir)
     def openFolder(self, initial=None):
         initial = fixPath(script_path + "/" + initial)
-        foldername =  filedialog.askdirectory(initialdir = initial, title = "Select folder", parent=root.getTopWindow())
+        m = QtDave.Dialog()
+        foldername =  m.openFolder(initial=initial)
         return foldername, os.path.split(foldername)[1]
+    @lupa.unpacks_lua_table
     def openFile(self, filetypes, initial=None, parent=None):
-        types = list()
-        if filetypes:
-            for t in filetypes:
-                types.append([filetypes[t][1],filetypes[t][2]])
-        
-        types.append(["All files","*.*"])
-        filename =  filedialog.askopenfilename(title = "Select file",filetypes = types, parent=root.getTopWindow())
-        
-        return filename
+        initial = fixPath(script_path + "/" + coalesce(initial,''))
+        m = QtDave.Dialog()
+        return coalesce(m.openFile(filetypes=filetypes, initial=initial), '')
+    @lupa.unpacks_lua_table
+    def saveFileAs(self, filetypes, initial=None):
+        initial = fixPath(script_path + "/" + coalesce(initial,''))
+        m = QtDave.Dialog()
+        return coalesce(m.saveFile(filetypes=filetypes, initial=initial), '')
     def lift(self, window=None):
         window = self.getWindow(self, window)
         window.control.lift()
         window.control.focus_force()
-        #print(self.getWindow(self, window).name)
-
-    def saveFileAs(self, filetypes, initial=None):
+    def _saveFileAs(self, filetypes, initial=None):
         types = list()
         
         if filetypes:
@@ -449,9 +475,6 @@ class ForLua:
         setattr(self, f, getattr(m, f))
         
         return getattr(m,f)
-        
-#    def _levelExtract(self, f, out):
-#        LevelExtract(f,os.path.join(script_path, out))
     def copyfile(self, src,dst):
         copyfile(src,dst)
     def canvasPaint(self, x,y, c):
@@ -566,6 +589,8 @@ class ForLua:
         ret = lua.table_from(out)
         
         return ret
+    def screenshotTest(self):
+        main.screenshot(main)
     def getFileData(self, f=None):
         file=open(f,"rb")
         #file.seek(0x1000)
@@ -580,6 +605,7 @@ class ForLua:
         fileData = list(fileData)
         return fileData
     def saveArrayToFile(self, fileData, f):
+        f = fixPath2(f)
         file=open(f,"wb")
         file.write(bytes(fileData))
         file.close()
@@ -706,7 +732,17 @@ class ForLua:
 #        patchFile = fixPath2(patchFile)
 #        ips.createPatch(originalFile, modifiedFile, patchFile)
     def Quit(self):
-        onExit()
+        if qt:
+            app.quit()
+            main.destroy()
+        else:
+            onExit()
+    def switch(self):
+        if qt:
+            app.quit()
+            main.destroy()
+        else:
+            self.restart(self)
     def exec(self, s):
         exec(s)
     def eval(s):
@@ -729,6 +765,7 @@ class ForLua:
                 return controls[n]
             elif "_"+n in controls:
                 return controls["_"+n]
+        return self.getControlNew(self, n)
     def removeControl(c):
         controls[c].destroy()
     def hideControl(c):
@@ -738,6 +775,21 @@ class ForLua:
         else:
             x=x-1000
         controls[c].place(x=x)
+    def makeNESPixmap(self, width=128,height=128):
+        return QtDave.NESPixmap(width, height)
+    @lupa.unpacks_lua_table
+    def makeCanvasQt(self, t):
+        t.scale = t.scale or 3
+        t.w=t.w*t.scale
+        t.h=t.h*t.scale
+        
+        ctrl = QtDave.Canvas(self.tabQt)
+        ctrl.init(t)
+        
+        ctrl.mousePressEvent = makeCmdNew(t)
+        ctrl.mouseMoveEvent = makeCmdNew(t)
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
     def makeCanvas(self, t, variables):
         x,y,w,h = variables
         
@@ -752,8 +804,70 @@ class ForLua:
         
         photo = False
         
+        def setCursor(cursor):
+            if not cursor.lower().endswith(".cur"):
+                cursor = cursor+".cur"
+            try:
+                d = os.path.dirname(sys.modules["cursors"].__file__)
+                f = os.path.join(d, cursor).replace("\\","/")
+                canvas.config(cursor="@"+f)
+            except:
+                pass
+        
+        
+        def removeSplits():
+            pass
+        #@lupa.unpacks_lua_table
+        
+        def drawSplit(splits):
+            control = self.getControlNew(self, t.name)
+            canvas = control.control
+            splits = [splits[x] for x in splits if splits[x]>0]
+            
+            for i, l in enumerate(splits):
+                if control.lines.get(i):
+                    for item in control.lines[i]:
+                        canvas.delete(item)
+                control.lines[i] = [
+                    canvas.create_line(0, l*control.scale+0, control.width, l*control.scale+0, fill="white", activefill="red", width=2, dash=(8,3)),
+                ]
+            canvas.update_idletasks()
+        def _drawSplit(splits):
+            # makes a stack overflow, dont know why :(
+            
+            control = self.getControlNew(self, t.name)
+            canvas = control.control
+            
+            control.splits = splits
+            splits = [splits[x] for x in splits]
+            print(splits)
+            print(control.lines)
+            
+            img=False
+            photo=False
+            a=False
+            
+            for i, l in enumerate(splits):
+                if control.lines.get(i):
+                    canvas.delete(control.lines[i][0])
+                    del control.lines[i]
+
+                img=Image.new("RGB", size=(control.width,2))
+                a = np.asarray(img).copy()
+                for y in range(2):
+                    for x in range(control.width):
+                        if x%8 <5:
+                            a[y][x] = [255,255,255]
+                        else:
+                            a[y][x] = [100,100,100]
+                img = Image.fromarray(a)
+                photo = ImageTk.PhotoImage(img)
+                
+#                control.lines.update({i:photo})
+#                canvas.create_image(0,l*control.scale, image=photo, state="normal", anchor=tk.NW)
+                control.lines[i] = [canvas.create_image(0,l*control.scale, image=photo, state="normal", anchor=tk.NW), photo]
         @lupa.unpacks_lua_table
-        def drawTile(x=0,y=0, tile=0, colors=(0x0f,0x23,0x13,0x03)):
+        def drawTile(x=0,y=0, tile=0, colors=(0x0f,0x23,0x13,0x03), useCache=False, chrData=False):
             placeX,placeY = x,y
             control = self.getControlNew(self, t.name)
             canvas = control.control
@@ -763,11 +877,23 @@ class ForLua:
                 colors = [colors[x] for x in colors]
             
             rows, columns = t.rows, t.columns
-            imageData = control.chrData
-            imageData = [imageData[x] for x in list(imageData)]
+            
+            imageData = False
+            if useCache and control.imageDataCache:
+                imageData = control.imageDataCache
+            elif chrData:
+                control.chrData = chrData
+                imageData = control.chrData
+                imageData = [imageData[x] for x in list(imageData)]
+                control.imageDataCache = imageData
+            else:
+                imageData = control.chrData
+                imageData = [imageData[x] for x in list(imageData)]
+                control.imageDataCache = imageData
             
             img=Image.new("RGB", size=(8,8))
             a = np.asarray(img).copy()
+            
             
             for y in range(8):
                 for x in range(8):
@@ -778,15 +904,19 @@ class ForLua:
                         c=c+1
                     if (imageData[tile*16+y+8] & (1<<x)):
                         c=c+2
-                    #a[y1][x1] = nesPalette[colors[c]]
-                    #a[tile*8+y][x] = nesPalette[colors[c]]
                     a[y][(7-x)] = nesPalette[colors[c]]
+                    
             img = Image.fromarray(a)
-            photo = ImageTk.PhotoImage(ImageOps.scale(img, control.scale, resample=Image.NEAREST))
+            #photo = ImageTk.PhotoImage(ImageOps.scale(img, control.scale, resample=Image.NEAREST))
+            #photo = ImageTk.PhotoImage(img.resize((8*control.scale,8*control.scale), resample = Image.NEAREST ))
+            #photo = ImageTk.PhotoImage(img.resize((8*control.scale,8*control.scale), resample = Image.NEAREST, reducing_gap=1 ))
+            #photo = ImageTk.PhotoImage(img)
+            photo = ImageTk.PhotoImage(img.resize((8*control.scale,8*control.scale), resample = Image.NEAREST, reducing_gap=1))
             control.tiles.update({"{0},{1}".format(placeX,placeY): photo})
             canvas.create_image(placeX*control.scale,placeY*control.scale, image=photo, state="normal", anchor=tk.NW)
-        
-        
+            
+            # This makes everything responsive while it's updating
+            root.update()
         @lupa.unpacks_lua_table
         def loadCHRData(imageData=False, colors=(0x0f,0x21,0x11,0x01), columns=16, rows=16):
             
@@ -841,22 +971,23 @@ class ForLua:
                     loadCHRData=loadCHRData,
                     drawTile=drawTile,
                     tiles={},
+                    drawSplit = drawSplit,
+                    setCursor = setCursor,
+                    lines = {},
+                    tool = False,
+                    button=0,
                     )
         
-        control.bind("<ButtonPress-1>", makeCmdNew(t, extra=dict(press=True)))
-        control.bind("<ButtonRelease-1>", makeCmdNew(t, extra=dict(press=False)))
-        control.bind("<ButtonPress>", makeCmdNew(t))
-        control.bind("<ButtonRelease>", makeCmdNew(t))
-        control.bind("<B1-Motion>", makeCmdNew(t))
+        control.bind("<ButtonPress-1>", makeCmdNew(t, extra=dict(press=True, button=1)))
+        control.bind("<ButtonRelease-1>", makeCmdNew(t, extra=dict(press=False, button=1)))
+        control.bind("<ButtonPress-3>", makeCmdNew(t, extra=dict(press=True, button=3)))
+        control.bind("<ButtonRelease-3>", makeCmdNew(t, extra=dict(press=False, button=3)))
+        control.bind("<B1-Motion>", makeCmdNew(t, extra = dict(button=1)))
+        control.bind("<B3-Motion>", makeCmdNew(t, extra = dict(button=3)))
 
         canvas.config(cursor="top_left_arrow")
         
-        try:
-            d = os.path.dirname(sys.modules["cursors"].__file__)
-            f = os.path.join(d, "pencil.cur").replace("\\","/")
-            canvas.config(cursor="@"+f)
-        except:
-            pass
+        t.setCursor("pencil")
         
         if not self.canvas:
             # set as default canvas
@@ -866,12 +997,110 @@ class ForLua:
         controlsNew.update({t.name:t})
         
         return t
+    @lupa.unpacks_lua_table
+    def makeTabQt(self, t):
+        window = self.windowQt
+        
+        if t.name in self.windowQt.tabs:
+            print('Not creating tab "{}" (already exists).'.format(t.name))
+            return self.getControlNew(self, t.name)
+        
+        ctrl = QtDave.Widget()
+        window.tabParent.addTab(ctrl, t.text)
+        window.repaint()
+        ctrl.init(t)
+        
+        window.tabs.update({t.name:ctrl})
+        
+        ctrl.mousePressEvent = makeCmdNew(t)
+        
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
+    def makeButton2(self, t):
+        
+        if t.w:
+            t.w=t.w*7.5
+        
+        if t.h:
+            t.h=t.h*7.5
+        
+        return self.makeButtonQt(self, t)
+    @lupa.unpacks_lua_table
+    def makeSideSpin(self, t):
+        ctrl = QtDave.SideSpin(self.tabQt)
+        ctrl.init(t)
+        
+        #ctrl.onChange = lambda:print('test')
+        t.control = ctrl
+        ctrl.onChange = makeCmdNoEvent(t)
+        
+        #ctrl.clicked.connect(makeCmdNew(t))
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
+    def makeButtonQt(self, t):
+        ctrl = QtDave.Button(t.text, self.tabQt)
+        ctrl.init(t)
+        
+#        if t.image:
+            #image = Image.open(t.image.replace(".png", "_white.png"))
+            #t.image = t.image.replace(".png", "_white.png")
+#            image = Image.open(t.image)
+#            print(ctrl.setIcon(image))
+        
+        if t.image:
+            try:
+                # the frozen version will still try to load it manually first
+                ctrl.setIcon(fixPath2(t.image))
+            except:
+                folder, file = os.path.split(t.image)
+                ctrl.setIcon(BytesIO(pkgutil.get_data(folder, file)))
+        
+        ctrl.clicked.connect(makeCmdNew(t))
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
+    def makeLauncherIcon(self, t):
+        ctrl = QtDave.LauncherIcon(self.tabQt)
+        ctrl.init(t)
+        ctrl.mousePressEvent = makeCmdNew(t)
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
+    def makeLabelQt(self, t):
+        ctrl = QtDave.Label(t.text, self.tabQt)
+        ctrl.init(t)
+        ctrl.mousePressEvent = makeCmdNew(t)
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
+    def makeMenuQt(self, t):
+        window = self.getWindowQt(self)
+        
+        # We'll turn this into a dictionary so our little class library
+        # doesn't have to handle any lua.
+        menuItems = [dict(x) for _,x in t.menuItems.items()]
+        for i, item in enumerate(menuItems):
+            if item.get('name', False):
+                if not item.get('action',False):
+                    
+                    
+                    t2 = lua.table()
+                    
+                    if t.prefix:
+                        t2.name = t.name + "_" + item.get('name', str(i))
+                    else:
+                        t2.name = item.get('name', "_"+str(i))
+                    
+                    menuItems[i].update(action = makeCmdNew(t2))
+
+        
+        return window.addMenu(t.name, t.text, menuItems)
     def makeButton(self, t, variables):
         x,y,w,h = variables
         imgctrl = False
-
-        #w=20
-        #h=1
+        
         img = None
         image = None
         inverted_image = None
@@ -885,19 +1114,6 @@ class ForLua:
                 image = Image.open(BytesIO(pkgutil.get_data(folder, file)))
             
             if t.iconMod:
-                if image.mode == 'RGBA':
-                    r,g,b,a = image.split()
-                    rgb_image = Image.merge('RGB', (r,g,b))
-
-                    inverted_image = ImageOps.invert(rgb_image)
-
-                    r2,g2,b2 = inverted_image.split()
-
-                    image = Image.merge('RGBA', (r2,g2,b2,a))
-
-                else:
-                    image = ImageOps.invert(image)
-                
                 image = ImageOps.expand(image, border=5)
                 image = ImageTk.PhotoImage(image)
             else:
@@ -921,16 +1137,24 @@ class ForLua:
         control.place(x=t.x, y=t.y)
         if t.h:
             control.place(height = t.h)
+        if t.w and t.trueWidth:
+            control.place(width = t.w)
         controls.update({t.name:control})
         
         t=lua.table(name=t.name,
                     control=control,
                     imageRef=image,
                     text = t.text,
+                    toggle = t.toggle,
                     )
         
-        control.bind( "<ButtonRelease-1>", makeCmdNew(t))
+        if t.toggle:
+            t.getValue = control.getValue
+            t.setValue = control.setValue
         
+        control.bind( "<ButtonRelease-1>", makeCmdNew(t), add="+")
+        
+        controlsNew.update({t.name:t})
         return t
 
     def setText(c,txt):
@@ -1421,6 +1645,26 @@ class ForLua:
 
         if t.name: control.bind( "<Button-1>", makeCmdNew(t))
         return t
+    @lupa.unpacks_lua_table
+    def makePaletteControlQt(self, t):
+        ctrl = QtDave.PaletteControl(self.tabQt)
+        ctrl.init(t)
+        #ctrl.mousePressEvent = makeCmdNew(t)
+        
+        for cell in ctrl.cells:
+            t2 = lua.table(
+                name = t.name,
+                cellNum = cell.cellNum,
+                cell = cell,
+                control = ctrl,
+                cells = ctrl.cells,
+                set = ctrl.set,
+                setAll = ctrl.setAll,
+            )
+            cell.mousePressEvent = makeCmdNew(t2)
+        
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
     def makePaletteControl(self, t, variables):
         x,y,w,h = variables
 
@@ -1568,6 +1812,10 @@ class ForLua:
         atexit.unregister(exitCleanup)
         sys.exit()
     def restart(self):
+        if qt:
+            app.quit()
+            main.destroy()
+        
         #if onExit(skipCallback=True):
         if onExit():
             print("\n"+"*"*20+" RESTART "+"*"*20+"\n")
@@ -1580,6 +1828,7 @@ class ForLua:
 
     def setTitle(self, title=''):
         root.title(title)
+        main.setWindowTitle(title)
     
 # Return it from eval so we can execute it with a 
 # Python object as argument.  It will then add "NESBuilder"
@@ -1594,11 +1843,16 @@ lua_func(lua.table(nesPalette))
 def coalesce(*arg): return next((a for a in arg if a is not None), None)
 
 def makeCmdNew(*args, extra = False):
+    if not args[0].name:
+        # no name specified, dont create a function
+        return
     if args[0].anonymous:
         print('anon')
-    if extra:
-        return lambda x:doCommandNew(args, ev = x, extra = extra)
-    return lambda x:doCommandNew(args, ev = x)
+    if not extra:
+        extra = dict()
+    extra.update(plugin = lua.eval("_getPlugin and _getPlugin() or false"))
+
+    return lambda x:doCommandNew(args, ev = x, extra = extra)
 def makeCmdNoEvent(*args, extra = False):
     if extra:
         return lambda :doCommandNew(args, ev = lua.table(extra=extra))
@@ -1623,13 +1877,20 @@ def doCommandNew(*args, ev=False, extra = False):
         pass
     
     if ev:
-        event = dict(
-            event = ev,
-            button = ev.num,
-            x = ev.x,
-            y = ev.y,
-        )
-        
+        event = False
+        try:
+            event = dict(
+                event = ev,
+                button = ev.num,
+                x = ev.x,
+                y = ev.y,
+            )
+        except:
+            event = dict(
+                event = ev,
+                x = ev.x,
+                y = ev.y,
+            )
         try:
             event.type = ev.type.name
         except:
@@ -1679,13 +1940,18 @@ def exitCleanup():
 # run function on exit
 atexit.register(exitCleanup)
 
+
+ctrl = QtDave.TabWidget(main)
+main.tabParent = ctrl
+t = lua.table(name = main.name+"tabs", y=main.menuBar().height(), control=ctrl)
+ctrl.init(t)
+ctrl.mousePressEvent = makeCmdNew(t)
+
+main.tabParent.currentChanged.connect(makeCmdNoEvent(t))
+
+
 #root = tk.Tk()
 root = tkDave.Tk()
-
-#root.tk_setPalette("red")
-
-#root.option_add("*Font",("verdana", 10))
-#root.option_add("*Menu.Font","verdana 12")
 
 # hide the window until it's ready
 root.withdraw()
@@ -1783,6 +2049,8 @@ root.title(config.title)
 root.configure(bg=config.colors.bk)
 root.tk_setPalette(config.colors.tkDefault)
 
+main.setWindowTitle(config.title)
+
 t=lua.table(name="Main",
             control=root,
             tabParent=tab_parent,
@@ -1807,7 +2075,6 @@ try:
 except LuaError as err:
     print("*** init() Failed")
     handleLuaError(err)
-
 
 lua.execute("plugins = {}")
 
@@ -1838,7 +2105,11 @@ if os.path.exists(folder):
                 print("*** Failed to load plugin: "+file)
                 handleLuaError(err)
             
-    lua.execute("if onPluginsLoaded then onPluginsLoaded() end")
+    try:
+        lua.execute("if onPluginsLoaded then onPluginsLoaded() end")
+    except LuaError as err:
+        print("*** onPluginsLoaded() Failed")
+        handleLuaError(err)
 try:
     lua.execute("if onReady then onReady() end")
 except LuaError as err:
@@ -1854,8 +2125,43 @@ if x and y:
 else:
     root.geometry("{0}x{1}".format(w,h))
 
+main.setGeometry(x,y,w,h)
 
+s = pkgutil.get_data('include', 'style.qss').decode('utf8')
+r = dict(
+    bk=config.colors.bk,
+    bk2=config.colors.bk2,
+    bk3=config.colors.bk3,
+    bk4=config.colors.bk4,
+    bkMenuHighlight=config.colors.bk_menu_highlight,
+    menuBk=config.colors.menuBk,
+    fg=config.colors.fg,
+    borderLight=config.colors.borderLight,
+    borderDark=config.colors.borderDark,
+    bkHover=config.colors.bk_hover,
+)
+
+for (k,v) in r.items():
+    s = s.replace("_"+k+"_", v)
+
+#main.setStyleSheet(s)
+app.setStyleSheet(s)
+
+
+#root.iconbitmap(sys.executable)
+
+if not frozen:
+    main.setIcon(fixPath2('icon.ico'))
+
+
+controlsNew.update({main.name:main})
+
+qt=True
+main.show()
+app.mainloop()
+qt=False
 # show the window
-root.deiconify()
 
-root.mainloop()
+#root.deiconify()
+#root.mainloop()
+

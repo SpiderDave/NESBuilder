@@ -5,6 +5,8 @@ rem pause when done
 rem (note: errors will always pause)
 set dopause=0
 
+set script=NESBuilder.py
+
 rem ----------------------------------------
 
 rem default error
@@ -17,7 +19,7 @@ if %errorlevel% NEQ 0 goto error
 rem clear screen to give a fresh console output window for debugging
 cls
 
-%pycmd% NESBuilder.py
+%pycmd% %script%
 if %errorlevel% NEQ 0 set errormessage=script error&goto error
 
 goto theend

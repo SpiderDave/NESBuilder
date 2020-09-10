@@ -5,18 +5,23 @@ config = {
     cellWidth=24,
     cellHeight=24,
     buttonWidth=20,
+    buttonHeight=26,
     buttonWidthSmall=4,
     aboutURL = "https://github.com/SpiderDave/NESBuilder#readme",
     colors = {
         bk='#202036',
         bk2='#303046',
         bk3='#404050',      -- text background
+        bk4='#656570',
         bk_hover='#454560',
         fg = '#eef',
+        menuBk='#404056',
         bk_menu_highlight='#606080',
         tkDefault='#656570',
         link="#88f",
         linkHover="white",
+        borderLight="#56565a",
+        borderDark="#101020",
     },
     pluginFolder = "plugins", -- this one is for python
     nRecentFiles = 20,
@@ -71,6 +76,8 @@ print = function(item)
         -- python numbers that would display like "42.0" to "42".
         if item == math.floor(item) then item = math.floor(item) end
         _print(prefix..item)
+    elseif type(item)=="boolean" then
+        _print(prefix..(tostring(item)))
     else
         _print(prefix..(item or ''))
     end
@@ -142,10 +149,13 @@ function init()
     -- make sure projects folder exists
     NESBuilder:makeDir(data.folders.projects)
     
+    --NESBuilder:setWindowQt("Main")
+    control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Warning",text="Warning"}
+    control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Launcher",text="Launcher"}
+    control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Palette",text="Palette"}
+    control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Image",text="CHR"}
+    
     NESBuilder:setWindow("Main")
-    NESBuilder:makeTab("Launcher", "Launcher")
-    NESBuilder:makeTab("Palette", "Palette")
-    NESBuilder:makeTab("Image", "CHR")
     
     -- The separator and Quit items will be added
     -- in onReady() so plugins can add items before them.
@@ -155,41 +165,44 @@ function init()
         {name="Save", text="Save Project"},
         {name="Preferences", text="Preferences"},
     }
-    control = NESBuilder:makeMenu{name="menuFile", text="File", items=items, prefix=false}
-    
---    local items = {
---        {name="Cut", text="Cut"},
---        {name="Copy", text="Copy"},
---        {name="Paste", text="Paste"},
---    }
---    control = NESBuilder:makeMenu{name="menuEdit", text="Edit", items=items, prefix=false}
+    control = NESBuilder:makeMenuQt{name="menuFile", text="File", menuItems=items}
     
     local items = {
         {name="Build", text="Build"},
         {name="BuildTest", text="Build and Test"},
     }
-    control = NESBuilder:makeMenu{name="menuProject", text="Project", items=items, prefix=false}
+    control = NESBuilder:makeMenuQt{name="menuProject", text="Project", menuItems=items}
     
-    local items = {
-        {name="About", text="About"},
-    }
-    control = NESBuilder:makeMenu{name="menuHelp", text="Help", items=items, prefix=false}
     
-    NESBuilder:setTab("Image")
-    NESBuilder:makeCanvas{x=8,y=8,w=128,h=128,name="canvas", scale=3}
-    NESBuilder:setCanvas("canvas")
+    NESBuilder:setTabQt("Warning")
+    x,y=left,top
+    text=[[
+    
+    WARNING:
+    
+    This project is in the middle of a major transition from tkinter to
+    Qt5.  A lot of stuff is broken and unstable.
+    
+    Coming soon, working stuff!
+        --SpiderDave
+    ]]
+    control=NESBuilder:makeLabelQt{x=x,y=y,text=text}
+    
+    NESBuilder:setTabQt("Image")
+    NESBuilder:makeCanvasQt{x=8,y=8,w=128,h=128,name="canvasQt", scale=3}
+    --NESBuilder:setCanvas("canvas")
     
     pad=6
     top = pad*1.5
     left = pad*1.5
     x,y = left,top
     
-    NESBuilder:setTab("Palette")
+    NESBuilder:setTabQt("Palette")
     NESBuilder:setDirection("h")
     x,y=left,top
     
     p = {[0]=0x0f,0x21,0x11,0x01}
-    c=NESBuilder:makePaletteControl{x=pad*1.5,y=pad*1.5,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="Palette", palette=nespalette}
+    c=NESBuilder:makePaletteControlQt{x=pad*1.5,y=pad*1.5,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="PaletteQt", palette=nespalette}
     
     palette = {}
     for i=0,#p do
@@ -204,14 +217,12 @@ function init()
     
     x=left
     y=top + 100+pad*1.5
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonPrevPalette",text="<"}
-    buttonHeight = b.height
+    local buttonHeight = config.buttonHeight
     
-    x = x + b.width + pad
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonNextPalette",text=">"}
-   
-    x = x + b.width + pad
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonAddPalette",text="+"}
+    control = NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="SpinChangePalette"}
+    
+    x = x + control.width + pad
+    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall*1.5,name="ButtonAddPalette",text="Add"}
     
     x = left
     y = y + b.height + pad
@@ -223,27 +234,18 @@ function init()
     for i=0,#p do
         palette[i] = nespalette[p[i]]
     end
-    c=NESBuilder:makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="PaletteEntry", palette=palette}
-    y = y + 32 + pad
+    control=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="PaletteEntryQt", palette=palette}
+
+    push(y+control.height+pad)
+
+    x=x+control.width+pad
+    c=NESBuilder:makeLabelQt{x=x,y=y2+pad,name="PaletteEntryLabelQt",clear=true,text="foobar"}
+    c.setFont("Verdana", 10)
+
+    x=left
+    y=pop()
     
-    x=NESBuilder.x+pad
-    c=NESBuilder:makeLabel{x=x,y=y2+3,name="PaletteEntryLabel",clear=true,text="foobar"}
-    
-    x = left
-    
---    b=NESBuilder:makeText{x=x,y=y, lineHeight=16,lineWidth=80, name="Text1",text="Text1"}
---    y = y + b.height + pad
-    
---    x=x2
---    y=y2
---    b=NESBuilder:makeList{x=x,y=y, name="PaletteList"}
---    b.append("palette00")
---    b.append("palette01")
---    b.append("palette02")
---    b.append("palette03")
-    
-    
-    NESBuilder:setTab("Image")
+    NESBuilder:setTabQt("Image")
     p = {[0]=0x0f,0x21,0x11,0x01}
     palette = {}
     for i=0,#p do
@@ -253,76 +255,73 @@ function init()
     x=pad
     y=pad+128*3+pad*1.5
     placeY = y
-    c=NESBuilder:makePaletteControl{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="CHRPalette", palette=palette}
+    c=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="CHRPaletteQt", palette=palette}
     
     x=left + 120
     y=placeY
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonPrevPaletteCHR",text="<"}
+    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall,name="ButtonPrevPaletteCHR",text="<"}
 
     x=x+b.width+pad
     y=placeY
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall,name="ButtonNextPaletteCHR",text=">"}
+    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall,name="ButtonNextPaletteCHR",text=">"}
 
     x=left
     
     y = y + 32 + pad
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="LoadCHRImage",text="Load Image"}
+    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="LoadCHRImage",text="Load Image"}
 
     y = y + b.height + pad
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="LoadCHRNESmaker",text="Load NESmaker Image"}
+    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="LoadCHRNESmaker",text="Load NESmaker Image"}
 
     y = y + b.height + pad
     
-    --b=NESBuilder:makeButton{x=x,y=y,name="ButtonCHRTest1",text="test"}
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="LoadCHR",text="Load .chr"}
+    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="LoadCHR",text="Load .chr"}
     y = y + b.height + pad
     
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="ExportCHRImage",text="Export to .png"}
+    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="ExportCHRImage",text="Export to .png"}
     y = y + b.height + pad
     
---    f="chr.png"
---    NESBuilder:loadImageToCanvas(f)
-    
-    -- Import the "LevelExtract" method from "SMBLevelExtract.py" and 
-    -- add it to the "Python" table.
-    --LevelExtract = NESBuilder:importFunction('include.SMBLevelExtract','LevelExtract')
+    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="CHRTest",text="test"}
+    y = y + b.height + pad
+    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="CHRTest2",text="test 2"}
+    y = y + b.height + pad
     
     x=128*3+pad*3
     y=top
-    c=NESBuilder:makeLabel{x=x,y=y,name="CHRNumLabel",clear=true,text="CHR"}
+    c=NESBuilder:makeLabelQt{x=x,y=y,name="CHRNumLabelQt",clear=true,text="CHR"}
     y = y + buttonHeight
     
     --y=top
     x=128*3+pad*3
     for i=0,7 do
-        b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth,name="CHR"..i,text="CHR "..i}
+        b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="CHR"..i,text="CHR "..i}
         y = y + b.height + pad
     end
     
     
-    NESBuilder:setTab("Launcher")
+    NESBuilder:setTabQt("Launcher")
     left = pad*2
     top = pad*2
     x,y,pad = left,top,8
     local startY
     
-    control = NESBuilder:makeLabel{x=x,y=y,name="launcherRecentTitle",clear=true,text="NESBuilder"}
+    control = NESBuilder:makeLabelQt{x=x,y=y,w=buttonWidth, name="launcherRecentTitle",text="NESBuilder"}
     control.setFont("Verdana", 28)
     
     y = y + control.height + pad
     push(y)
     
-    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonRecent",text="Recent Projects", image="icons/clock32.png", iconMod=true}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonRecent",text="Recent Projects", image="icons/clock32.png", iconMod=true}
     y = y + control.height + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonOpen",text="Open Project", image="icons/folder32.png", iconMod=true}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonOpen",text="Open Project", image="icons/folder32.png", iconMod=true}
     y = y + control.height + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonNew",text="New Project", image="icons/folderplus32.png", iconMod=true}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonNew",text="New Project", image="icons/folderplus32.png", iconMod=true}
     y = y + control.height + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonTemplates",text="Templates", image="icons/folder32.png", iconMod=true}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonTemplates",text="Templates", image="icons/folder32.png", iconMod=true}
     y = y + control.height + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonPreferences",text="Preferences", image="icons/gear32.png", iconMod=true}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonPreferences",text="Preferences", image="icons/gear32.png", iconMod=true}
     y = y + control.height + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonInfo",text="Info", image="icons/note32.png", iconMod=true}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonInfo",text="Info", image="icons/note32.png", iconMod=true}
     y = y + control.height + pad
     
     x=x+control.width+pad
@@ -358,35 +357,36 @@ function init()
         x = 250+((i-1) % columns)*100
         y = startY+math.floor((i-1)/columns)*150
         
-        control = NESBuilder:makeLabel{x=x,y=y,h=110, w=80, name="launcherRecentIcon",text="", index=i-1}
+        control = NESBuilder:makeLauncherIcon{x=x,y=y,h=132, w=80, name="launcherRecentIcon",text=item.text, index=i-1}
         recentData[i-1].icon = control
-        y = y + control.height + pad*.5
-        control = NESBuilder:makeLabel{x=x,y=y,name="launcherRecent",clear=true,text=item.text, index=i-1}
         recentData[i-1].label = control
-        control.setFont("Verdana", 10)
-        y = y + control.height + pad
-        
     end
     
     
     NESBuilder:makeTab("tsa", "Metatiles")
     NESBuilder:setTab("tsa")
+
+    NESBuilder:makeTabQt{name="tsa", text="Metatiles"}
+    NESBuilder:setTabQt("tsa")
+
     x,y=left,top
     
     push(y)
+    control = NESBuilder:makeCanvasQt{x=x,y=y,w=128,h=128,name="tsaCanvasQt", scale=2}
     control = NESBuilder:makeCanvas{x=x,y=y,w=128,h=128,name="tsaCanvas", scale=2}
     push(x+control.width+pad)
     
     x = left
     y=y + control.height + pad
     
+    control = NESBuilder:makeCanvasQt{x=x,y=y,w=16,h=16,name="tsaCanvas2Qt", scale=6}
     control = NESBuilder:makeCanvas{x=x,y=y,w=16,h=16,name="tsaCanvas2", scale=6}
     control.loadCHRData{nil, p, columns=2, rows=2}
     
     y=y + control.height + pad
     
     push(y)
-    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidPrev",text="<"}
+    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidPrev",text="<"}
     y=pop()
     x= x + control.width+pad
     
@@ -395,14 +395,15 @@ function init()
     y=pop()
     x= x + control.width+pad
     
-    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidNext",text=">"}
+    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidNext",text=">"}
     x = left
     y = y + control.height + pad
     
-    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth, name="tsaTest",text="Update"}
+    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth, name="tsaTest",text="Update"}
     
     x= pop()
     y = pop()
+    control = NESBuilder:makeCanvasQt{x=x,y=y,w=8,h=8,name="tsaTileCanvasQt", scale=8, columns=1, rows=1}
     control = NESBuilder:makeCanvas{x=x,y=y,w=8,h=8,name="tsaTileCanvas", scale=8, columns=1, rows=1}
     
     loadSettings()
@@ -417,14 +418,19 @@ function onReady()
         {text="-"},
         {name="Quit", text="Exit"},
     }
-    control = NESBuilder:makeMenu{name="menuFile", text="File", items=items, prefix=false}
+    control = NESBuilder:makeMenuQt{name="menuFile", text="File", menuItems=items}
     
     local items = {
         {text="-"},
         {name="openProjectFolder", text="Open Project Folder"},
     }
-    control = NESBuilder:makeMenu{name="menuProject", text="Project", items=items, prefix=false}
-
+    control = NESBuilder:makeMenuQt{name="menuProject", text="Project", menuItems=items}
+    
+    local items = {
+        {name="About", text="About"},
+    }
+    control = NESBuilder:makeMenuQt{name="menuHelp", text="Help", menuItems=items}
+    
     LoadProject_cmd()
 end
 
@@ -474,7 +480,11 @@ function doCommand(t)
     else
         if t.anonymous then return false end
         
-        if t.event and t.event.type == "ButtonPress" or t.event.type=="" then
+        pcall(function()
+            t.event.button = t.event.event.button()
+        end)
+        
+        if t.event and (t.event.type == "ButtonPress" or t.event.type=="") then
             print("doCommand "..t.name)
         else
             print("doCommand "..t.name)
@@ -498,6 +508,8 @@ function Palette_cmd(t)
     end
 end
 
+PaletteQt_cmd = Palette_cmd
+
 function CHRPalette_cmd(t)
     if t.event.button == 1 then
         print(string.format("Selected palette %02x",t.cellNum))
@@ -511,6 +523,8 @@ function CHRPalette_cmd(t)
         end
     end
 end
+
+--CHRPaletteQt_cmd = CHRPalette_cmd
 
 function ButtonMakeCHR_cmd()
     local f = NESBuilder:openFile{filetypes={{"Images", ".png"}}}
@@ -535,20 +549,39 @@ function ButtonAddPalette_cmd()
     dataChanged()
 end
 
-
 function PaletteEntryUpdate()
+    local control = NESBuilder:getControlNew('SpinChangePalette')
+    control.control.max = #data.project.palettes
+    control.value = data.project.palettes.index
+    
     p=data.project.palettes[data.project.palettes.index]
     
-    c = NESBuilder:getControl('PaletteEntry')
-    c.setAll(p)
+--    c = NESBuilder:getControl('PaletteEntry')
+--    c.setAll(p)
+    
+    NESBuilder:getControlNew('PaletteEntryQt').setAll(p)
 
-    c = NESBuilder:getControl('CHRPalette')
-    c.setAll(p)
+--    c = NESBuilder:getControl('CHRPalette')
+--    c.setAll(p)
+    NESBuilder:getControlNew('CHRPaletteQt').setAll(p)
     
-    c = NESBuilder:getControl('PaletteEntryLabel')
-    c.control.text = string.format("Palette%02x",data.project.palettes.index)
+--    c = NESBuilder:getControl('PaletteEntryLabel')
+--    c.control.text = string.format("Palette%02x",data.project.palettes.index)
     
+    c = NESBuilder:getControlNew('PaletteEntryLabelQt')
+    c.text = string.format("Palette%02x",data.project.palettes.index)
+    --c.setText('blah')
+
     refreshCHR()
+end
+
+function SpinChangePalette_cmd(t)
+    t.control.max = #data.project.palettes
+    t.control.refresh()
+    
+    data.project.palettes.index = t.control.value
+    
+    PaletteEntryUpdate()
 end
 
 function ButtonPrevPalette_cmd()
@@ -609,7 +642,7 @@ end
 
 function NewProject_cmd()
     if data.project.changed then
-        q= NESBuilder:askyesnocancel("", string.format("Save changes to %s?",data.projectID))
+        q= NESBuilder:askYesNoCancel("", string.format("Save changes to %s?",data.projectID))
         
         -- cancel
         if q==nil then return end
@@ -635,7 +668,7 @@ function NewProject_cmd()
     -- check if the project folder already exists
     f = data.folders.projects..n
     if NESBuilder:pathExists(f) then
-         local q= NESBuilder:askyesnocancel("", string.format('The project folder "%s" already exists.  Load it instead?', n))
+         local q= NESBuilder:askYesNoCancel("", string.format('The project folder "%s" already exists.  Load it instead?', n))
          -- cancel
         if q==nil then return end
         
@@ -675,14 +708,20 @@ function launcherButtonPreferences_cmd()
     x,y = left,top
 
 
-    NESBuilder:makeWindow{x=0,y=0,w=760,h=600, name="prefWindow",title="Preferences"}
-    NESBuilder:setWindow("prefWindow")
+--    NESBuilder:makeWindow{x=0,y=0,w=760,h=600, name="prefWindow",title="Preferences"}
+--    NESBuilder:setWindow("prefWindow")
     
-    control = NESBuilder:makeLabel{x=x,y=y, clear=true,text="Note: Some preferences may require a restart."}
+    NESBuilder:makeTabQt{name="tabPreferences",text="Preferences"}
+    
+    NESBuilder:setTabQt("tabPreferences")
+    
+    control = NESBuilder:makeLabelQt{x=x,y=y, clear=true,text="Note: Some preferences may require a restart."}
     y = y + control.height
     
     local upperhex=math.floor(NESBuilder:cfgGetValue("main", 'upperhex'))
     control = NESBuilder:makeCheckbox{x=x,y=y,name="prefUpperHex", text="Show hexidecimal in upper-case.", value=NESBuilder:cfgGetValue("main", 'upperhex')}
+    
+    --NESBuilder:getControlNew("MainQt").tabParent.update()
     
     y = y + control.height
     
@@ -980,6 +1019,20 @@ function PaletteEntry_cmd(t)
     end
 end
 
+function PaletteEntryQt_cmd(t)
+    if t.event.button == 1 then
+        print(string.format("Selected palette %02x",t.cellNum))
+        data.selectedColor = t.cellNum
+    elseif t.event.button == 2 then
+        print(string.format("Set palette %02x",data.selectedColor or 0x0f))
+        p=data.project.palettes[data.project.palettes.index]
+        p[t.cellNum+1] = data.selectedColor
+        t.setAll(p)
+        refreshCHR()
+        dataChanged()
+    end
+end
+
 function PaletteList_cmd(t)
     print(t.get())
 end
@@ -996,11 +1049,21 @@ function refreshCHR()
     local c
     local p=data.project.palettes[data.project.palettes.index]
     
-    c = NESBuilder:getControlNew('canvas')
-    c.loadCHRData{data.project.chr[data.project.chr.index], p}
+    local c = NESBuilder:getControl('CHRNumLabelQt')
+    c.text = string.format("%02x", data.project.chr.index)
     
-    local c = NESBuilder:getControl('CHRNumLabel')
-    c.control.text = string.format("%02x", data.project.chr.index)
+    -- get canvas control
+    local control = NESBuilder:getControl("canvasQt")
+    -- create an off-screen drawing surface
+    local surface = NESBuilder:makeNESPixmap(128,128)
+    -- load CHR Data to the surface
+    surface.loadCHR(currentChr())
+    -- apply current palette to it
+    surface.applyPalette(currentPalette())
+    -- paste the surface on our canvas (it will be sized to fit)
+    control.paste(surface)
+
+
 end
 
 function LoadCHRImage_cmd()
@@ -1019,12 +1082,9 @@ function LoadCHRImage_cmd()
         -- Store in selected project bank
         data.project.chr[data.project.chr.index] = CHRData
         
-        -- Load CHR data and display on canvas
-        c = NESBuilder:getControlNew('canvas')
-        c.loadCHRData{CHRData, p}
+        NESBuilder:getControlNew('CHRPaletteQt').setAll(p)
         
-        c = NESBuilder:getControl('CHRPalette')
-        c.setAll(p)
+        refreshCHR()
         
         dataChanged()
     end
@@ -1066,6 +1126,7 @@ function LoadCHRNESmaker_cmd()
 
         c = NESBuilder:getControl('CHRPalette')
         c.setAll(p)
+        NESBuilder:getControlNew('CHRPaletteQt').setAll(p)
         
         dataChanged()
     end
@@ -1086,13 +1147,16 @@ function LoadCHR_cmd()
     
     c = NESBuilder:getControl('CHRPalette')
     c.setAll(p)
+    NESBuilder:getControlNew('CHRPaletteQt').setAll(p)
     
     dataChanged()
 end
 
 function Open_cmd()
+    local q
+    
     if data.project.changed then
-        q= NESBuilder:askyesnocancel("", string.format("Save changes to %s?",data.projectID))
+        q = NESBuilder:askYesNoCancel{message=string.format("Save changes to %s?",data.projectID)}
         
         -- cancel
         if q==nil then return end
@@ -1120,7 +1184,7 @@ function onExit(cancel)
     print("onExit")
     
     if data.project.changed then
-        q= NESBuilder:askyesnocancel("", string.format('Save changes to "%s?"',data.projectID))
+        q= NESBuilder:askYesNoCancel("", string.format('Save changes to "%s?"',data.projectID))
         
         -- cancel
         if q==nil then return true end
@@ -1339,20 +1403,20 @@ function tsaTest_cmd()
     NESBuilder:getControlNew("tsaCanvas").loadCHRData(data.project.chr[data.project.chr.index], p)
 end
 
-function onTabChanged_cmd(t)
-    local tab = t.tab()
-    if t.window.name == "Main" then
-        if tab == "tsa" then
-            local p=data.project.palettes[data.project.palettes.index]
+--function onTabChanged_cmd(t)
+--    local tab = t.tab()
+--    if t.window.name == "Main" then
+--        if tab == "tsa" then
+--            local p=data.project.palettes[data.project.palettes.index]
             
-            local control = NESBuilder:getControlNew("tsaCanvas")
-            NESBuilder:getControlNew("tsaCanvas").loadCHRData(data.project.chr[data.project.chr.index], p)
+--            local control = NESBuilder:getControlNew("tsaCanvas")
+--            NESBuilder:getControlNew("tsaCanvas").loadCHRData(data.project.chr[data.project.chr.index], p)
             
-            updateSquareoid()
-        end
-    end
-    handlePluginCallback("onTabChanged", t)
-end
+--            updateSquareoid()
+--        end
+--    end
+--    handlePluginCallback("onTabChanged", t)
+--end
 
 function updateRecentProjects()
     local stack = NESBuilder:newStack(recentProjects.stack)
@@ -1371,12 +1435,13 @@ end
 function launcherRecentIcon_cmd(t)
     local id,n
     updateRecentProjects()
+    
     if t.index<=len(recentProjects.stack)-1 then
         n = len(recentProjects.stack)- 1 - t.index
         id = recentProjects.stack[n]
 
         if data.project.changed then
-            q= NESBuilder:askyesnocancel("", string.format("Save changes to %s?",data.projectID))
+            q= NESBuilder:askYesNoCancel("", string.format("Save changes to %s?",data.projectID))
             
             -- cancel
             if q==nil then return end
@@ -1390,3 +1455,17 @@ function launcherRecentIcon_cmd(t)
         LoadProject_cmd()
     end
 end
+
+function MainQttabs_cmd(t,a)
+    --print(t.control.currentWidget())
+    --handlePluginCallback("onTabChanged", t)
+end
+
+
+-- Convenience functions
+function currentPalette(n) return data.project.palettes[n or data.project.palettes.index] end
+function currentChr(n) return data.project.chr[n or data.project.chr.index] end
+
+
+
+

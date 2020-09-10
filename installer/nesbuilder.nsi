@@ -114,6 +114,7 @@ Section "-DefaultStuff"
         "${GitURL}plugins/hash.py" "plugins/hash.py"\
         "${GitURL}plugins/_debug.lua" "plugins/_debug.lua"\
         "${GitURL}plugins/_nesst.lua" "plugins/_nesst.lua"\
+        "${GitURL}plugins/nesst.py" "plugins/nesst.py"\
         /END
     Pop $0
 SectionEnd
@@ -167,6 +168,8 @@ Section "NESBuilder Source"
         "${GitURL}include/util.lua" "include/util.lua"\
         "${GitURL}include/SMBLevelExtract.py" "include/SMBLevelExtract.py"\
         "${GitURL}include/tkDave.py" "include/tkDave.py"\
+        "${GitURL}include/QtDave.py" "include/QtDave.py"\
+        "${GitURL}include/style.css" "include/style.css"\
         "${GitURL}include/config.py" "include/config.py"\
         "${GitURL}include/calc.py" "include/calc.py"\
         "${GitURL}chr.png" "chr.png"\

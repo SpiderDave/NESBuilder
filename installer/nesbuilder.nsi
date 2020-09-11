@@ -169,7 +169,7 @@ Section "NESBuilder Source"
         "${GitURL}include/SMBLevelExtract.py" "include/SMBLevelExtract.py"\
         "${GitURL}include/tkDave.py" "include/tkDave.py"\
         "${GitURL}include/QtDave.py" "include/QtDave.py"\
-        "${GitURL}include/style.css" "include/style.css"\
+        "${GitURL}include/style.qss" "include/style.qss"\
         "${GitURL}include/config.py" "include/config.py"\
         "${GitURL}include/calc.py" "include/calc.py"\
         "${GitURL}chr.png" "chr.png"\

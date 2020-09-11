@@ -55,12 +55,16 @@ local smbPaletteData = {
     {name = 'Palette3Data2', offset = 0x9d5, nColors = 4},
     {name = 'Palette3Data3', offset = 0x9d9, nColors = 4},
     {name = 'Palette3Data4', offset = 0x9dd, nColors = 4},
-    
-
 }
 
+-- create index
 for k,v in ipairs(smbPaletteData) do
     smbPaletteData[v.name]=v
+end
+
+-- create functions
+for i,item in ipairs(smbPaletteData) do
+    plugin['smbPalette'..item.name.."_cmd"] = function(t) smbPaletteCmd(t) end
 end
 
 function plugin.onInit()
@@ -167,7 +171,7 @@ function smbthingTest_cmd()
 end
 
 function smbthingLoadRom_cmd()
-    local f = NESBuilder:openFile({{"NES rom", ".nes"}})
+    local f = NESBuilder:openFile{filetypes={{"NES rom", ".nes"}}}
     if f == "" then
         print("Open cancelled.")
         return
@@ -204,7 +208,7 @@ end
 function smbthingSaveRomAs_cmd()
     if not plugin.fileData then return end
     
-    local f = NESBuilder:saveFileAs({{"NES rom", ".nes"}},'output.nes')
+    local f = NESBuilder:saveFileAs{filetypes={{"NES rom", ".nes"}}, initial='output.nes'}
     if f == "" then
         print("Save cancelled.")
     else
@@ -236,63 +240,15 @@ function smbthingRefreshPalettes()
 end
 
 function smbthingPalette_cmd(t)
-    if not t.cellNum then return end -- the frame was clicked.
     if t.event.button == 1 then
         plugin.selectedColor = t.cellNum
     end
 end
 
-function smbPaletteMario_cmd(t) smbPaletteCmd(t) end
-function smbPaletteLuigi_cmd(t) smbPaletteCmd(t) end
-function smbPaletteFire_cmd(t) smbPaletteCmd(t) end
-function smbPaletteWater1_cmd(t) smbPaletteCmd(t) end
-function smbPaletteWater2_cmd(t) smbPaletteCmd(t) end
-function smbPaletteWater3_cmd(t) smbPaletteCmd(t) end
-function smbPaletteWater4_cmd(t) smbPaletteCmd(t) end
-function smbPaletteWater5_cmd(t) smbPaletteCmd(t) end
-function smbPaletteWater6_cmd(t) smbPaletteCmd(t) end
-function smbPaletteWater7_cmd(t) smbPaletteCmd(t) end
-function smbPaletteWater8_cmd(t) smbPaletteCmd(t) end
-function smbPaletteGround1_cmd(t) smbPaletteCmd(t) end
-function smbPaletteGround2_cmd(t) smbPaletteCmd(t) end
-function smbPaletteGround3_cmd(t) smbPaletteCmd(t) end
-function smbPaletteGround4_cmd(t) smbPaletteCmd(t) end
-function smbPaletteGround5_cmd(t) smbPaletteCmd(t) end
-function smbPaletteGround6_cmd(t) smbPaletteCmd(t) end
-function smbPaletteGround7_cmd(t) smbPaletteCmd(t) end
-function smbPaletteGround8_cmd(t) smbPaletteCmd(t) end
-function smbPaletteCastle1_cmd(t) smbPaletteCmd(t) end
-function smbPaletteCastle2_cmd(t) smbPaletteCmd(t) end
-function smbPaletteCastle3_cmd(t) smbPaletteCmd(t) end
-function smbPaletteCastle4_cmd(t) smbPaletteCmd(t) end
-function smbPaletteCastle5_cmd(t) smbPaletteCmd(t) end
-function smbPaletteCastle6_cmd(t) smbPaletteCmd(t) end
-function smbPaletteCastle7_cmd(t) smbPaletteCmd(t) end
-function smbPaletteCastle8_cmd(t) smbPaletteCmd(t) end
-function smbPaletteUnderground1_cmd(t) smbPaletteCmd(t) end
-function smbPaletteUnderground2_cmd(t) smbPaletteCmd(t) end
-function smbPaletteUnderground3_cmd(t) smbPaletteCmd(t) end
-function smbPaletteUnderground4_cmd(t) smbPaletteCmd(t) end
-function smbPaletteUnderground5_cmd(t) smbPaletteCmd(t) end
-function smbPaletteUnderground6_cmd(t) smbPaletteCmd(t) end
-function smbPaletteUnderground7_cmd(t) smbPaletteCmd(t) end
-function smbPaletteUnderground8_cmd(t) smbPaletteCmd(t) end
-
-function smbPaletteRotate_cmd(t) smbPaletteCmd(t) end
-
-function smbPalettePalette3Data1_cmd(t) smbPaletteCmd(t) end
-function smbPalettePalette3Data2_cmd(t) smbPaletteCmd(t) end
-function smbPalettePalette3Data3_cmd(t) smbPaletteCmd(t) end
-function smbPalettePalette3Data4_cmd(t) smbPaletteCmd(t) end
-
-function smbPaletteBackground1_cmd(t) smbPaletteCmd(t) end
-function smbPaletteBackground2_cmd(t) smbPaletteCmd(t) end
-
 function smbPaletteCmd(t)
     local offset
     local p, control
     
-    if not t.cellNum then return end -- the frame was clicked.
     -- make sure file is loaded
     if not plugin.fileData then return end
     
@@ -300,7 +256,6 @@ function smbPaletteCmd(t)
     
     offset = 0x10+paletteData.offset
     
-    if not t.cellNum then return end -- the frame was clicked.
     if not plugin.fileData then return end
     
     if t.event.button == 1 then

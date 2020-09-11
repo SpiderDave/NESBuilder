@@ -2,7 +2,6 @@
 '''
 ToDo:
     * move to pyQt5!
-    * use @makeControl decorator on most/all control generating methods
     * make return value of control generating methods more consistant
     * makeCanvas method
     * clean up color variable names, add more
@@ -131,10 +130,10 @@ cfg = Cfg(filename=fixPath2("config.ini"))
 cfg.load()
 
 cfg.setDefault('main', 'stylemenus', 1)
-cfg.setDefault("main", "tearoff", 0)
 cfg.setDefault('main', 'project', "newProject")
 cfg.setDefault('main', 'upperhex', 0)
-cfg.setDefault('main', 'qtonly', 1)
+cfg.setDefault('main', 'alphawarning', 1)
+cfg.setDefault('main', 'loadplugins', 1)
 
 # make cfg available to lua
 lua_func = lua.eval('function(o) {0} = o return o end'.format('cfg'))
@@ -269,9 +268,9 @@ class ForLua:
                 # makedir maketab
                 makers = ['makeButton', 'makeCanvas', 'makeEntry', 'makeLabel', "makeTree",
                           'makeList', 'makeMenu', 'makePaletteControl', 'makePopupMenu',
-                          'makeText', 'makeWindow', 'makeCheckbox', 'makeLink', 'makeSpinBox',
+                          'makeText', 'makeWindow', 'makeSpinBox',
                           ]
-                QtWidgets = ['makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeCanvasQt', 'makeSideSpin']
+                QtWidgets = ['makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeCanvasQt', 'makeSideSpin', 'makeCheckbox', 'makeLink']
                 
                 if method_name in makers:
                     attr = getattr(self, method_name)
@@ -430,6 +429,9 @@ class ForLua:
         window = self.windowQt
         #window.tabParent.setCurrentWidget(window.tabs.get(tab))
         self.tabQt = window.tabs.get(tab)
+    def switchTab(self, tab):
+        window = self.windowQt
+        window.tabParent.setCurrentWidget(window.tabs.get(tab))
     def setWindowQt(self, window):
         self.windowQt=window
     def getCanvas(self, canvas=None):
@@ -446,12 +448,10 @@ class ForLua:
         m = QtDave.Dialog()
         foldername =  m.openFolder(initial=initial)
         return foldername, os.path.split(foldername)[1]
-    @lupa.unpacks_lua_table
     def openFile(self, filetypes, initial=None, parent=None):
         initial = fixPath(script_path + "/" + coalesce(initial,''))
         m = QtDave.Dialog()
         return coalesce(m.openFile(filetypes=filetypes, initial=initial), '')
-    @lupa.unpacks_lua_table
     def saveFileAs(self, filetypes, initial=None):
         initial = fixPath(script_path + "/" + coalesce(initial,''))
         m = QtDave.Dialog()
@@ -620,6 +620,14 @@ class ForLua:
         return unhexlify(str(s))
     def hexStringToList(self, s):
         return list(unhexlify(s))
+    def getFileContents(self, f, start=0):
+        # returns a list
+        file=open(f,"rb")
+        file.seek(start)
+        fileData = file.read()
+        file.close()
+        
+        return list(fileData)
     def loadCHRFile(self, f='chr.chr', colors=(0x0f,0x21,0x11,0x01), start=0):
         file=open(f,"rb")
         file.seek(start)
@@ -732,11 +740,9 @@ class ForLua:
 #        patchFile = fixPath2(patchFile)
 #        ips.createPatch(originalFile, modifiedFile, patchFile)
     def Quit(self):
-        if qt:
-            app.quit()
-            main.destroy()
-        else:
-            onExit()
+#        app.quit()
+#        main.destroy()
+        onExit()
     def switch(self):
         if qt:
             app.quit()
@@ -1001,7 +1007,8 @@ class ForLua:
     def makeTabQt(self, t):
         window = self.windowQt
         
-        if t.name in self.windowQt.tabs:
+        #if t.name in self.windowQt.tabs:
+        if self.windowQt.tabs.get(t.name):
             print('Not creating tab "{}" (already exists).'.format(t.name))
             return self.getControlNew(self, t.name)
         
@@ -1061,8 +1068,37 @@ class ForLua:
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
+    def makeCheckbox(self, t):
+        ctrl = QtDave.CheckBox(t.text, self.tabQt)
+        ctrl.init(t)
+        
+        t.control = ctrl
+        t.isChecked = ctrl.isChecked
+        t.setChecked = ctrl.setChecked
+        
+        if t.value: ctrl.setChecked(True)
+        
+        if t.image:
+            try:
+                # the frozen version will still try to load it manually first
+                ctrl.setIcon(fixPath2(t.image))
+            except:
+                folder, file = os.path.split(t.image)
+                ctrl.setIcon(BytesIO(pkgutil.get_data(folder, file)))
+        
+        ctrl.clicked.connect(makeCmdNoEvent(t))
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
     def makeLauncherIcon(self, t):
         ctrl = QtDave.LauncherIcon(self.tabQt)
+        ctrl.init(t)
+        ctrl.mousePressEvent = makeCmdNew(t)
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
+    def makeLink(self, t):
+        ctrl = QtDave.Link(t.text, self.tabQt)
         ctrl.init(t)
         ctrl.mousePressEvent = makeCmdNew(t)
         controlsNew.update({ctrl.name:ctrl})
@@ -1097,7 +1133,7 @@ class ForLua:
 
         
         return window.addMenu(t.name, t.text, menuItems)
-    def makeButton(self, t, variables):
+    def _makeButton(self, t, variables):
         x,y,w,h = variables
         imgctrl = False
         
@@ -1227,7 +1263,7 @@ class ForLua:
                         )
         else:
             # create menu
-            menu = tk.Menu(tab, tearoff=tearoff)
+            menu = tk.Menu(tab, tearoff=0)
             
             if cfg.getValue("main","styleMenus"):
                 menu.config(bg=config.colors.bk2,fg=config.colors.fg, activebackground=config.colors.bk_menu_highlight)
@@ -1334,44 +1370,6 @@ class ForLua:
         #control.bind( "<ButtonRelease-1>", makeCmdNew(t))
         return t
         
-    def makeCheckbox(self, t, variables):
-        x,y,w,h = variables
-        
-        v=tk.IntVar()
-        if t.value:
-            v.set(t.value)
-        
-        control = tkDave.CheckBox(self.getTab(self), variable = v, text=t.text)
-        control.config(fg=config.colors.fg, bg=config.colors.bk, activebackground=config.colors.bk, activeforeground=config.colors.fg,selectcolor=config.colors.bk2, takefocus = 0)
-        control.place(x=x, y=y)
-        
-        def get():
-            return int(v.get())
-        def set(value):
-            return v.sett(value)
-        def setFont(fontName="Verdana", size=12):
-            control.config(font=(fontName, size))
-            t.update()
-
-        t=lua.table(name=t.name,
-                    control=control,
-                    text = t.text,
-                    variable = v,
-                    get = get,
-                    set = set,
-                    setFont = setFont,
-                    )
-        
-        # have to do this differently because a click
-        # event binding would fire before the check
-        # state change.
-        cmd = makeCmdNew(t)
-        control.config(command=lambda: cmd(t))
-        
-        controls.update({t.name:t})
-        
-        return t
-
     def makeList(self, t, variables):
         x,y,w,h = variables
         
@@ -1560,7 +1558,7 @@ class ForLua:
 
         control.bind( "<Button-1>", makeCmdNew(t))
         return t
-    def makeLink(self, t, variables):
+    def _makeLink(self, t, variables):
         x,y,w,h = variables
         control = tkDave.Link(self.getTab(self), text=t.text, borderwidth=1, background="white", relief="solid")
         control.config(fg=config.colors.link, borderwidth=0)
@@ -1812,9 +1810,8 @@ class ForLua:
         atexit.unregister(exitCleanup)
         sys.exit()
     def restart(self):
-        if qt:
-            app.quit()
-            main.destroy()
+        app.quit()
+        main.destroy()
         
         #if onExit(skipCallback=True):
         if onExit():
@@ -1924,22 +1921,26 @@ def onExit(skipCallback=False):
         exit = not lua.eval('onExit()')
     if exit:
         exitCleanup()
-        root.quit()
+        app.quit()
         return true
 
+main.onClose = onExit
+
 def exitCleanup():
-    w,h = root.winfo_width(), root.winfo_height()
-    if w==200 and h==200: return
+    x = max(0, main.x())
+    y = max(0, main.y())
+    w = max(500, main.width)
+    h = max(400, main.height)
     
-    cfg.setValue('main','x', root.winfo_x())
-    cfg.setValue('main','y', root.winfo_y())
-    cfg.setValue('main','w', root.winfo_width())
-    cfg.setValue('main','h', root.winfo_height())
+    if w>=500 and h>=400 and x>0 and y>0:
+        cfg.setValue('main','x', x)
+        cfg.setValue('main','y', y)
+        cfg.setValue('main','w', w)
+        cfg.setValue('main','h', h)
     cfg.save()
 
 # run function on exit
 atexit.register(exitCleanup)
-
 
 ctrl = QtDave.TabWidget(main)
 main.tabParent = ctrl
@@ -1967,8 +1968,6 @@ tab_parent = ttk.Notebook(root)
 windows={}
 
 tab_parent.pack(expand=1, fill='both')
-
-tearoff = cfg.getValue("main","tearoff")
 
 var = tk.IntVar()
 def on_click():
@@ -2079,37 +2078,38 @@ except LuaError as err:
 lua.execute("plugins = {}")
 
 # load lua plugins
-folder = config.pluginFolder
-folder = fixPath(script_path + "/" + folder)
-if os.path.exists(folder):
-    lua.execute("""
-    local _plugin
-    """)
-    for file in os.listdir(folder):
-        if file.endswith(".lua") and not file.startswith("_"):
-            print("Loading plugin: "+file)
-            code = """
-                NESBuilder:setWorkingFolder()
-                _plugin = require("{0}.{1}")
-                if type(_plugin) =="table" then
-                    plugins[_plugin.name or "{1}"]=_plugin
-                    _plugin.file = "{2}"
-                    _plugin.name = _plugin.name or "{1}"
-                    _plugin.data = _plugin.data or {{}}
-                end
-            """.format(config.pluginFolder,os.path.splitext(file)[0], file)
-            #print(fancy(code))
-            try:
-                lua.execute(code)
-            except LuaError as err:
-                print("*** Failed to load plugin: "+file)
-                handleLuaError(err)
-            
-    try:
-        lua.execute("if onPluginsLoaded then onPluginsLoaded() end")
-    except LuaError as err:
-        print("*** onPluginsLoaded() Failed")
-        handleLuaError(err)
+if cfg.getValue("main","loadplugins"):
+    folder = config.pluginFolder
+    folder = fixPath(script_path + "/" + folder)
+    if os.path.exists(folder):
+        lua.execute("""
+        local _plugin
+        """)
+        for file in os.listdir(folder):
+            if file.endswith(".lua") and not file.startswith("_"):
+                print("Loading plugin: "+file)
+                code = """
+                    NESBuilder:setWorkingFolder()
+                    _plugin = require("{0}.{1}")
+                    if type(_plugin) =="table" then
+                        plugins[_plugin.name or "{1}"]=_plugin
+                        _plugin.file = "{2}"
+                        _plugin.name = _plugin.name or "{1}"
+                        _plugin.data = _plugin.data or {{}}
+                    end
+                """.format(config.pluginFolder,os.path.splitext(file)[0], file)
+                #print(fancy(code))
+                try:
+                    lua.execute(code)
+                except LuaError as err:
+                    print("*** Failed to load plugin: "+file)
+                    handleLuaError(err)
+                
+        try:
+            lua.execute("if onPluginsLoaded then onPluginsLoaded() end")
+        except LuaError as err:
+            print("*** onPluginsLoaded() Failed")
+            handleLuaError(err)
 try:
     lua.execute("if onReady then onReady() end")
 except LuaError as err:
@@ -2139,16 +2139,13 @@ r = dict(
     borderLight=config.colors.borderLight,
     borderDark=config.colors.borderDark,
     bkHover=config.colors.bk_hover,
+    link=config.colors.link,
+    linkHover=config.colors.linkHover,
 )
-
 for (k,v) in r.items():
     s = s.replace("_"+k+"_", v)
 
-#main.setStyleSheet(s)
 app.setStyleSheet(s)
-
-
-#root.iconbitmap(sys.executable)
 
 if not frozen:
     main.setIcon(fixPath2('icon.ico'))
@@ -2156,12 +2153,7 @@ if not frozen:
 
 controlsNew.update({main.name:main})
 
-qt=True
 main.show()
 app.mainloop()
-qt=False
-# show the window
 
-#root.deiconify()
-#root.mainloop()
 

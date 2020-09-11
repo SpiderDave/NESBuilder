@@ -58,6 +58,7 @@ clamp = lambda value, minv, maxv: max(min(value, maxv), minv)
 
 clip = {}
 
+
 class App(QApplication):
     def __init__(self, args=[], **kw):
         super().__init__(args, **kw)
@@ -65,7 +66,6 @@ class App(QApplication):
         super().exec_()
     def quit(self):
         QCoreApplication.quit()
-
 
 class Base():
     def __init__(self, *args, **kw):
@@ -104,6 +104,7 @@ class Base():
         return super().property('class')
     def addCssClass(self, value):
         value = value.strip()
+        #super().setProperty('CssClass', value)
         classes = super().property('class') or ''
         
         if value.lower() in classes.lower().split():
@@ -168,6 +169,27 @@ class Label(Base, QLabel):
         else:
             super().__setattr__(key,v)
 
+class Link(Label):
+    def init(self, t):
+        super().init(t)
+        # There's no reason for a font tag in 2020, except it just doesn't
+        # let me style this properly with the qss or even setStyleSheet.
+        self.setText('<a href="{0}"><font color="white">{1}</font></a>'.format(t.url,t.text))
+        self.addCssClass("link")
+        self.setOpenExternalLinks(True)
+        self.linkHovered.connect(self._linkHovered)
+        self.linkActivated.connect(self._linkClicked)
+        #self.setStyleSheet("color: blue;border:1px solid blue;")
+    def _linkHovered(self):
+        #print('hover')
+        #self.text = self.text.replace("white","blue")
+        #self.setStyleSheet("color: blue;border:1px solid red;")
+        pass
+    def _linkClicked(self):
+        #print('click')
+        pass
+
+class CheckBox(Base, QCheckBox): pass
 
 class LauncherIcon(Base, QFrame):
     def init(self, t):
@@ -214,6 +236,7 @@ class MainWindow(Base, QMainWindow):
         self.tabs = dict()
         self.menus = dict()
         self.loaded = False
+        self.onClose = False
         
         #exitAct = QAction(QIcon('exit.png'), '&Exit', self)
         #exitAct.setShortcut('Ctrl+Q')
@@ -256,6 +279,18 @@ class MainWindow(Base, QMainWindow):
     def initUI(self):
         self.setGeometry(300, 300, 300, 220)
         #self.setWindowTitle("Window title")
+    def closeEvent(self, event):
+        print("User has clicked the red x on the main window")
+        if self.onClose:
+            if self.onClose():
+                event.accept()
+            else:
+                event.ignore()
+            return
+        event.accept()
+
+
+
 
 class Dialog():
     def askYesNo(self, title="", message=""):
@@ -463,9 +498,19 @@ class PaletteButton(Label):
         
 # todo: always use indexed palettes
 class PaletteControl(Base, QFrame):
+    upperHex = False
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
+        self.__class__.cls = self.__class__
+    
     def init(self, t):
         super().init(t)
-        #super().setProperty('class', 'paletteControl')
+        
+        if t.upperHex in (True, False):
+            self.upperHex = self.cls.upperHex = t.upperHex
+        else:
+            self.upperHex = t.upperHex = self.cls.upperHex
+        
         self.addCssClass('paletteControl')
         pw=len(t.palette) %0x10+1
         ph=math.floor(len(t.palette) /0x10)+1
@@ -481,7 +526,10 @@ class PaletteControl(Base, QFrame):
                 ctrl.move(1+x*ctrl.width,1+y*ctrl.height)
                 
                 i=y*0x10+x
-                ctrl.setText("{0:02x}".format(i), autoSize=False)
+                if self.cls.upperHex:
+                    ctrl.setText("{0:02X}".format(i), autoSize=False)
+                else:
+                    ctrl.setText("{0:02x}".format(i), autoSize=False)
                 bg = "#{0:02x}{1:02x}{2:02x}".format(t.palette[i][1],t.palette[i][2],t.palette[i][3])
                 fg = 'white' if x>=(0x00,0x01,0x0d,0x0e)[y] else 'black'
                 ctrl.setStyleSheet("""
@@ -490,8 +538,6 @@ class PaletteControl(Base, QFrame):
                 """.format(bg, fg))
                 
                 self.cells.append(ctrl)
-                #ctrl.clicked.connect(makeCmdNew(t))
-                #controlsNew.update({ctrl.name:ctrl})
     def setAll(self, colors):
         colors = [x for _,x in colors.items()]
         for i, c in enumerate(colors):
@@ -507,7 +553,12 @@ class PaletteControl(Base, QFrame):
         background-color :{0};
         color :{1};
         """.format(bg, fg))
-        cell.setText("{0:02x}".format(c), autoSize=False)
+        #cell.setText("{0:02x}".format(c), autoSize=False)
+        if self.cls.upperHex:
+            cell.setText("{0:02X}".format(c), autoSize=False)
+        else:
+            cell.setText("{0:02x}".format(c), autoSize=False)
+
         
 class SideSpin(Base, QFrame):
     def init(self, t):

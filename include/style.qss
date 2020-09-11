@@ -137,10 +137,6 @@ QMessageBox QPushButton {
     margin:0 auto;
 }
 
-QLabel {
-
-}
-
 .launcherIcon {
     background-color:_bk2_;
 }
@@ -162,4 +158,8 @@ QLabel {
  
     background-color:transparent;
     background-color:_bk2_;
+}
+
+QCheckBox {
+    font-size:12pt;
 }

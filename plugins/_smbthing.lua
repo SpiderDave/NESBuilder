@@ -157,6 +157,9 @@ function plugin.onInit()
 end
 
 function smbthingTest_cmd()
+    -- make sure file is loaded
+    if not plugin.fileData then return end
+
 --    local f = plugin.outputFile or plugin.inputFile
 --    if not f then return end
 --    local workingFolder = f

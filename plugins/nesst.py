@@ -40,6 +40,12 @@ def getData(filename):
             else:
                 v = int(v)
             d.update({k:v})
+    
+    d.update(CHRBank = d.get('VarBankActive')/4096)
+    
+    chr = bytearray.fromhex(d.get('CHRMain'))
+    d.update(CHR = [list(chr[0:0x1000]),list(chr[0x1000:])])
+    
     return d
 
 def unRLE(d):

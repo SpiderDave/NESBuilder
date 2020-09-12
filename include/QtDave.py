@@ -1,3 +1,4 @@
+import os
 import math
 from random import randrange
 import numpy as np
@@ -12,7 +13,7 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
         QProgressBar, QPushButton, QRadioButton, QScrollBar, QSizePolicy,
         QSlider, QSpinBox, QStyleFactory, QTableWidget, QTabWidget, QTextEdit,
         QVBoxLayout, QWidget, QAction, QMainWindow, QMessageBox, QFileDialog, 
-        QInputDialog, QErrorMessage, QFrame
+        QInputDialog, QErrorMessage, QFrame, QPlainTextEdit
         )
 
 nesPalette=[
@@ -141,14 +142,29 @@ class Base():
             screenshot.save('shot.jpg', 'jpg')
         except: pass
 
+class TextEdit(Base, QPlainTextEdit):
+    def save(self, filename):
+        try:
+            with open(filename, "w") as file:
+                file.write(self.toPlainText())
+        except:
+            pass
+    def load(self, filename):
+        try:
+            with open(filename, "r") as file:
+                self.setPlainText(file.read())
+        except:
+            pass
+
 class Button(Base, QPushButton):
     def setIcon(self, f):
         try:
             super().setIcon(QIcon(f))
             self.setIconSize(QSize(64, 64))
             super().setProperty('hasIcon', True)
+            return True
         except:
-            pass
+            return False
 
 
 class Label(Base, QLabel):
@@ -280,7 +296,6 @@ class MainWindow(Base, QMainWindow):
         self.setGeometry(300, 300, 300, 220)
         #self.setWindowTitle("Window title")
     def closeEvent(self, event):
-        print("User has clicked the red x on the main window")
         if self.onClose:
             if self.onClose():
                 event.accept()
@@ -341,8 +356,10 @@ class Dialog():
             filter = ";;".join([x+" ("+y+")" for x,y in types])
             filter=filter.replace("(.","(*.")
         
-        file, _ = d.getSaveFileName(None, title, initial, filter)
-        return file
+        file, selectedFilter = d.getSaveFileName(None, title, initial, filter)
+        if file:
+            return file, os.path.splitext(file)[1].lower(), selectedFilter
+        return None, None, None
     def askText(self, title="Enter Text", label=None):
         # trims whitespace and returns false on the empty string.
         

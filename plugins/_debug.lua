@@ -12,9 +12,8 @@ function plugin.onInit()
         {name="restart", text="Restart"},
         {name="forceClose", text="Force Close"},
         {name="openMainFolder", text="Open Main Folder"},
-        {name="openPluginFolder", text="Open Plugin Folder"},
+        {name="openPluginFolder", text="Open Plugins Folder"},
     }
-    control = NESBuilder:makeMenu{name="debugMenu", text="Debug", items=items, prefix=true}
     control = NESBuilder:makeMenuQt{name="debugMenu", text="Debug", menuItems=items, prefix=true}
 end
 

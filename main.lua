@@ -18,14 +18,20 @@ config = {
         menuBk='#404056',
         bk_menu_highlight='#606080',
         tkDefault='#656570',
-        link="#88f",
-        linkHover="white",
-        borderLight="#56565a",
-        borderDark="#101020",
+        link='#88f',
+        linkHover='white',
+        borderLight='#56565a',
+        borderDark='#101020',
+        textInputBorder='#99a',
     },
     pluginFolder = "plugins", -- this one is for python
     nRecentFiles = 20,
 }
+
+config.pad = 6
+config.left = config.pad*1.5
+config.top = config.pad*1.5
+
 
 config.launchText=[[
 Created by SpiderDave
@@ -47,6 +53,10 @@ Features:
 -- global stacks
 stack, push, pop = NESBuilder:newStack()
 recentProjects = NESBuilder:newStack{maxlen=config.nRecentFiles}
+
+local foo=42
+pad,left,top=config.pad, config.left, config.top
+
 
 -- Overriding print and adding all sorts of neat things.
 -- This is really complicated and should probably move to
@@ -297,12 +307,7 @@ function init()
     b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="LoadCHR",text="Load .chr"}
     y = y + b.height + pad
     
-    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="ExportCHRImage",text="Export to .png"}
-    y = y + b.height + pad
-    
-    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="CHRTest",text="test"}
-    y = y + b.height + pad
-    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="CHRTest2",text="test 2"}
+    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="ExportCHR",text="Export CHR"}
     y = y + b.height + pad
     
     x=128*3+pad*3
@@ -340,7 +345,7 @@ function init()
     y = y + control.height + pad
     control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonPreferences",text="Preferences", image="icons/gear32.png", iconMod=true}
     y = y + control.height + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonInfo",text="Info", image="icons/note32.png", iconMod=true}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonInfo",text="About", image="icons/note32.png", iconMod=true}
     y = y + control.height + pad
     
     x=x+control.width+pad
@@ -858,7 +863,7 @@ function BuildProject_cmd()
         if data.project.chr[i] then
             local f = data.folders.projects..data.project.folder..string.format("chr/chr%02x.chr",i)
             print("File created "..f)
-            util.writeToFile(f, 0, data.project.chr[i], true)
+            NESBuilder:saveArrayToFile(f, data.project.chr[i])
         end
     end
     
@@ -990,15 +995,13 @@ function LoadProject_cmd()
     
     data.project.chr = data.project.chr or {index=0}
     
+    data.project.chr.index = data.project.chr.index or 0
+    
     handlePluginCallback("onLoadProject")
     
-    -- update palette entry
-    --data.project.palettes.index = 0
     PaletteEntryUpdate()
     
     dataChanged(false)
-    
-    --recentProjects.stack.push(42)
     
     recentProjects.remove(data.projectID)
     recentProjects.push(data.projectID)
@@ -1016,6 +1019,11 @@ end
 function SaveProject_cmd()
     -- make sure folder exists for this project
     NESBuilder:makeDir(data.folders.projects..data.project.folder)
+    
+    -- Convert python lists so they can be serialized.
+    for i,v in ipairs(data.project.chr) do
+        data.project.chr[i] = NESBuilder:listToTable(data.project.chr[i])
+    end
     
     handlePluginCallback("onSaveProject")
     
@@ -1090,6 +1098,8 @@ function refreshCHR()
     surface.applyPalette(currentPalette())
     -- paste the surface on our canvas (it will be sized to fit)
     control.paste(surface)
+    
+    handlePluginCallback("onCHRRefresh", surface)
 end
 
 function LoadCHRImage_cmd()
@@ -1112,7 +1122,7 @@ end
 
 function LoadCHRNESmaker_cmd()
     local CHRData
-    local f = NESBuilder:openFile{filetypes={{"Images", ".png"}}}
+    local f = NESBuilder:openFile{filetypes={{"Bitmap (NESMaker)", ".bmp"}}, initial="foobar.baz"}
     if f == "" then
         print("Open cancelled.")
     else
@@ -1128,9 +1138,9 @@ function LoadCHRNESmaker_cmd()
     end
 end
 
-function ExportCHRImage_cmd()
-    local filename = string.format("chr%02x_export.png",data.project.palettes.index)
-    local f = NESBuilder:saveFileAs{filetypes={{"PNG", ".png"}},initial=filename}
+function ExportCHR_cmd()
+    local filename = string.format("chr_%02x_export.png",data.project.chr.index)
+    local f, ext, filter = NESBuilder:saveFileAs{filetypes={{"PNG", ".png"},{"Bitmap", ".bmp"}, {"Bitmap (NESMaker)", ".bmp"}, {"Raw CHR Data", ".chr"}}, initial=filename}
     if f == "" then
         print("Export cancelled.")
     else
@@ -1143,9 +1153,33 @@ function ExportCHRImage_cmd()
     local surface = NESBuilder:makeNESPixmap(128,128)
     -- load CHR Data to the surface
     surface.loadCHR(currentChr())
-    -- apply current palette to it
-    surface.applyPalette(currentPalette())
-    surface.save(filename)
+    
+    if filter ~= "Bitmap (NESMaker) (*.bmp)" then
+        -- apply current palette to it
+        surface.applyPalette(currentPalette())
+    end
+    
+    local formats = {
+        bmp = "BMP",
+        gif = "GIF",
+        jpg = "JPEG",
+        jpeg = "JPEG",
+        png = "PNG",
+        pbm = "PBM",
+        ppm = "PPM",
+        xbm = "XBM",
+        xpm = "XPM",
+    }
+    
+    fmt = formats[string.sub(ext, 2)]
+    
+    if fmt then
+        surface.save(f, fmt)
+    elseif ext == ".chr" then
+        util.writeToFile(f, 0, currentChr(), true)
+    else
+        print("unknown extension "..ext)
+    end
 end
 
 function LoadCHR_cmd()
@@ -1208,21 +1242,20 @@ function onExit(cancel)
     
 end
 
-function CHR_cmd(t)
-    local n = tonumber(t.name:sub(4))
+function CHR_cmd(n)
     data.project.chr.index = n
     
     refreshCHR()
 end
 
-CHR0_cmd = CHR_cmd
-CHR1_cmd = CHR_cmd
-CHR2_cmd = CHR_cmd
-CHR3_cmd = CHR_cmd
-CHR4_cmd = CHR_cmd
-CHR5_cmd = CHR_cmd
-CHR6_cmd = CHR_cmd
-CHR7_cmd = CHR_cmd
+CHR0_cmd = function(t) CHR_cmd(0) end
+CHR1_cmd = function(t) CHR_cmd(1) end
+CHR2_cmd = function(t) CHR_cmd(2) end
+CHR3_cmd = function(t) CHR_cmd(3) end
+CHR4_cmd = function(t) CHR_cmd(4) end
+CHR5_cmd = function(t) CHR_cmd(5) end
+CHR6_cmd = function(t) CHR_cmd(6) end
+CHR7_cmd = function(t) CHR_cmd(7) end
 
 function canvas_cmd(t)
     local x = math.floor(t.event.x/t.scale)
@@ -1237,7 +1270,7 @@ function canvas_cmd(t)
     local cBits = NESBuilder:numberToBitArray(c)
     
     
-    if not data.project.chr[data.project.chr.index] then
+    if not currentChr() then
         -- Load in blank CHR if drawing on empty CHR.
         NESBuilder:setCanvas("canvas")
         data.project.chr[data.project.chr.index] = NESBuilder:newCHRData()
@@ -1491,6 +1524,10 @@ tsaCanvasQt_cmd = canvasQt_cmd
 tsaCanvas2Qt_cmd = canvasQt_cmd
 tsaTileCanvasQt_cmd = canvasQt_cmd
 
+function buttonWarningClose_cmd() closeTab('Warning', 'Launcher') end
+function buttonPreferencesClose_cmd() closeTab('tabPreferences', 'Launcher') end
+function buttonInfoClose_cmd() closeTab('infoTab', 'Launcher') end
+
 
 -- Convenience functions
 function currentPalette(n) return data.project.palettes[n or data.project.palettes.index] end
@@ -1506,21 +1543,14 @@ function cfgGet(section, key)
 end
 
 -- Close a tab in current window
-function closeTab(tabName)
+function closeTab(tabName, switchTo)
     local control = NESBuilder:getWindowQt()
     control.tabParent.removeTab(control.tabParent.indexOf(control.tabs[tabName]))
     control.tabs[tabName] = nil
+    if switchTo then
+        NESBuilder:switchTab(switchTo)
+    end
 end
 
-function buttonWarningClose_cmd()
-    closeTab('Warning')
-    NESBuilder:switchTab("Launcher")
-end
-function buttonPreferencesClose_cmd()
-    closeTab('tabPreferences')
-    NESBuilder:switchTab("Launcher")
-end
-function buttonInfoClose_cmd()
-    closeTab('infoTab')
-    NESBuilder:switchTab("Launcher")
-end
+
+

@@ -48,7 +48,9 @@ except: badImport('numpy')
 
 from shutil import copyfile
 import subprocess
+import traceback
 
+from tempfile import NamedTemporaryFile
 #from textwrap import dedent
 
 import math
@@ -134,6 +136,8 @@ cfg.setDefault('main', 'project', "newProject")
 cfg.setDefault('main', 'upperhex', 0)
 cfg.setDefault('main', 'alphawarning', 1)
 cfg.setDefault('main', 'loadplugins', 1)
+cfg.setDefault('main', 'breakonpythonerrors', 0)
+cfg.setDefault('main', 'breakonluaerrors', 0)
 
 # make cfg available to lua
 lua_func = lua.eval('function(o) {0} = o return o end'.format('cfg'))
@@ -270,7 +274,7 @@ class ForLua:
                           'makeList', 'makeMenu', 'makePaletteControl', 'makePopupMenu',
                           'makeText', 'makeWindow', 'makeSpinBox',
                           ]
-                QtWidgets = ['makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeCanvasQt', 'makeSideSpin', 'makeCheckbox', 'makeLink']
+                QtWidgets = ['makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeCanvasQt', 'makeSideSpin', 'makeCheckbox', 'makeLink', 'makeTextEdit']
                 
                 if method_name in makers:
                     attr = getattr(self, method_name)
@@ -280,7 +284,7 @@ class ForLua:
                     attr = getattr(self, method_name)
                     wrapped = self.QtWrapper(attr)
                     setattr(self, method_name, wrapped)
-                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap']:
+                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap','listToTable']:
                     # getNESColors: excluded because it may have a table as its first parameter
                     # makeControl: excluded because it's a decorator
                     pass
@@ -455,21 +459,14 @@ class ForLua:
     def saveFileAs(self, filetypes, initial=None):
         initial = fixPath(script_path + "/" + coalesce(initial,''))
         m = QtDave.Dialog()
-        return coalesce(m.saveFile(filetypes=filetypes, initial=initial), '')
+        file, ext, filter = m.saveFile(filetypes=filetypes, initial=initial)
+        file = coalesce(file, '')
+        ext = coalesce(ext, '')
+        return (file, ext, filter)
     def lift(self, window=None):
         window = self.getWindow(self, window)
         window.control.lift()
         window.control.focus_force()
-    def _saveFileAs(self, filetypes, initial=None):
-        types = list()
-        
-        if filetypes:
-            for t in filetypes:
-                types.append([filetypes[t][1],filetypes[t][2]])
-        
-        types.append(["All files","*.*"])
-        filename =  filedialog.asksaveasfilename(title = "Select file",filetypes = types, initialfile=initial, parent=root.getTopWindow())
-        return filename
     def importFunction(self, mod, f):
         m = importlib.import_module(mod)
         setattr(self, f, getattr(m, f))
@@ -543,6 +540,18 @@ class ForLua:
     def getLen(self, item):
         # todo: make work for lua stuff
         return len(item)
+    def listToTable(self, l, base=1):
+        if lupa.lua_type(l)=='table': return l
+        if l==None: return l
+        if type(l) is int: return None
+        
+        if base==0:
+            t = lua.table()
+            for i, item in enumerate(l):
+                t[i] = item
+            return t
+        
+        return lua.table_from(l)
     def test(self, x=0,y=0):
         canvas = self.getCanvas(self, 'tsaTileCanvas')
         f = r"J:\svn\NESBuilder\mtile.png"
@@ -604,7 +613,7 @@ class ForLua:
         file.close()
         fileData = list(fileData)
         return fileData
-    def saveArrayToFile(self, fileData, f):
+    def saveArrayToFile(self, f, fileData):
         f = fixPath2(f)
         file=open(f,"wb")
         file.write(bytes(fileData))
@@ -742,7 +751,9 @@ class ForLua:
     def Quit(self):
 #        app.quit()
 #        main.destroy()
-        onExit()
+        #onExit()
+        print("Quit selected")
+        main.close()
     def switch(self):
         if qt:
             app.quit()
@@ -1057,14 +1068,24 @@ class ForLua:
 #            print(ctrl.setIcon(image))
         
         if t.image:
-            try:
-                # the frozen version will still try to load it manually first
-                ctrl.setIcon(fixPath2(t.image))
-            except:
-                folder, file = os.path.split(t.image)
-                ctrl.setIcon(BytesIO(pkgutil.get_data(folder, file)))
+            folder, file = os.path.split(t.image)
+            #print(folder,file)
+            d = os.path.dirname(sys.modules[folder].__file__)
+            #print(d)
+            filename = os.path.join(d, file)
+            #print(filename)
+            ctrl.setIcon(filename)
+                
+                
         
         ctrl.clicked.connect(makeCmdNew(t))
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
+    def makeTextEdit(self, t):
+        ctrl = QtDave.TextEdit(t.text, self.tabQt)
+        ctrl.init(t)
+        #ctrl.clicked.connect(makeCmdNew(t))
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
@@ -1807,7 +1828,7 @@ class ForLua:
     def makeTab(self, name, text):
         self.createTab(self, name, text)
     def forceClose(self):
-        atexit.unregister(exitCleanup)
+        #atexit.unregister(exitCleanup)
         sys.exit()
     def restart(self):
         app.quit()
@@ -1913,11 +1934,25 @@ def doCommandNew(*args, ev=False, extra = False):
         lua_func(args)
     except LuaError as err:
         handleLuaError(err)
+    except Exception as err:
+        handlePythonError(err)
+
+def handlePythonError(err=None):
+    print("-"*79)
+    e = traceback.format_exc().splitlines()
+    e = "\n".join([x for x in e if "lupa\_lupa.pyx" not in x])
+    print(e)
+    print("-"*79)
+    
+    if cfg.getValue("main","breakonpythonerrors"):
+        sys.exit(1)
 
 def onExit(skipCallback=False):
     print('onExit')
     exit = True
-    if (not skipCallback) and lua.eval('type(onExit)') == 'function':
+    if skipCallback:
+        pass
+    elif lua.eval('type(onExit)') == 'function':
         exit = not lua.eval('onExit()')
     if exit:
         exitCleanup()
@@ -1927,10 +1962,10 @@ def onExit(skipCallback=False):
 main.onClose = onExit
 
 def exitCleanup():
-    x = max(0, main.x())
-    y = max(0, main.y())
-    w = max(500, main.width)
-    h = max(400, main.height)
+    x = main.x()
+    y = main.y()
+    w = main.width
+    h = main.height
     
     if w>=500 and h>=400 and x>0 and y>0:
         cfg.setValue('main','x', x)
@@ -1940,7 +1975,7 @@ def exitCleanup():
     cfg.save()
 
 # run function on exit
-atexit.register(exitCleanup)
+#atexit.register(exitCleanup)
 
 ctrl = QtDave.TabWidget(main)
 main.tabParent = ctrl
@@ -2008,6 +2043,10 @@ def handleLuaError(err):
     print(err)
     print()
     print("-"*80)
+
+    if cfg.getValue("main","breakonluaerrors"):
+        sys.exit(1)
+
 
 lua.execute("True, False = true, false")
 lua.execute("len = function(item) return NESBuilder:getLen(item) end")
@@ -2141,6 +2180,7 @@ r = dict(
     bkHover=config.colors.bk_hover,
     link=config.colors.link,
     linkHover=config.colors.linkHover,
+    textInputBorder=config.colors.textInputBorder,
 )
 for (k,v) in r.items():
     s = s.replace("_"+k+"_", v)

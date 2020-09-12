@@ -47,9 +47,9 @@ function plugin.onInit()
     push(x)
     control=NESBuilder:makeLabelQt{x=x,y=y+3,clear=true,text="Pattern table"}
     x = x + control.width + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=30,h=buttonHeight, name="CHR0",text="A", toggle=1, toggleSet = "chrAB"}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=30,h=buttonHeight, name="nesstCHR0",text="A", toggle=1, toggleSet = "chrAB"}
     x = x + control.width + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=30,h=buttonHeight, name="CHR1",text="B", toggle=1, toggleSet = "chrAB"}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=30,h=buttonHeight, name="nesstCHR1",text="B", toggle=1, toggleSet = "chrAB"}
     --control.setValue(1)
     y = y + control.height + pad
     x=pop()
@@ -108,16 +108,17 @@ function plugin.onInit()
     plugin.loadDefault()
 end
 
-function plugin.CHR0_cmd(t)
-    --NESBuilder:getControlNew("CHR1").setValue(1-t.getValue())
-    CHR0_cmd(t)
-    plugin.updateTileset()
+function plugin.onCHRRefresh(surface)
+    NESBuilder:getControl("nesstTileset").paste(surface)
 end
-function plugin.CHR1_cmd(t)
-    --NESBuilder:getControlNew("CHR0").setValue(1-t.getValue())
-    CHR1_cmd(t)
-    plugin.updateTileset()
+
+function nesstCHR(n)
+    setChr(n)
+    refreshCHR()
 end
+
+function plugin.nesstCHR0_cmd(t) nesstCHR(0) end
+function plugin.nesstCHR1_cmd(t) nesstCHR(1) end
 
 function plugin.onTabChanged(t)
     if t.window.name == "Main" then
@@ -138,12 +139,12 @@ function plugin.loadDefault()
     
     p=data.project.palettes[data.project.palettes.index]
     control = NESBuilder:getControlNew("nesstTileset")
-    control.loadCHRData{imageData=data.project.chr[data.project.chr.index], colors=p,columns=16,rows=16}
+    control.loadCHRData{imageData=currentChr(), colors=p,columns=16,rows=16}
     
     control = NESBuilder:getControlNew("nesstCanvas")
     control.columns = 32
     control.rows = 30
-    control.chrData = data.project.chr[data.project.chr.index]
+    control.chrData = currentChr()
     
     for i=0,3 do
         plugin.paletteControls[i+1].setAll(data.project.palettes[i])
@@ -184,7 +185,7 @@ end
 function plugin.nesstLoad_cmd()
     local control,p,d,f,chr
     
-    f = NESBuilder:openFile({{"NES Screen Tool Session", ".nss"}})
+    f = NESBuilder:openFile{filetypes={{"NES Screen Tool Session", ".nss"}}}
     
     if f == "" then
         print("Open cancelled.")
@@ -193,46 +194,53 @@ function plugin.nesstLoad_cmd()
     
     plugin.data.file = f
     
+    -- Get Screen Tool data from .nss file
     local getData = NESBuilder:importFunction('plugins.nesst','getData')
     d = getData(f)
     
+    -- Load all palettes
     p = NESBuilder:hexStringToList(d.Palette)
     data.project.palettes = {}
-    
     for i=0,15 do
         data.project.palettes[i] = {p[i*4+0],p[i*4+1],p[i*4+2],p[i*4+3]}
     end
     
+    -- Apply palettes to this tab's palette controls
     for i=0,3 do
         plugin.paletteControls[i+1].setAll(data.project.palettes[i])
         plugin.paletteControls[i+1].index = i
     end
     data.project.palettes.index = d.VarPalActive
     
-    p=data.project.palettes[data.project.palettes.index]
+    p = currentPalette()
+    
+    -- Load CHR and set selected bank
+    data.project.chr = {[0]=d.CHR[0],d.CHR[1]}
+    data.project.chr.index = d.CHRBank
     
     
-    data.project.chr = {}
-    data.project.chr[0]=util.hexToTable(string.sub(d.CHRMain,1+0,0+0x2000))
-    data.project.chr[1]=util.hexToTable(string.sub(d.CHRMain,1+0x2000,0x2000+0x2000))
     
-    if d.VarBankActive == 4096 then
-        data.project.chr.index=1
-    else
-        data.project.chr.index=0
-    end
+    -- create an off-screen drawing surface
+    local surface = NESBuilder:makeNESPixmap(128,128)
+    -- load CHR Data to the surface
+    surface.loadCHR(currentChr())
+    -- apply current palette to it
+    surface.applyPalette(currentPalette())
+    
+    -- paste the surface to the CHR tab and the tileset here
+    NESBuilder:getControl("canvasQt").paste(surface)
+    NESBuilder:getControl("nesstTileset").paste(surface)
     
     
-    chr = util.hexToTable(string.sub(d.CHRMain,1+0,0+0x2000))
     
-    control = NESBuilder:getControlNew("nesstTileset")
-    control.loadCHRData{imageData=data.project.chr[data.project.chr.index], colors=p,columns=16,rows=16}
+--    control = NESBuilder:getControlNew("nesstTileset")
+--    control.loadCHRData{imageData=currentChr(n), colors=p,columns=16,rows=16}
     
     control = NESBuilder:getControlNew("nesstCanvas")
     control.columns = d.VarNameW
     control.rows = d.VarNameH
     
-    control.chrData = data.project.chr[1]
+    control.chrData = currentChr()
     
     local tile,p, attr,n
     
@@ -254,14 +262,15 @@ function plugin.nesstLoad_cmd()
             n = math.floor(attr/(2^(((math.floor(y/2) % 2)*2 + math.floor(x/2) % 2)*2))) % 4
             
             p = data.project.palettes[n]
-            control.drawTile{x*8,y*8, tile=tile, colors=p, useCache=false}
+            --control.drawTile{x*8,y*8, tile=tile, colors=p, useCache=false}
+            control.drawTile(x*8,y*8, tile, currentChr(), p, 32,32)
             --control.tilePalette[y*control.columns+x+1]=n
         end
     end
     
     --control.test()
     
-    plugin.paletteControls[data.project.palettes.index+1].highlight(True)
+    --plugin.paletteControls[data.project.palettes.index+1].highlight(True)
     
     PaletteEntryUpdate()
     dataChanged()
@@ -279,8 +288,8 @@ end
 function plugin.nesstTileset_cmd(t)
     if not plugin.data.file then return end
     
-    local x = math.floor(t.event.x/t.scale)
-    local y = math.floor(t.event.y/t.scale)
+    local x = math.floor(t.event.x()/t.scale)
+    local y = math.floor(t.event.y()/t.scale)
     local mtileX = math.floor(x/8)
     local mtileY = math.floor(y/8)
     local mtileNum = mtileY*16+mtileX
@@ -296,15 +305,15 @@ end
 function plugin.nesstCanvas_cmd(t)
     if not plugin.data.file then return end
     
-    local x = math.floor(t.event.x/t.scale)
-    local y = math.floor(t.event.y/t.scale)
+    local x = math.floor(t.event.x()/t.scale)
+    local y = math.floor(t.event.y()/t.scale)
     x,y=math.max(x,0),math.max(y,0)
     x,y=math.min(x,t.columns*8-1),math.min(y,t.rows*8-1)
     
     local mtileX = math.floor(x/8)
     local mtileY = math.floor(y/8)
     local mtileNum = mtileY*t.columns+mtileX
-    print(y)
+    
     if t.tool == "split" then
         t.drawSplit(plugin.splits)
         if t.button == 1 then

@@ -163,3 +163,12 @@ QMessageBox QPushButton {
 QCheckBox {
     font-size:12pt;
 }
+
+QPlainTextEdit {
+    border:1px solid _textInputBorder_;
+    background-color:_bk2_;
+    padding:.4em;
+    /* I stole this font-family from stackoverflow */
+    font-family: Consolas, Menlo, Monaco, Lucida Console, Liberation Mono, DejaVu Sans Mono, Bitstream Vera Sans Mono, Courier New, monospace, serif;
+    font-size:11pt;
+}

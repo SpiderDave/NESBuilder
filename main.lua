@@ -209,12 +209,11 @@ function init()
         
         WARNING:
         
-        This project is in the middle of a major transition from tkinter to
-        Qt5.  It's going well but a lot of stuff is broken and unstable.
+        This project is in alpha stage.  It's going well but 
+        some things may be broken or unstable.  Make frequent
+        backups.
         
         You can disable this warning tab in preferences.
-        
-        Coming soon, more working stuff!
         
             --SpiderDave
         

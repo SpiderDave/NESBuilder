@@ -138,6 +138,7 @@ function plugin.onInit()
         
         y = pop()
         control=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbPalette"..item.name, palette=palette}
+        control.helpText = "Click to apply a color, right click to select a color"
         control.data.index=k
         
         y = y + control.height + pad
@@ -151,6 +152,7 @@ function plugin.onInit()
     x,y = pop(2)
     
     control=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbthingPalette", palette=nespalette}
+    control.helpText = "Click to select a color"
     y = y + control.height + pad*2
     
     plugin.selectedColor=0x0f
@@ -243,7 +245,7 @@ function smbthingRefreshPalettes()
 end
 
 function smbthingPalette_cmd(t)
-    if t.event.button == 1 then
+    if t.event.button == 1 or t.event.button == 2 then
         plugin.selectedColor = t.cellNum
     end
 end
@@ -261,10 +263,10 @@ function smbPaletteCmd(t)
     
     if not plugin.fileData then return end
     
-    if t.event.button == 1 then
+    if t.event.button == 2 then
         -- left click
         plugin.selectedColor = plugin.fileData[offset+t.cellNum]
-    elseif t.event.button == 2 then
+    elseif t.event.button == 1 then
         plugin.fileData[offset+t.cellNum]=plugin.selectedColor
         
         smbthingRefreshPalettes()

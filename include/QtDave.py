@@ -6,14 +6,14 @@ import numpy as np
 from PIL.ImageQt import ImageQt
 
 from PyQt5 import QtGui
-from PyQt5.QtGui import QIcon, QPainter, QColor, QImage, QBrush, QPixmap, QPen
+from PyQt5.QtGui import QIcon, QPainter, QColor, QImage, QBrush, QPixmap, QPen, QCursor
 from PyQt5.QtCore import QDateTime, Qt, QTimer, QCoreApplication, QSize, QRect
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
         QDial, QDialog, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
         QProgressBar, QPushButton, QRadioButton, QScrollBar, QSizePolicy,
         QSlider, QSpinBox, QStyleFactory, QTableWidget, QTabWidget, QTextEdit,
         QVBoxLayout, QWidget, QAction, QMainWindow, QMessageBox, QFileDialog, 
-        QInputDialog, QErrorMessage, QFrame, QPlainTextEdit
+        QInputDialog, QErrorMessage, QFrame, QPlainTextEdit, QListWidget, QListWidgetItem
         )
 
 nesPalette=[
@@ -56,9 +56,48 @@ def fix(item):
         return item
 
 clamp = lambda value, minv, maxv: max(min(value, maxv), minv)
+def coalesce(*arg): return next((a for a in arg if a is not None), None)
 
 clip = {}
+cursors = False
 
+def loadCursors(c):
+    global cursors
+    cursors = c
+
+
+class Map(dict):
+    """
+    Example:
+    m = Map({'first_name': 'Eduardo'}, last_name='Pool', age=24, sports=['Soccer'])
+    """
+    def __init__(self, *args, **kwargs):
+        super(Map, self).__init__(*args, **kwargs)
+        for arg in args:
+            if isinstance(arg, dict):
+                for k, v in arg.items():
+                    self[k] = v
+
+        if kwargs:
+            for k, v in kwargs.items():
+                self[k] = v
+
+    def __getattr__(self, attr):
+        return self.get(attr)
+
+    def __setattr__(self, key, value):
+        self.__setitem__(key, value)
+
+    def __setitem__(self, key, value):
+        super(Map, self).__setitem__(key, value)
+        self.__dict__.update({key: value})
+
+    def __delattr__(self, item):
+        self.__delitem__(item)
+
+    def __delitem__(self, key):
+        super(Map, self).__delitem__(key)
+        del self.__dict__[key]
 
 class App(QApplication):
     def __init__(self, args=[], **kw):
@@ -74,6 +113,12 @@ class Base():
         self.control = self # backwards compatability
         self.anonymous = False
         self.data = dict()
+        self.statusBarText = ""
+        self.onMouseMove = False
+        self.onMouseHover = False
+        self.helpText = False
+        try: self.setMouseTracking(True)
+        except: pass
     def init(self, t):
         self.name = t.name
         self.tooltip=t.tooltip
@@ -81,6 +126,28 @@ class Base():
         self.resize(t.w, t.h)
         self.text = t.text
         self.scale = t.scale or 1
+    def mouseMoveEvent(self, event: QtGui.QResizeEvent):
+        if int(event.buttons()) == 0:
+            self.window().setHoveredWidget(self)
+            if self.onMouseHover:
+                self.onMouseHover(event)
+        elif self.onMouseMove:
+            b = dict({
+                2:'ButtonPress',
+                3:'ButtonRelease',
+                4:'ButtonDblClick',
+                5:'Move',
+                })
+            ev = Map(
+                x = event.x,
+                y = event.y,
+                button = int(event.buttons()),
+                type = b.get(event.type()),
+            )
+            #self.onMouseMove(event)
+            self.onMouseMove(ev)
+        else:
+            super().mouseMoveEvent(event)
     def move(self, x,y):
         if not x:
             x = 0
@@ -90,12 +157,26 @@ class Base():
     def setGeometry(self, x,y,w,h):
         self.move(x,y)
         self.resize(w,h)
-    def resize(self, w,h):
+    def resize(self, w=False,h=False):
         if not w:
             w = self.sizeHint().width()*1.5
         if not h:
             h = self.sizeHint().height()*1.2
         super().resize(int(w),int(h))
+    def setCursor(self,cursor=None):
+        if not cursors:
+            print('no cursors.')
+            return
+        
+        c = cursors.get(cursor)
+        if c:
+            filename = c.get('filename', False)
+            print(filename)
+            if filename:
+                x,y = c.get('hotspot')
+                super().setCursor(QtGui.QCursor(QtGui.QPixmap(filename),x,y))
+        else:
+            super().setCursor(QCursor(getattr(Qt,cursor)))
     def setFont(self, fontName, size):
         super().setFont(QtGui.QFont(fontName, size))
         self.adjustSize()
@@ -134,13 +215,28 @@ class Base():
             self.resize(v, super().height())
         if key == 'height':
             self.resize(super().width(), v)
-        super().__setattr__(key,v)
+        else:
+            super().__setattr__(key,v)
     def screenshot(self):
         try:
             screen = QApplication.primaryScreen()
             screenshot = screen.grabWindow( self.winId() )
             screenshot.save('shot.jpg', 'jpg')
         except: pass
+
+class LineEdit(Base, QLineEdit):
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
+    def __getattribute__(self, key):
+        if key == 'text':
+            return super().text()
+        else:
+            return super().__getattribute__(key)
+    def __setattr__(self, key, v):
+        if key == 'text':
+            super().setText(str(v))
+        else:
+            super().__setattr__(key,v)
 
 class TextEdit(Base, QPlainTextEdit):
     def save(self, filename):
@@ -253,6 +349,9 @@ class MainWindow(Base, QMainWindow):
         self.menus = dict()
         self.loaded = False
         self.onClose = False
+        self.onResize = False
+        self.onHoverWidget = False
+        self.timer = QTimer(self)
         
         #exitAct = QAction(QIcon('exit.png'), '&Exit', self)
         #exitAct.setShortcut('Ctrl+Q')
@@ -267,9 +366,22 @@ class MainWindow(Base, QMainWindow):
         
         #fileMenu.addAction(exitAct)
         QTimer.singleShot(1,self.onDisplay)
+    
+    def setHoveredWidget(self, widget):
+        self.hoveredWidget = widget
+        if self.onHoverWidget:
+            self.onHoverWidget(widget)
+    def resizeEvent(self, event: QtGui.QResizeEvent):
+        super().resizeEvent(event)
+        width = event.size().width()
+        height = event.size().height()
+        oldWidth = event.oldSize().width()
+        oldHeight = event.oldSize().height()
+        if self.onResize:
+            self.onResize(width, height, oldWidth, oldHeight)
     def onDisplay(self):
         self.loaded = True
-        print('display')
+        #print('display')
     def addMenu(self, menuName, menuText, menuItems):
         if not self.menus.get(menuName, False):
             self.menus.update({menuName:self.menuBar().addMenu(menuText)})
@@ -303,6 +415,12 @@ class MainWindow(Base, QMainWindow):
                 event.ignore()
             return
         event.accept()
+    def setTimer(self, t, f, repeating=False):
+        if repeating:
+            self.timer.timeout.connect(f)
+            self.timer.start(t)
+        else:
+            self.timer.singleShot(t, f)
 
 
 
@@ -414,7 +532,8 @@ class ClipOperations():
         """
         if not pix:
             pix = clip.get('pix')
-        self.setPixmap(pix.scaled(self.size()))
+        #self.setPixmap(pix.scaled(self.size()))
+        self.setPixmap(pix.scaledToWidth(self.width))
 
 
 
@@ -429,9 +548,24 @@ class Canvas(ClipOperations, Base, QLabel):
         painter.brushColor = QColor(Qt.black)
         painter.fillRect(0,0,self.width,self.height,QBrush(Qt.black))
         painter.end()
-
-        columns = (self.width/self.scale)/8
-        rows = (self.height/self.scale)/8
+        self.columns = (self.width/self.scale)/8
+        self.rows = (self.height/self.scale)/8
+    def setNameTable(self, nameTable=False):
+        if not nameTable:
+            nameTable = [0]*math.floor(self.columns*self.rows)
+        self.nameTable = nameTable
+        return nameTable
+    def setAttrTable(self, attrTable=False):
+        if not attrTable:
+            attrTable = [0]*(8*8)
+        self.attrTable = attrTable
+        return attrTable
+    def clear(self):
+        painter = Painter(self.pixmap())
+        painter.setPen(QColor(0, 0, 0))
+        painter.brushColor = QColor(Qt.black)
+        painter.fillRect(0,0,self.width,self.height,QBrush(Qt.black))
+        painter.end()
     def paintTest(self):
         painter = Painter(self.pixmap())
         painter.test3()
@@ -440,13 +574,32 @@ class Canvas(ClipOperations, Base, QLabel):
         # needs work
         painter = Painter(self.pixmap())
         painter.scale(self.scale, self.scale)
-        pen = QPen()
-        pen.width=0
-        pen.color='white'
+#        pen = QPen()
+#        pen.width=0
+#        pen.color='white'
+        
+        
+        painter.setPen(QPen(Qt.white,  5, Qt.DotLine))
+        
+        
         #painter.setPen(QColor('white'))
-        painter.setPen(pen)
+        #painter.setPen(pen)
         painter.drawLine(x,y,x2,y2)
         painter.end()
+    def horizontalLine(self, y):
+        painter = Painter(self.pixmap())
+        painter.scale(self.scale, self.scale)
+
+        pen = QPen()
+        pen.setColor(QColor("white"))
+        painter.setPen(pen)
+        
+        #painter.setPen(QColor('white'))
+        painter.drawLine(0,y,self.width,y)
+        painter.end()
+
+#        painter.fillRect(0,y,self.width/self.scale,y+1,QBrush(Qt.white))
+#        painter.end()
     def setPixel(self, x,y):
         painter = Painter(self.pixmap())
         painter.scale(self.scale, self.scale)
@@ -512,6 +665,17 @@ class PaletteButton(Label):
         super().init(t)
         self.addCssClass('paletteCell')
         self.resize(width, height)
+    def mouseMoveEvent(self, event: QtGui.QResizeEvent):
+        if int(event.buttons()) == 0:
+            self.window().setHoveredWidget(self.parent())
+            if self.onMouseHover:
+                self.onMouseHover(event)
+        elif self.onMouseMove:
+            self.onMouseMove(event)
+        else:
+            super().mouseMoveEvent(event)
+
+        
         
 # todo: always use indexed palettes
 class PaletteControl(Base, QFrame):
@@ -519,7 +683,6 @@ class PaletteControl(Base, QFrame):
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
         self.__class__.cls = self.__class__
-    
     def init(self, t):
         super().init(t)
         
@@ -552,6 +715,7 @@ class PaletteControl(Base, QFrame):
                 ctrl.setStyleSheet("""
                 background-color :{0};
                 color :{1};
+                border:none;
                 """.format(bg, fg))
                 
                 self.cells.append(ctrl)
@@ -559,18 +723,29 @@ class PaletteControl(Base, QFrame):
         colors = [x for _,x in colors.items()]
         for i, c in enumerate(colors):
             self.set(index=i, c=c)
-    
+    def highlight(self, highlight=False, cellNum=False):
+        #print(self.cells[0].styleSheet())
+        
+        for i, cell in enumerate(self.cells):
+            if (cellNum==False) or i==cellNum:
+                s = cell.styleSheet()
+                if highlight:
+                    s = s.replace('border:none;','border:1px solid white;')
+                else:
+                    s = s.replace('border:1px solid white;', 'border:none;')
+                cell.setStyleSheet(s)
     def set(self, index=0, c=0x0f):
         cell = self.cells[index]
         
         bg = "#{0:02x}{1:02x}{2:02x}".format(nesPalette[c][0],nesPalette[c][1],nesPalette[c][2])
         x,y = c%0x10, c>>4
         fg = 'white' if x>=(0x00,0x01,0x0d,0x0e)[y] else 'black'
+        
         cell.setStyleSheet("""
         background-color :{0};
         color :{1};
+        border:none;
         """.format(bg, fg))
-        #cell.setText("{0:02x}".format(c), autoSize=False)
         if self.cls.upperHex:
             cell.setText("{0:02X}".format(c), autoSize=False)
         else:
@@ -647,10 +822,58 @@ class NESPixmap(ClipOperations, Base, QPixmap):
         # This is just to give it a pixmap function so it works with 
         # ClipOperations
         self.pixmap = lambda:self
-
-    def loadCHR(self, imageData, columns=16, rows=16):
+        self.rows=None
+        self.columns=None
+    def loadCHRFromImage(self, filename, colors = False):
+        
+        colors = fix(colors)
+        
+        if not self.load(filename):
+            print("could not load image")
+            return false
+        
+        print(colors)
+        
+        img = self.toImage()
+        
+        w = math.floor(self.width/8)*8
+        h = math.floor(self.height/8)*8
+        nTiles = int(w/8 * h/8)
+        
+        out = []
+        for t in range(nTiles):
+            tile = [[]]*16
+            for y in range(8):
+                tile[y] = 0
+                tile[y+8] = 0
+                for x in range(8):
+                    for i in range(4):
+                        color = img.pixelColor(x+(t*8) % w, y + math.floor(t/(w/8))*8)
+                        #print(list(color.getRgb()),colors[i])
+                        if list(color.getRgb()[:-1]) == colors[i]:
+                        #if img.pixel(x+(t*8) % w, y + math.floor(t/(w/8))*8) == colors[i]:
+                            tile[y] += (2**(7-x)) * (i%2)
+                            tile[y+8] += (2**(7-x)) * (math.floor(i/2))
+            
+            for i in range(16):
+                out.append(tile[i])
+        
+        #ret = lua.table_from(out)
+        ret = out
+        
+        self.columns = math.floor(w/8)
+        self.rows = math.floor(h/8)
+        
+        return ret
+        
+        
+        
+    def loadCHR(self, imageData, columns=None, rows=None):
         """Loads CHR data using 4 preset base colors."""
         painter = Painter(self)
+        
+        columns = self.columns = coalesce(columns, self.columns, 16)
+        rows = self.rows = coalesce(rows, self.rows, 16)
         
         if not imageData:
             imageData = [0] * (16*columns*rows)
@@ -729,3 +952,16 @@ class NESPixmap(ClipOperations, Base, QPixmap):
                     r = QRect(x*16,y*16,16,16)
                     painter.drawPixmap(r, mask, r)
         painter.end()
+
+
+class ListWidget(Base, QListWidget):
+    def setList(self, items):
+        self.clear()
+        for item in fix(items):
+            super().addItem(QListWidgetItem(item))
+    def getIndex(self):
+        return super().currentRow()
+    def getItem(self):
+        return super().currentItem().text()
+    def addItem(self, text):
+        super().addItem(QListWidgetItem(text))

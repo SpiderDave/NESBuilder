@@ -101,6 +101,7 @@ Section "-DefaultStuff"
 
     CreateDirectory $INSTDIR\tools
     CreateDirectory $INSTDIR\plugins
+    CreateDirectory $INSTDIR\templates
     
     ; Set output path to the installation directory.
     SetOutPath $INSTDIR
@@ -113,8 +114,9 @@ Section "-DefaultStuff"
         "${GitURL}plugins/_romifno.lua" "plugins/_rominfo.lua"\
         "${GitURL}plugins/hash.py" "plugins/hash.py"\
         "${GitURL}plugins/_debug.lua" "plugins/_debug.lua"\
-        "${GitURL}plugins/_nesst.lua" "plugins/_nesst.lua"\
+        "${GitURL}plugins/nesst.lua" "plugins/nesst.lua"\
         "${GitURL}plugins/nesst.py" "plugins/nesst.py"\
+        "${GitURL}templates/codeTemplate.zip" "templates/codeTemplate.zip"\
         /END
     Pop $0
 SectionEnd
@@ -247,6 +249,7 @@ Section "Uninstall"
     RMDir /r /REBOOTOK $INSTDIR\installer
     RMDir /r /REBOOTOK $INSTDIR\tools
     RMDir /r /REBOOTOK $INSTDIR\plugins
+    RMDir /r /REBOOTOK $INSTDIR\templates
     Delete $INSTDIR\NESBuilder.exe.spec
     Delete $INSTDIR\uninstall.exe
 

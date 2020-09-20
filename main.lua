@@ -64,8 +64,13 @@ pad,left,top=config.pad, config.left, config.top
 _print = print
 local prefix = "[Lua] "
 print = function(item)
+    
+    pcall(function()
+    
     if type(item)=="userdata" then
         _print(prefix..NESBuilder:getPrintable(item))
+    elseif (type(item)=="table") and item.dontPrintThis then
+        -- plugin table
     elseif type(item)=="table" then
         print("{")
         for k,v in pairs(item) do
@@ -91,6 +96,9 @@ print = function(item)
     else
         _print(prefix..(item or ''))
     end
+    
+    end)
+    
 end
 
 makeHex = function(n)
@@ -166,17 +174,17 @@ function init()
     -- make sure projects folder exists
     NESBuilder:makeDir(data.folders.projects)
     
-    --NESBuilder:setWindowQt("Main")
+    statusBar=NESBuilder:makeLabelQt{x=x,y=y,text="Status bar"}
+    statusBar.setFont("Verdana", 10)
     
     if cfgGet('alphawarning')==1 then
         control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Warning",text="Warning"}
     end
     
     control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Launcher",text="Launcher"}
+    launchTab = control
     control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Palette",text="Palette"}
     control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Image",text="CHR"}
-    
-    NESBuilder:setWindow("Main")
     
     -- The separator and Quit items will be added
     -- in onReady() so plugins can add items before them.
@@ -221,8 +229,11 @@ function init()
     end
     
     NESBuilder:setTabQt("Image")
-    NESBuilder:makeCanvasQt{x=8,y=8,w=128,h=128,name="canvasQt", scale=3}
+    control=NESBuilder:makeCanvasQt{x=8,y=8,w=128,h=128,name="canvasQt", scale=3}
     --NESBuilder:setCanvas("canvas")
+    control.setCursor('pencil')
+    --control.setCursor('ArrowCursor')
+    --control.setCursor('OpenHandCursor')
     
     x,y = left,top
     
@@ -231,7 +242,8 @@ function init()
     x,y=left,top
     
     p = {[0]=0x0f,0x21,0x11,0x01}
-    c=NESBuilder:makePaletteControlQt{x=pad*1.5,y=pad*1.5,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="PaletteQt", palette=nespalette, upperHex=cfgGet('upperhex')}
+    control=NESBuilder:makePaletteControlQt{x=pad*1.5,y=pad*1.5,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="PaletteQt", palette=nespalette, upperHex=cfgGet('upperhex')}
+    control.helpText = "Click to select a color"
     
     palette = {}
     for i=0,#p do
@@ -264,7 +276,8 @@ function init()
         palette[i] = nespalette[p[i]]
     end
     control=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="PaletteEntryQt", palette=palette}
-
+    control.helpText = "Click to apply a color, right click to select a color"
+    
     push(y+control.height+pad)
 
     x=x+control.width+pad
@@ -317,11 +330,20 @@ function init()
     
     --y=top
     x=128*3+pad*3
-    for i=0,7 do
-        b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="CHR"..i,text="CHR "..i}
-        y = y + b.height + pad
-    end
     
+    --  Yes, we're cheating with Python here.
+    local l = python.eval('["CHR {0:02n}".format(x) for x in range(8)]')
+    
+    control = NESBuilder:makeList{x=x,y=y,w=buttonWidth,h=buttonHeight*12, name="CHRList",list = l}
+    push(y + control.height + pad, x)
+    
+    x=x + control.width + pad*.5
+    b=NESBuilder:makeButtonQt{x=x,y=y,w=30,name="addCHR",text="+"}
+    
+    x,y = pop(2)
+    
+    control = NESBuilder:makeLineEdit{x=x,y=y,w=control.width,h=inputHeight, name="CHRName"}
+    y = y + control.height + pad
     
     NESBuilder:setTabQt("Launcher")
     left = pad*2
@@ -387,25 +409,19 @@ function init()
     end
     
     
-    NESBuilder:makeTab("tsa", "Metatiles")
-    NESBuilder:setTab("tsa")
-
     NESBuilder:makeTabQt{name="tsa", text="Metatiles"}
     NESBuilder:setTabQt("tsa")
-
+    
     x,y=left,top
     
     push(y)
     control = NESBuilder:makeCanvasQt{x=x,y=y,w=128,h=128,name="tsaCanvasQt", scale=2}
-    control = NESBuilder:makeCanvas{x=x,y=y,w=128,h=128,name="tsaCanvas", scale=2}
     push(x+control.width+pad)
     
     x = left
     y=y + control.height + pad
     
     control = NESBuilder:makeCanvasQt{x=x,y=y,w=16,h=16,name="tsaCanvas2Qt", scale=6}
-    control = NESBuilder:makeCanvas{x=x,y=y,w=16,h=16,name="tsaCanvas2", scale=6}
-    control.loadCHRData{nil, p, columns=2, rows=2}
     
     y=y + control.height + pad
     
@@ -415,7 +431,7 @@ function init()
     x= x + control.width+pad
     
     push(y)
-    control=NESBuilder:makeEntry{x=x,y=y,w=20,h=buttonHeight, name="tsaSquareoidNumber",text="0"}
+    control=NESBuilder:makeLineEdit{x=x,y=y,w=20,h=buttonHeight, name="tsaSquareoidNumber",text="0"}
     y=pop()
     x= x + control.width+pad
     
@@ -428,7 +444,6 @@ function init()
     x= pop()
     y = pop()
     control = NESBuilder:makeCanvasQt{x=x,y=y,w=8,h=8,name="tsaTileCanvasQt", scale=8, columns=1, rows=1}
-    control = NESBuilder:makeCanvas{x=x,y=y,w=8,h=8,name="tsaTileCanvas", scale=8, columns=1, rows=1}
     
     loadSettings()
 end
@@ -456,6 +471,12 @@ function onReady()
     control = NESBuilder:makeMenuQt{name="menuHelp", text="Help", menuItems=items}
     
     LoadProject_cmd()
+    
+    if cfgGet('autosave')==1 then
+        local main = NESBuilder:getWindowQt()
+        -- minimum auto save interval is 45 seconds
+        main.setTimer(math.max(cfgGet('autosaveinterval'), 1000*45), autoSave, true)
+    end
 end
 
 function handlePluginCallback(f, arg)
@@ -526,7 +547,7 @@ end
 function Palette_cmd(t)
     if not t.cellNum then return end -- the frame was clicked.
     
-    if t.event.button == 1 then
+    if t.event.button == 1 or t.event.button == 2 then
         print(string.format("Selected palette %02x",t.cellNum))
         data.selectedColor = t.cellNum
     end
@@ -578,7 +599,7 @@ function PaletteEntryUpdate()
     control.control.max = #data.project.palettes
     control.value = data.project.palettes.index
     
-    p=data.project.palettes[data.project.palettes.index]
+    p=currentPalette()
     
 --    c = NESBuilder:getControl('PaletteEntry')
 --    c.setAll(p)
@@ -595,6 +616,8 @@ function PaletteEntryUpdate()
     c = NESBuilder:getControlNew('PaletteEntryLabelQt')
     c.text = string.format("Palette%02x",data.project.palettes.index)
     --c.setText('blah')
+    
+    handlePluginCallback("onPaletteChange")
 
     refreshCHR()
 end
@@ -856,13 +879,25 @@ function BuildProject_cmd()
     NESBuilder:makeDir(data.folders.projects..data.project.folder.."chr")
     NESBuilder:makeDir(data.folders.projects..data.project.folder.."code")
     
+    local folder = data.folders.projects..data.project.folder
+    
     handlePluginCallback("onBuild")
+    
+    -- create default code
+    if not NESBuilder:fileExists(folder.."project.asm") then
+        print("project.asm not found, extracting code template...")
+        --NESBuilder:extractAll('codeTemplate.zip',folder)
+        --NESBuilder:extractAll('codeTemplate2.zip',folder)
+        NESBuilder:extractAll('codeTemplate.zip',folder)
+    end
     
     -- save CHR
     for i=0,#data.project.chr do
         if data.project.chr[i] then
             local f = data.folders.projects..data.project.folder..string.format("chr/chr%02x.chr",i)
             print("File created "..f)
+            print('****')
+            print(data.project.chr[i][0])
             NESBuilder:saveArrayToFile(f, data.project.chr[i])
         end
     end
@@ -929,22 +964,20 @@ function BuildProject_cmd()
     end
     util.writeToFile(filename,0, out, true)
     
-    
-    
     local filename = data.folders.projects..projectFolder.."code/constauto.asm"
     out=""
     --out=out..string.format("SELECTED_PALETTE = $%02x\n\n", math.floor(data.project.palettes.index))
     
     data.project.const.SELECTED_PALETTE = math.floor(data.project.palettes.index)
+    data.project.const.CURRENT_CHR = math.floor(data.project.chr.index)
     for k,v in pairs(data.project.const) do
         out = out .. string.format("%s = $%02x\n",k, v)
     end
 
     util.writeToFile(filename,0, out, true)
-
+    
     
     -- assemble project
-    local folder = data.folders.projects..data.project.folder
     
     -- make sure project.asm exists, or dont bother
     --if util.fileExists(folder.."project.asm") then
@@ -964,7 +997,9 @@ function BuildProject_cmd()
     else
         print("no project.asm")
     end
+    
     print("---- end of build ---")
+    NESBuilder:setWorkingFolder()
 end
 
 function LoadProject_cmd()
@@ -981,9 +1016,9 @@ function LoadProject_cmd()
     data.project.const = data.project.const or {}
     
     -- Wipe data stored on the canvas control
-    NESBuilder:getControlNew('tsaCanvas').loadCHRData()
+    --NESBuilder:getControlNew('tsaCanvas').loadCHRData()
     
-    NESBuilder:getControlNew('tsaCanvas').loadCHRData({0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, {[0]=0x0f,0x0f,0x0f,0x0f})
+    --NESBuilder:getControlNew('tsaCanvas').loadCHRData({0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, {[0]=0x0f,0x0f,0x0f,0x0f})
     
     -- update project folder in case it's been moved
     data.project.folder = projectFolder
@@ -994,8 +1029,23 @@ function LoadProject_cmd()
     data.project.squareoids = data.project.squareoids or {index=0}
     
     data.project.chr = data.project.chr or {index=0}
+    data.project.chrNames = data.project.chrNames or {}
+    
+    local control = NESBuilder:getControl('CHRList')
+    control.clear()
+    for i=0,#data.project.chr do
+        data.project.chrNames[i] = data.project.chrNames[i] or string.format("CHR %02x", i)
+        control.addItem(data.project.chrNames[i])
+    end
     
     data.project.chr.index = data.project.chr.index or 0
+    
+    data.project.chr[0] = data.project.chr[0] or NESBuilder:newCHRData()
+    
+    
+    control.setCurrentRow(data.project.chr.index)
+    NESBuilder:getControl('CHRName').setText(data.project.chrNames[data.project.chr.index])
+    
     
     handlePluginCallback("onLoadProject")
     
@@ -1021,11 +1071,16 @@ function SaveProject_cmd()
     NESBuilder:makeDir(data.folders.projects..data.project.folder)
     
     -- Convert python lists so they can be serialized.
-    for i,v in ipairs(data.project.chr) do
+    for i=0, #data.project.chr do
         data.project.chr[i] = NESBuilder:listToTable(data.project.chr[i])
+    end
+    for i,v in ipairs(data.project.palettes) do
+        data.project.palettes[i] = NESBuilder:listToTable(data.project.palettes[i])
     end
     
     handlePluginCallback("onSaveProject")
+    
+    --print(type(data.project.screenTool.nameTable))
     
     local filename = data.folders.projects..data.project.folder.."project.dat"
     util.writeToFile(filename,0, util.serialize(data.project), true)
@@ -1058,10 +1113,12 @@ function PaletteEntry_cmd(t)
 end
 
 function PaletteEntryQt_cmd(t)
-    if t.event.button == 1 then
+    local p
+    if t.event.button == 2 then
         print(string.format("Selected palette %02x",t.cellNum))
-        data.selectedColor = t.cellNum
-    elseif t.event.button == 2 then
+        p=currentPalette()
+        data.selectedColor = p[t.cellNum+1]
+    elseif t.event.button == 1 then
         print(string.format("Set palette %02x",data.selectedColor or 0x0f))
         p=data.project.palettes[data.project.palettes.index]
         p[t.cellNum+1] = data.selectedColor
@@ -1085,13 +1142,28 @@ function Quit_cmd()
 end
 
 function refreshCHR()
+    local w,h
     local c = NESBuilder:getControl('CHRNumLabelQt')
     c.text = string.format("%02x", data.project.chr.index)
     
+    
+    if currentChr() then
+        local nTiles = NESBuilder:getLen(currentChr())/16
+        -- Fixed width of 16
+        w = 16 * 8
+        h = nTiles/16 *8
+    else
+        w = 16 * 8
+        h = 16 * 8
+    end
+    
     -- get canvas control
     local control = NESBuilder:getControl("canvasQt")
+    
+    control.resize(w*control.scale, h*control.scale)
+    
     -- create an off-screen drawing surface
-    local surface = NESBuilder:makeNESPixmap(128,128)
+    local surface = NESBuilder:makeNESPixmap(w,h)
     -- load CHR Data to the surface
     surface.loadCHR(currentChr())
     -- apply current palette to it
@@ -1122,19 +1194,35 @@ end
 
 function LoadCHRNESmaker_cmd()
     local CHRData
-    local f = NESBuilder:openFile{filetypes={{"Bitmap (NESMaker)", ".bmp"}}, initial="foobar.baz"}
+    local f = NESBuilder:openFile{filetypes={{"Bitmap (NESMaker)", ".bmp"}}}
     if f == "" then
         print("Open cancelled.")
     else
         print("file: "..f)
         
         -- Load the image into data
-        CHRData = NESBuilder:imageToCHRData(f,NESBuilder:getNESmakerColors())
+        --CHRData = NESBuilder:imageToCHRData(f,NESBuilder:getNESmakerColors())
         -- Store in selected project bank
-        setChrData(CHRData)
+        --setChrData(CHRData)
         
+        --refreshCHR()
+        --dataChanged()
+
+
+
+        -- create a surface
+        local surface = NESBuilder:makeNESPixmap(128,128)
+        -- get chr data and store in selected project bank
+        setChrData( surface.loadCHRFromImage(f, NESBuilder:getNESmakerColors()) )
+        
+        local control = NESBuilder:getControl("canvasQt")
+        control.width = surface.width*control.scale
+        control.height = surface.height*control.scale
+    
         refreshCHR()
         dataChanged()
+
+
     end
 end
 
@@ -1242,20 +1330,30 @@ function onExit(cancel)
     
 end
 
-function CHR_cmd(n)
-    data.project.chr.index = n
+function CHRList_cmd(t)
+    data.project.chr.index = t.getIndex()
+    
+    local control = NESBuilder:getControl('CHRName')
+    control.setText(t.getItem())
     
     refreshCHR()
+    
 end
 
-CHR0_cmd = function(t) CHR_cmd(0) end
-CHR1_cmd = function(t) CHR_cmd(1) end
-CHR2_cmd = function(t) CHR_cmd(2) end
-CHR3_cmd = function(t) CHR_cmd(3) end
-CHR4_cmd = function(t) CHR_cmd(4) end
-CHR5_cmd = function(t) CHR_cmd(5) end
-CHR6_cmd = function(t) CHR_cmd(6) end
-CHR7_cmd = function(t) CHR_cmd(7) end
+function CHRName_cmd(t)
+    local control = NESBuilder:getControl('CHRList')
+    
+    if t.control.text~=control.getItem() then
+        --control.editItem(control.currentItem())
+        local item = control.currentItem()
+        --item.setText(t.text)
+        
+        item.setText(t.control.text)
+        
+        data.project.chrNames[control.getIndex()] = t.control.text
+    end
+    
+end
 
 function canvas_cmd(t)
     local x = math.floor(t.event.x/t.scale)
@@ -1499,10 +1597,11 @@ end
 
 function MainQttabs_cmd(t,a)
     --print(t.control.currentWidget())
-    --handlePluginCallback("onTabChanged", t)
+    handlePluginCallback("onTabChanged", t.control.currentWidget())
 end
 
-function canvasQt_cmd(t)
+function canvasQt_cmd(t, event)
+    --if t.event.button==0 then return end
     local x = math.floor(t.event.x()/t.scale)
     local y = math.floor(t.event.y()/t.scale)
     local control = NESBuilder:getControlNew(t.name)
@@ -1552,5 +1651,47 @@ function closeTab(tabName, switchTo)
     end
 end
 
+function autoSave()
+    --print('Auto save')
+    handlePluginCallback("onAutoSave")
+end
+
+function onShow()
+--    local x,y
+--    x,y=left,top
+    
+--    NESBuilder:setWindowQt("main")
+--    NESBuilder:setTabQt()
+    
+--    local m = NESBuilder:getWindowQt()
+    --y = m.height-20
+--    y=726-80
+    
+--    control=NESBuilder:makeLabelQt{x=x,y=y,clear=true,text="Status bar",test=true}
+    --control.raise()
+--    statusBar = control
+    handlePluginCallback("onShow")
+end
+
+function onResize(width, height, oldWidth, oldHeight)
+    --print(width..' '..height)
+    
+    local main = NESBuilder:getWindowQt()
+    main.tabParent.width = width
+    main.tabParent.height = height
+    statusBar.move(left, height-statusBar.height-pad)
+end
 
 
+function onHover(control)
+    statusBar.text = control.helpText or ""
+end
+
+function addCHR_cmd()
+    local control = NESBuilder:getControl('CHRList')
+    
+    local n = #data.project.chr+1
+    data.project.chr[n] = NESBuilder:newCHRData()
+    data.project.chrNames[n] = string.format("CHR %02x", n)
+    control.addItem(data.project.chrNames[n])
+end

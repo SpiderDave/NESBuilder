@@ -1,4 +1,4 @@
-# needs lupa, pyinstaller, pillow, anything else?
+# needs lupa, pyinstaller, pillow, pyqt5, numpy
 '''
 ToDo:
     * move to pyQt5!
@@ -24,12 +24,6 @@ from lupa import LuaError
 lua = LuaRuntime(unpack_returned_tuples=True)
 try: import PyQt5.QtWidgets
 except: badImport('PyQt5')
-from tkinter import simpledialog, filedialog, messagebox
-from tkinter import EventType
-import tkinter as tk
-from tkinter import ttk
-#from tkinter import *
-#from tkinter.ttk import *
 try: from PIL import ImageTk, Image, ImageDraw
 except: badImport('pillow')
 from PIL import ImageOps
@@ -59,6 +53,7 @@ import webbrowser
 from binascii import hexlify, unhexlify
 
 import importlib, pkgutil
+from zipfile import ZipFile
 
 # import our include folder
 import include 
@@ -138,6 +133,8 @@ cfg.setDefault('main', 'alphawarning', 1)
 cfg.setDefault('main', 'loadplugins', 1)
 cfg.setDefault('main', 'breakonpythonerrors', 0)
 cfg.setDefault('main', 'breakonluaerrors', 0)
+cfg.setDefault('main', 'autosave', 1)
+cfg.setDefault('main', 'autosaveinterval', 1000 * 60 * 5) # 5 minutes
 
 # make cfg available to lua
 lua_func = lua.eval('function(o) {0} = o return o end'.format('cfg'))
@@ -146,14 +143,29 @@ lua_func(cfg)
 controls={}
 controlsNew={}
 
+controlsNew.update({"main":main})
+
+# have to manually define hotspots
+cursorData = dict(
+    pencil=dict(hotspot=[0,31]),
+)
+for k,v in cursorData.items():
+    if v:
+        cursorName = "cursors\\"+k
+        folder, file = os.path.split(cursorName)
+        d = os.path.dirname(sys.modules[folder].__file__)
+        cursorData[k].update(filename = os.path.join(d, file))
+
+QtDave.loadCursors(cursorData)
+
 # set up our lua function
-lua_func = lua.eval('function(o) {0} = o return o end'.format('tkConstants'))
+#lua_func = lua.eval('function(o) {0} = o return o end'.format('tkConstants'))
 # get all the constants from tk.constants but leave out builtins, etc.
-d= dict(enumerate([x for x in dir(tk.constants) if not x.startswith('_')]))
+#d= dict(enumerate([x for x in dir(tk.constants) if not x.startswith('_')]))
 # flip keys and values
-d = {v:k for k,v in d.items()}
+#d = {v:k for k,v in d.items()}
 # export to lua.  the values will still be python
-lua_func(lua.table_from(d))
+#lua_func(lua.table_from(d))
 
 def fancy(text):
     return "*"*60+"\n"+text+"\n"+"*"*60
@@ -271,10 +283,10 @@ class ForLua:
                 # these are control creation functions
                 # makedir maketab
                 makers = ['makeButton', 'makeCanvas', 'makeEntry', 'makeLabel', "makeTree",
-                          'makeList', 'makeMenu', 'makePaletteControl', 'makePopupMenu',
+                          'makeMenu', 'makePaletteControl', 'makePopupMenu',
                           'makeText', 'makeWindow', 'makeSpinBox',
                           ]
-                QtWidgets = ['makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeCanvasQt', 'makeSideSpin', 'makeCheckbox', 'makeLink', 'makeTextEdit']
+                QtWidgets = ['makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeCanvasQt', 'makeSideSpin', 'makeCheckbox', 'makeLink', 'makeTextEdit', 'makeList']
                 
                 if method_name in makers:
                     attr = getattr(self, method_name)
@@ -284,7 +296,7 @@ class ForLua:
                     attr = getattr(self, method_name)
                     wrapped = self.QtWrapper(attr)
                     setattr(self, method_name, wrapped)
-                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap','listToTable']:
+                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap','listToTable','tableToList']:
                     # getNESColors: excluded because it may have a table as its first parameter
                     # makeControl: excluded because it's a decorator
                     pass
@@ -347,6 +359,18 @@ class ForLua:
         os.chdir(workingFolder)
     def getWorkingFolder(self):
         return os.getcwd()
+    def extractAll(self, file, folder):
+        file = fixPath2(file)
+        #if self.fileExists(self, file):
+        if True:
+            folder = fixPath2(folder)
+            print(file, folder)
+            with ZipFile(file, mode='r') as zip:
+                zip.extractall(folder)
+            return True
+        else:
+            print("File does not exist: {}".format(file))
+            return False
     def sleep(self, t):
         time.sleep(t)
     def delete(self, filename):
@@ -412,15 +436,10 @@ class ForLua:
         return windows.get(coalesce(window, ForLua.window))
     def setWindow(self, window):
         self.window=window
-    def getTab(self, tab=None):
-        window = controls[ForLua.window]
-        tab = window.tabs.get(coalesce(tab, window.tab, False))
-        if not tab:
-            tab = window.control
-        return tab
-        #return tabs.get(coalesce(tab, ForLua.tab))
     def getWindowQt(self, name=None):
-        # todo: add parameter to get window by name
+        # needs an upgrade to get only windows not controls
+        if name:
+            return controlsNew[name]
         return self.windowQt
     def getTabQt(self, name=None):
         # todo: add parameter to get tab by name
@@ -429,14 +448,19 @@ class ForLua:
         window = controls[self.window]
         window.tab = tab
         self.tab=tab
-    def setTabQt(self, tab):
+    def setTabQt(self, tab=None):
         window = self.windowQt
-        #window.tabParent.setCurrentWidget(window.tabs.get(tab))
+        if tab == None:
+            self.tabQt = window
+            return
         self.tabQt = window.tabs.get(tab)
     def switchTab(self, tab):
         window = self.windowQt
         window.tabParent.setCurrentWidget(window.tabs.get(tab))
     def setWindowQt(self, window):
+        if type(window)==str:
+            window = controlsNew[window]
+        
         self.windowQt=window
     def getCanvas(self, canvas=None):
         return controlsNew[coalesce(canvas, self.canvas)]
@@ -481,25 +505,25 @@ class ForLua:
                            width=1, outline=c, fill=c,
                            )
 
-    def saveCanvasImage(self, f='test.png'):
-        canvas = self.getCanvas(self).control
-        grabcanvas=ImageGrab.grab(bbox=canvas)
-        ttk.grabcanvas.save(f)
-    def loadImageToCanvas(self, f):
-        c = self.getCanvas(self).control
-        canvas = c.control
-        print("loadImageToCanvas: {0}".format(f))
-        try:
-            with Image.open(f) as im:
-                px = im.load()
+#    def saveCanvasImage(self, f='test.png'):
+#        canvas = self.getCanvas(self).control
+#        grabcanvas=ImageGrab.grab(bbox=canvas)
+#        ttk.grabcanvas.save(f)
+#    def loadImageToCanvas(self, f):
+#        c = self.getCanvas(self).control
+#        canvas = c.control
+#        print("loadImageToCanvas: {0}".format(f))
+#        try:
+#            with Image.open(f) as im:
+#                px = im.load()
             
-            displayImage = ImageOps.scale(im, c.scale, resample=Image.NEAREST)
-            canvas.image = ImageTk.PhotoImage(displayImage)
+#            displayImage = ImageOps.scale(im, c.scale, resample=Image.NEAREST)
+#            canvas.image = ImageTk.PhotoImage(displayImage)
             
-            canvas.create_image(0, 0, image=canvas.image, anchor=tk.NW)
-            canvas.configure(highlightthickness=0, borderwidth=0)
-        except:
-            print("error loading image")
+#            canvas.create_image(0, 0, image=canvas.image, anchor=tk.NW)
+#            canvas.configure(highlightthickness=0, borderwidth=0)
+#        except:
+#            print("error loading image")
     def newStack(self, arg=[], maxlen=None):
         stack = Stack(arg, maxlen)
         t = lua.table(
@@ -529,6 +553,34 @@ class ForLua:
             if len(c) == 1:
                 return c[0]
             return c
+    def getAttribute(self, attrTable, tileX,tileY):
+        attrIndex = math.floor(tileY / 4) * 8 + math.floor(tileX / 4)
+        return math.floor(attrTable[attrIndex]/(2**(((math.floor(tileY/2) % 2)*2 + math.floor(tileX/2) % 2)*2))) % 4
+        #return (attrTable[attrIndex]>>(tileY%2*2+tileX)*2)%4
+    def setAttribute(self, attrTable, tileX,tileY, pal):
+        
+        attrIndex = math.floor(tileY / 4) * 8 + math.floor(tileX / 4)
+        
+        b=lambda x:"{0:08b}".format(x)
+        before = attrTable[attrIndex]
+        #attrTable[attrIndex] = attrTable[attrIndex] & 0xff^(3<<(tileY%2*2+tileX%2)*2) | pal<<(tileY%2*2+tileX%2)*2
+        
+        masks = [0b11111100, 0b11110011, 0b11001111, 0b00111111]
+        mTileMap = [0,1,2,3]
+        
+        
+        
+        attr = attrTable[attrIndex]
+        i = math.floor(tileY/2)%2*2+math.floor(tileX/2)%2
+        
+        attr = (attr & masks[i]) | (pal<<mTileMap[i]*2)
+        
+        attrTable[attrIndex] = attr
+        after = attr
+        
+        print(' tilexy=({},{}) attrIndex={} i={} pal={} {}-->{}'.format(attrTable[0], tileX,tileY, attrIndex,i, pal,b(before),b(after)))
+        
+        return attrIndex, attrTable[attrIndex]
     def imageToCHR(self, f, outputfile="output.chr", colors=False):
         print('imageToCHR')
         data = self.imageToCHRData(self, f, colors)
@@ -539,7 +591,19 @@ class ForLua:
         f.close()
     def getLen(self, item):
         # todo: make work for lua stuff
+        if not item:
+            return 0
         return len(item)
+    def tableToList(self, t,base=1):
+        if t.__class__.__name__ == '_LuaTable':
+            ret = [t[x] for x in list(t)]
+            if base==1:
+                ret = [None]+ret
+            return ret
+        else:
+            return t
+    def hexToList(self, s, base=1):
+        return list(bytearray.fromhex(s))
     def listToTable(self, l, base=1):
         if lupa.lua_type(l)=='table': return l
         if l==None: return l
@@ -552,14 +616,14 @@ class ForLua:
             return t
         
         return lua.table_from(l)
-    def test(self, x=0,y=0):
-        canvas = self.getCanvas(self, 'tsaTileCanvas')
-        f = r"J:\svn\NESBuilder\mtile.png"
-        img = Image.open(f)
-        photo = ImageTk.PhotoImage(ImageOps.scale(img, 2, resample=Image.NEAREST))
-        self.images2.append(photo)
-        canvas = self.getCanvas(self, 'testCanvas')
-        canvas.control.create_image(x, y, image=photo, anchor=tk.NW)
+#    def test(self, x=0,y=0):
+#        canvas = self.getCanvas(self, 'tsaTileCanvas')
+#        f = r"J:\svn\NESBuilder\mtile.png"
+#        img = Image.open(f)
+#        photo = ImageTk.PhotoImage(ImageOps.scale(img, 2, resample=Image.NEAREST))
+#        self.images2.append(photo)
+#        canvas = self.getCanvas(self, 'testCanvas')
+#        canvas.control.create_image(x, y, image=photo, anchor=tk.NW)
     def imageToCHRData(self, f, colors=False):
         print('imageToCHRData')
         
@@ -600,12 +664,13 @@ class ForLua:
         return ret
     def screenshotTest(self):
         main.screenshot(main)
+    def updateApp(self):
+        app.processEvents()
     def getFileData(self, f=None):
         file=open(f,"rb")
         #file.seek(0x1000)
         fileData = file.read()
         file.close()
-        
         return list(fileData)
     def getFileAsArray(self, f):
         file=open(f,"rb")
@@ -614,6 +679,7 @@ class ForLua:
         fileData = list(fileData)
         return fileData
     def saveArrayToFile(self, f, fileData):
+        fileData = self.tableToList(self, fileData, base=0)
         f = fixPath2(f)
         file=open(f,"wb")
         file.write(bytes(fileData))
@@ -743,11 +809,6 @@ class ForLua:
         
         img = Image.fromarray(a)
         img.save(filename)
-#    def makeIps(self, originalFile, modifiedFile, patchFile):
-#        originalFile = fixPath2(originalFile)
-#        modifiedFile = fixPath2(modifiedFile)
-#        patchFile = fixPath2(patchFile)
-#        ips.createPatch(originalFile, modifiedFile, patchFile)
     def Quit(self):
 #        app.quit()
 #        main.destroy()
@@ -804,216 +865,10 @@ class ForLua:
         ctrl.init(t)
         
         ctrl.mousePressEvent = makeCmdNew(t)
-        ctrl.mouseMoveEvent = makeCmdNew(t)
+        #ctrl.mouseMoveEvent = makeCmdNew(t)
+        ctrl.onMouseMove = makeCmdNew(t)
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
-    def makeCanvas(self, t, variables):
-        x,y,w,h = variables
-        
-        t.scale = t.scale or 3
-        w=w*t.scale
-        h=h*t.scale
-        
-        canvas = tkDave.Canvas(self.getTab(self), width=1, height=1, bg='black',name=t.name)
-        canvas.configure(highlightthickness=0, borderwidth=0)
-        canvas.place(x=x,y=y, width=w, height=h)
-        control=canvas
-        
-        photo = False
-        
-        def setCursor(cursor):
-            if not cursor.lower().endswith(".cur"):
-                cursor = cursor+".cur"
-            try:
-                d = os.path.dirname(sys.modules["cursors"].__file__)
-                f = os.path.join(d, cursor).replace("\\","/")
-                canvas.config(cursor="@"+f)
-            except:
-                pass
-        
-        
-        def removeSplits():
-            pass
-        #@lupa.unpacks_lua_table
-        
-        def drawSplit(splits):
-            control = self.getControlNew(self, t.name)
-            canvas = control.control
-            splits = [splits[x] for x in splits if splits[x]>0]
-            
-            for i, l in enumerate(splits):
-                if control.lines.get(i):
-                    for item in control.lines[i]:
-                        canvas.delete(item)
-                control.lines[i] = [
-                    canvas.create_line(0, l*control.scale+0, control.width, l*control.scale+0, fill="white", activefill="red", width=2, dash=(8,3)),
-                ]
-            canvas.update_idletasks()
-        def _drawSplit(splits):
-            # makes a stack overflow, dont know why :(
-            
-            control = self.getControlNew(self, t.name)
-            canvas = control.control
-            
-            control.splits = splits
-            splits = [splits[x] for x in splits]
-            print(splits)
-            print(control.lines)
-            
-            img=False
-            photo=False
-            a=False
-            
-            for i, l in enumerate(splits):
-                if control.lines.get(i):
-                    canvas.delete(control.lines[i][0])
-                    del control.lines[i]
-
-                img=Image.new("RGB", size=(control.width,2))
-                a = np.asarray(img).copy()
-                for y in range(2):
-                    for x in range(control.width):
-                        if x%8 <5:
-                            a[y][x] = [255,255,255]
-                        else:
-                            a[y][x] = [100,100,100]
-                img = Image.fromarray(a)
-                photo = ImageTk.PhotoImage(img)
-                
-#                control.lines.update({i:photo})
-#                canvas.create_image(0,l*control.scale, image=photo, state="normal", anchor=tk.NW)
-                control.lines[i] = [canvas.create_image(0,l*control.scale, image=photo, state="normal", anchor=tk.NW), photo]
-        @lupa.unpacks_lua_table
-        def drawTile(x=0,y=0, tile=0, colors=(0x0f,0x23,0x13,0x03), useCache=False, chrData=False):
-            placeX,placeY = x,y
-            control = self.getControlNew(self, t.name)
-            canvas = control.control
-            
-            # convert and re-index lua table
-            if lupa.lua_type(colors)=="table":
-                colors = [colors[x] for x in colors]
-            
-            rows, columns = t.rows, t.columns
-            
-            imageData = False
-            if useCache and control.imageDataCache:
-                imageData = control.imageDataCache
-            elif chrData:
-                control.chrData = chrData
-                imageData = control.chrData
-                imageData = [imageData[x] for x in list(imageData)]
-                control.imageDataCache = imageData
-            else:
-                imageData = control.chrData
-                imageData = [imageData[x] for x in list(imageData)]
-                control.imageDataCache = imageData
-            
-            img=Image.new("RGB", size=(8,8))
-            a = np.asarray(img).copy()
-            
-            
-            for y in range(8):
-                for x in range(8):
-                    c=0
-                    x1=(tile % columns)*8+(7-x)
-                    y1=math.floor(tile/columns)*8+y
-                    if (imageData[tile*16+y] & (1<<x)):
-                        c=c+1
-                    if (imageData[tile*16+y+8] & (1<<x)):
-                        c=c+2
-                    a[y][(7-x)] = nesPalette[colors[c]]
-                    
-            img = Image.fromarray(a)
-            #photo = ImageTk.PhotoImage(ImageOps.scale(img, control.scale, resample=Image.NEAREST))
-            #photo = ImageTk.PhotoImage(img.resize((8*control.scale,8*control.scale), resample = Image.NEAREST ))
-            #photo = ImageTk.PhotoImage(img.resize((8*control.scale,8*control.scale), resample = Image.NEAREST, reducing_gap=1 ))
-            #photo = ImageTk.PhotoImage(img)
-            photo = ImageTk.PhotoImage(img.resize((8*control.scale,8*control.scale), resample = Image.NEAREST, reducing_gap=1))
-            control.tiles.update({"{0},{1}".format(placeX,placeY): photo})
-            canvas.create_image(placeX*control.scale,placeY*control.scale, image=photo, state="normal", anchor=tk.NW)
-            
-            # This makes everything responsive while it's updating
-            root.update()
-        @lupa.unpacks_lua_table
-        def loadCHRData(imageData=False, colors=(0x0f,0x21,0x11,0x01), columns=16, rows=16):
-            
-            if not imageData:
-                imageData = lua.table()
-                for i in range(0, columns*rows):
-                    imageData[i+1] = 0
-            
-            if lupa.lua_type(imageData)!="table":
-                print('bad imageData for loadCHRData')
-                return False
-            
-            control = self.getControlNew(self, t.name)
-            canvas = control.control
-            
-            control.columns = columns
-            control.rows = rows
-            
-            control.chrData = imageData
-            imageData = [imageData[x] for x in list(imageData)]
-            
-            # convert and re-index lua table
-            if lupa.lua_type(colors)=="table":
-                colors = [colors[x] for x in colors]
-            
-            control.colors = colors
-            img=Image.new("RGB", size=(columns*8,rows*8))
-            a = np.asarray(img).copy()
-            for tile in range(math.floor(len(imageData)/16)):
-                if tile >= (columns * rows):
-                    break
-                for y in range(8):
-                    for x in range(8):
-                        c=0
-                        x1=(tile % columns)*8+(7-x)
-                        y1=math.floor(tile/columns)*8+y
-                        if (imageData[tile*16+y] & (1<<x)):
-                            c=c+1
-                        if (imageData[tile*16+y+8] & (1<<x)):
-                            c=c+2
-                        a[y1][x1] = nesPalette[colors[c]]
-            img = Image.fromarray(a)
-            #photo = ImageTk.PhotoImage(ImageOps.scale(img, t.scale, resample=Image.NEAREST))
-            photo = ImageTk.PhotoImage(ImageOps.scale(img, control.scale, resample=Image.NEAREST))
-            control.photo = photo
-            canvas.create_image(0,0, image=photo, state="normal", anchor=tk.NW)
-            canvas.configure(highlightthickness=0, borderwidth=0)
-        
-        t=lua.table(name=t.name,
-                    control=control,
-                    scale=t.scale,
-                    loadCHRData=loadCHRData,
-                    drawTile=drawTile,
-                    tiles={},
-                    drawSplit = drawSplit,
-                    setCursor = setCursor,
-                    lines = {},
-                    tool = False,
-                    button=0,
-                    )
-        
-        control.bind("<ButtonPress-1>", makeCmdNew(t, extra=dict(press=True, button=1)))
-        control.bind("<ButtonRelease-1>", makeCmdNew(t, extra=dict(press=False, button=1)))
-        control.bind("<ButtonPress-3>", makeCmdNew(t, extra=dict(press=True, button=3)))
-        control.bind("<ButtonRelease-3>", makeCmdNew(t, extra=dict(press=False, button=3)))
-        control.bind("<B1-Motion>", makeCmdNew(t, extra = dict(button=1)))
-        control.bind("<B3-Motion>", makeCmdNew(t, extra = dict(button=3)))
-
-        canvas.config(cursor="top_left_arrow")
-        
-        t.setCursor("pencil")
-        
-        if not self.canvas:
-            # set as default canvas
-            self.setCanvas(self, t.name)
-        
-        controls.update({t.name:control})
-        controlsNew.update({t.name:t})
-        
-        return t
     @lupa.unpacks_lua_table
     def makeTabQt(self, t):
         window = self.windowQt
@@ -1075,10 +930,27 @@ class ForLua:
             filename = os.path.join(d, file)
             #print(filename)
             ctrl.setIcon(filename)
-                
-                
         
         ctrl.clicked.connect(makeCmdNew(t))
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    def getCursorFile(self, cursorName):
+        
+        cursorName = "cursors\\"+cursorName
+        folder, file = os.path.split(cursorName)
+        d = os.path.dirname(sys.modules[folder].__file__)
+        filename = os.path.join(d, file)
+        return filename
+    @lupa.unpacks_lua_table
+    def makeLineEdit(self, t):
+        ctrl = QtDave.LineEdit(self.tabQt)
+        t.text = coalesce(t.text, '')
+        t.control = ctrl
+        ctrl.init(t)
+        
+        #ctrl.clicked.connect(makeCmdNew(t))
+        #ctrl.textChanged.connect(makeCmdNew(t))
+        ctrl.textChanged.connect(makeCmdNoEvent(t))
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
@@ -1086,6 +958,26 @@ class ForLua:
         ctrl = QtDave.TextEdit(t.text, self.tabQt)
         ctrl.init(t)
         #ctrl.clicked.connect(makeCmdNew(t))
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
+    def makeList(self, t):
+        ctrl = QtDave.ListWidget(self.tabQt)
+        ctrl.setSortingEnabled(False)
+        ctrl.init(t)
+        
+        #t.currentItem = lambda: ctrl.currentItem().text()
+        t.getIndex = ctrl.currentRow
+        t.getItem = lambda: ctrl.currentItem().text()
+        
+        
+        if t.list:
+            ctrl.setList(t.list)
+        t.control = ctrl
+        #ctrl.clicked.connect(makeCmdNew(t))
+        #ctrl.clicked.connect(makeCmdNoEvent(t))
+        #ctrl.itemClicked.connect(makeCmdNoEvent(t))
+        ctrl.itemClicked.connect(makeCmdNew(t))
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
@@ -1151,113 +1043,10 @@ class ForLua:
                         t2.name = item.get('name', "_"+str(i))
                     
                     menuItems[i].update(action = makeCmdNew(t2))
-
         
         return window.addMenu(t.name, t.text, menuItems)
-    def _makeButton(self, t, variables):
-        x,y,w,h = variables
-        imgctrl = False
-        
-        img = None
-        image = None
-        inverted_image = None
-        control = False
-        if t.image:
-            try:
-                # the frozen version will still try to load it manually first
-                image = Image.open(t.image)
-            except:
-                folder, file = os.path.split(t.image)
-                image = Image.open(BytesIO(pkgutil.get_data(folder, file)))
-            
-            if t.iconMod:
-                image = ImageOps.expand(image, border=5)
-                image = ImageTk.PhotoImage(image)
-            else:
-                image = ImageTk.PhotoImage(file=t.image)
-            
-            control = tkDave.Button(self.getTab(self), text=t.text, takefocus = 0, image=image, compound=tk.LEFT, anchor=tk.W, justify=tk.LEFT)
-        else:
-            if t.toggle:
-                control = tkDave.ToggleButton(self.getTab(self), text=t.text, takefocus = 0)
-            else:
-                control = tkDave.Button(self.getTab(self), text=t.text, takefocus = 0)
-        
-        control.config(width=w,
-                       fg=config.colors.fg,
-                       bg=config.colors.bk2,
-                       activebackground=config.colors.bk2,
-                       activeforeground=config.colors.fg,
-                      )
-                      
-        control.setHoverColor(config.colors.bk_hover, "white")
-        control.place(x=t.x, y=t.y)
-        if t.h:
-            control.place(height = t.h)
-        if t.w and t.trueWidth:
-            control.place(width = t.w)
-        controls.update({t.name:control})
-        
-        t=lua.table(name=t.name,
-                    control=control,
-                    imageRef=image,
-                    text = t.text,
-                    toggle = t.toggle,
-                    )
-        
-        if t.toggle:
-            t.getValue = control.getValue
-            t.setValue = control.setValue
-        
-        control.bind( "<ButtonRelease-1>", makeCmdNew(t), add="+")
-        
-        controlsNew.update({t.name:t})
-        return t
-
     def setText(c,txt):
         c.setText(txt)
-    
-    def makePopupMenu(self, t, variables):
-        x,y,w,h = variables
-        
-        # create a popup menu
-        tab = self.getTab(self)
-        menu = tk.Menu(tab, tearoff=0)
-        
-        if cfg.getValue("main","styleMenus"):
-            menu.config(bg=config.colors.bk2,fg=config.colors.fg, activebackground=config.colors.bk_menu_highlight)
-        
-        def popup(event):
-            controls[t.name].event = event
-            menu.post(event.x_root, event.y_root)
-        
-        control = menu
-        controls.update({t.name:control})
-
-        t=lua.table(name=t.name,
-                    control=control,
-                    items=t['items'],
-                    prefix=t.prefix,
-                    )
-
-        for i, item in t['items'].items():
-            name = item.name or str(i)
-            t2=lua.table(name=t.name+"_"+name,
-                        control=control,
-                        items=t['items'],
-                        )
-            if not t.prefix:
-                if item.name:
-                    t2.name = name
-                else:
-                    t2.name = "_"+name
-            
-            entry = dict(index=i, entry = item)
-            menu.add_command(label=item.text, command=makeCmdNoEvent(t2, extra=entry))
-
-        tab.bind("<Button-3>", popup)
-        
-        return t
     def makeMenu(self, t, variables):
         x,y,w,h = variables
         
@@ -1390,47 +1179,6 @@ class ForLua:
         
         #control.bind( "<ButtonRelease-1>", makeCmdNew(t))
         return t
-        
-    def makeList(self, t, variables):
-        x,y,w,h = variables
-        
-        control = tk.Listbox(self.getTab(self))
-        control.config(fg=config.colors.fg, bg=config.colors.bk2)
-        control.place(x=x, y=y)
-        
-        def getIndex():
-            selection = control.curselection()
-            if not selection:
-                return
-            return selection[0]
-        def get(index=False):
-            selection = control.curselection()
-            if not selection:
-                return
-            index = index or selection[0]
-            return control.get(index)
-        def set(index=0):
-            control.select_clear(0, "end")
-            control.selection_set(index)
-            control.see(index)
-            control.activate(index)
-        
-        t=lua.table(name=t.name,
-                    control=control,
-                    insert=control.insert,
-                    append=lambda x:control.insert(tk.END,x),
-                    getSelection = lambda:control.curselection(),
-                    get = get,
-                    set = set,
-                    getIndex = getIndex,
-                    )
-
-        controls.update({t.name:t})
-
-        #control.bind( "<Button-1>", makeCmdNew(t))
-        control.bind( "<ButtonRelease-1>", makeCmdNew(t))
-        
-        return t
     def makeText(self, t, variables):
         x,y,w,h = variables
         
@@ -1468,45 +1216,6 @@ class ForLua:
         #control.bind( "<Button-1>", makeCmdNew(t))
         control.bind( "<ButtonRelease-1>", makeCmdNew(t))
         control.bind( "<Return>", makeCmdNew(t))
-        
-        return t
-    def makeSpinBox(self, t, variables):
-        x,y,w,h = variables
-        control=None
-        padX=5
-        padY=1
-        frame = tk.Frame(self.getTab(self), borderwidth=0, relief="solid")
-        frame.config(bg=config.colors.bk3)
-        frame.place(x=x,y=y, width=w, height=h)
-        
-        control = tkDave.SpinBox(self.getTab(self), borderwidth=0, relief="solid", buttondownrelief="solid", buttonuprelief="solid", insertontime=0)
-        #control.config(fg=config.colors.fg, bg=config.colors.bk3, insertbackground = config.colors.fg, from_=0, to=255, state="readonly", readonlybackground=config.colors.bk3)
-        control.config(fg=config.colors.fg, bg=config.colors.bk3, insertbackground = config.colors.fg, from_=0, to=255, takefocus = 0)
-        control.place(x=x+padX, y=y+padY)
-        
-        control.place(height=h-padY*2)
-        control.place(width=w-padX)
-        def set(value):
-            control.delete(0, tk.END)
-            control.insert(0, value)
-        def get():
-            return int(control.get())
-            
-        t=lua.table(name=t.name,
-                    control=control,
-                    height=h,
-                    width=w,
-                    get=get,
-                    set=set,
-                    )
-        
-        cmd = makeCmdNew(t)
-        control.config(command=lambda: cmd(t))
-        
-        controls.update({t.name:t})
-        
-#        control.bind( "<ButtonRelease-1>", makeCmdNew(t))
-#        control.bind( "<Return>", makeCmdNew(t))
         
         return t
     def makeEntry(self, t, variables):
@@ -1579,50 +1288,6 @@ class ForLua:
 
         control.bind( "<Button-1>", makeCmdNew(t))
         return t
-    def _makeLink(self, t, variables):
-        x,y,w,h = variables
-        control = tkDave.Link(self.getTab(self), text=t.text, borderwidth=1, background="white", relief="solid")
-        control.config(fg=config.colors.link, borderwidth=0)
-        control.setHoverColor(hoverforeground=config.colors.linkHover)
-        control.place(x=x, y=y)
-        
-        def setFont(fontName="Verdana", size=12):
-            control.config(font=(fontName, size))
-            t.update()
-        def setText(text):
-            control.config(text=text)
-        def setJustify(j):
-            t = {
-                "left":tk.LEFT,
-                "right":tk.RIGHT
-                }
-            control.config(justify=t.get(j, tk.LEFT))
-        
-        try:
-            d = os.path.dirname(sys.modules["cursors"].__file__)
-            f = os.path.join(d, "LinkSelect.cur").replace("\\","/")
-            control.config(cursor="@"+f)
-        except:
-            print('nope')
-            pass
-        
-        control.setUrl(t.url)
-        
-        t=lua.table(name=t.name,
-                    control=control,
-                    height=h,
-                    width=w,
-                    setText = setText,
-                    setFont = setFont,
-                    setJustify = setJustify,
-                    url = t.url
-                    )
-        
-        controls.update({t.name:t})
-
-        #if t.name: control.bind( "<Button-1>", makeCmdNew(t))
-        return t
-
     def makeLabel(self, t, variables):
         x,y,w,h = variables
         
@@ -1792,7 +1457,7 @@ class ForLua:
             return control.cellNum
         def getCellEvent():
             # This is a way to get the event for each cell from the parent frame
-            print(control.cellEvent)
+            #print(control.cellEvent)
             control.cellEvent.index = control.cellNum
             return control.cellEvent
         
@@ -1812,31 +1477,24 @@ class ForLua:
         control.bind( "<ButtonRelease-1>", control.cmd)
         
         return t
-    def createTab(self, name, text):
-        window = controls[self.window]
-        if name in window.tabs:
-            print('Not creating tab "{}" (already exists).'.format(name))
-        else:
-            tab = ttk.Frame(window.tabParent, style='new.TFrame')
-            window.tabs.update({name:tab})
-            window.tabParent.add(tab, text=text)
-            window.tabParent.pack(expand=1, fill='both')
     def selectTab(self, tab):
         window = self.getWindow(self)
         window.tabParent.select(list(window.tabs).index(tab))
         print(list(window.tabParent.tabs))
-    def makeTab(self, name, text):
-        self.createTab(self, name, text)
     def forceClose(self):
         #atexit.unregister(exitCleanup)
         sys.exit()
     def restart(self):
-        app.quit()
-        main.destroy()
+        #app.quit()
+        #main.destroy()
+        #main.close()
         
         #if onExit(skipCallback=True):
         if onExit():
             print("\n"+"*"*20+" RESTART "+"*"*20+"\n")
+            
+            main.close()
+            
             os.chdir(initialFolder)
             if frozen:
                 subprocess.Popen(sys.argv)
@@ -1845,7 +1503,6 @@ class ForLua:
             os.system('cls')
 
     def setTitle(self, title=''):
-        root.title(title)
         main.setWindowTitle(title)
     
 # Return it from eval so we can execute it with a 
@@ -1894,28 +1551,27 @@ def doCommandNew(*args, ev=False, extra = False):
     except:
         pass
     
-    if ev:
-        event = False
-        try:
-            event = dict(
-                event = ev,
-                button = ev.num,
-                x = ev.x,
-                y = ev.y,
-            )
-        except:
-            event = dict(
-                event = ev,
-                x = ev.x,
-                y = ev.y,
-            )
-        try:
-            event.type = ev.type.name
-        except:
-            event.update(type=str(ev.type))
+    if ev and (ev.__class__.__name__ == "QMouseEvent"):
+        event = dict(
+            event = ev,
+            x = ev.x,
+            y = ev.y,
+            button = ev.button,
+            type = ev.type,
+        )
+        if callable(ev.type):
+            b = dict({
+                2:'ButtonPress',
+                3:'ButtonRelease',
+                4:'ButtonDblClick',
+                5:'Move',
+                })
+            event.update(type=b.get(ev.type()))
         
         args.event = event
-    
+    elif ev and (ev.__class__.__name__ == "QListWidgetItem"):
+        # ev exists, but isn't an event
+        args.selectedWidget = ev
     # doCommand is a command preprocessor thing.  If 
     # It returns true then it moves on to name_command
     # if it exists, or name_cmd otherwise.
@@ -1937,14 +1593,14 @@ def doCommandNew(*args, ev=False, extra = False):
     except Exception as err:
         handlePythonError(err)
 
-def handlePythonError(err=None):
+def handlePythonError(err=None, exit=False):
     print("-"*79)
     e = traceback.format_exc().splitlines()
     e = "\n".join([x for x in e if "lupa\_lupa.pyx" not in x])
     print(e)
     print("-"*79)
     
-    if cfg.getValue("main","breakonpythonerrors"):
+    if exit or cfg.getValue("main","breakonpythonerrors"):
         sys.exit(1)
 
 def onExit(skipCallback=False):
@@ -1987,29 +1643,29 @@ main.tabParent.currentChanged.connect(makeCmdNoEvent(t))
 
 
 #root = tk.Tk()
-root = tkDave.Tk()
+#root = tkDave.Tk()
 
 # hide the window until it's ready
-root.withdraw()
-root.protocol( "WM_DELETE_WINDOW", onExit )
-root.iconbitmap(sys.executable)
+#root.withdraw()
+#root.protocol( "WM_DELETE_WINDOW", onExit )
+#root.iconbitmap(sys.executable)
 
-if not frozen:
-    photo = ImageTk.PhotoImage(file = fixPath2("icon.ico"))
-    root.iconphoto(False, photo)
+#if not frozen:
+#    photo = ImageTk.PhotoImage(file = fixPath2("icon.ico"))
+#    root.iconphoto(False, photo)
 
-tab_parent = ttk.Notebook(root)
+#tab_parent = ttk.Notebook(root)
 
 windows={}
 
-tab_parent.pack(expand=1, fill='both')
+#tab_parent.pack(expand=1, fill='both')
 
-var = tk.IntVar()
-def on_click():
-    print(var.get())
+#var = tk.IntVar()
+#def on_click():
+#    print(var.get())
 
-style = ttk.Style()
-style.configure('new.TFrame')
+#style = ttk.Style()
+#style.configure('new.TFrame')
 
 
 def handleLuaError(err):
@@ -2080,31 +1736,8 @@ if gotError:
     
 config  = lua.eval('config or {}')
 
-style.configure('new.TFrame', background=config.colors.bk, fg=config.colors.fg)
-
 config.title = config.title or "SpideyGUI"
-root.title(config.title)
-root.configure(bg=config.colors.bk)
-root.tk_setPalette(config.colors.tkDefault)
-
 main.setWindowTitle(config.title)
-
-t=lua.table(name="Main",
-            control=root,
-            tabParent=tab_parent,
-            tabs={},
-            tab="Main",
-            )
-controls.update({"Main":t})
-windows.update({"Main":t})
-
-t2=lua.table(name="onTabChanged",
-            control=tab_parent,
-            window = t,
-            tab = lambda:list(t.tabs)[tab_parent.index("current")]
-            )
-
-root.bind("<<NotebookTabChanged>>", makeCmdNew(t2))
 
 print("This console is for debugging purposes.\n")
 
@@ -2113,6 +1746,8 @@ try:
 except LuaError as err:
     print("*** init() Failed")
     handleLuaError(err)
+except Exception as err:
+    handlePythonError(err, exit=True)
 
 lua.execute("plugins = {}")
 
@@ -2130,6 +1765,7 @@ if cfg.getValue("main","loadplugins"):
                 code = """
                     NESBuilder:setWorkingFolder()
                     _plugin = require("{0}.{1}")
+                    _plugin.dontPrintThis = true
                     if type(_plugin) =="table" then
                         plugins[_plugin.name or "{1}"]=_plugin
                         _plugin.file = "{2}"
@@ -2149,6 +1785,8 @@ if cfg.getValue("main","loadplugins"):
         except LuaError as err:
             print("*** onPluginsLoaded() Failed")
             handleLuaError(err)
+        except Exception as err:
+            handlePythonError(err)
 try:
     lua.execute("if onReady then onReady() end")
 except LuaError as err:
@@ -2159,10 +1797,6 @@ w = cfg.getValue('main', 'w', default=coalesce(config.width, 800))
 h = cfg.getValue('main', 'h', default=coalesce(config.height, 800))
 
 x,y = cfg.getValue('main', 'x'), cfg.getValue('main', 'y')
-if x and y:
-    root.geometry("{0}x{1}+{2}+{3}".format(w,h, x,y))
-else:
-    root.geometry("{0}x{1}".format(w,h))
 
 main.setGeometry(x,y,w,h)
 
@@ -2190,10 +1824,48 @@ app.setStyleSheet(s)
 if not frozen:
     main.setIcon(fixPath2('icon.ico'))
 
+#controlsNew.update({main.name:main})
 
-controlsNew.update({main.name:main})
+def onResize(width,height,oldWidth,oldHeight):
+    for tab in main.tabs.values():
+        #print(tab.name,tab.width,tab.height)
+        
+#        if tab.width!=0 and tab.height!=0:
+#            tab.resize(tab.width+(width-oldWidth),tab.height+(height-oldHeight))
+        pass
+    try:
+        lua.execute("if onResize then onResize({},{},{},{}) end".format(width,height,oldWidth,oldHeight))
+    except LuaError as err:
+        print("*** onResize() Failed")
+        handleLuaError(err)
+    except Exception as err:
+        handlePythonError(err)
+main.onResize = onResize
+
+
+def onHoverWidget(widget):
+    try:
+        lua_func = lua.eval('function(o) if onHover then onHover(o) end end')
+        lua_func(widget)
+
+    except LuaError as err:
+        print("*** onHoverWidget() Failed")
+        handleLuaError(err)
+    except Exception as err:
+        handlePythonError(err)
+main.onHoverWidget = onHoverWidget
+
 
 main.show()
+try:
+    lua.execute("if onShow then onShow() end")
+except LuaError as err:
+    print("*** onShow() Failed")
+    handleLuaError(err)
+except Exception as err:
+    handlePythonError(err)
+
+
 app.mainloop()
 
 

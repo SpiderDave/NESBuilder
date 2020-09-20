@@ -70,6 +70,10 @@ QPushButton:pressed {
 }
 
 QTabWidget::pane {
+    /*margin-bottom:48px;*/
+}
+
+QTabWidget::pane {
     border:1px solid _bkHover_;
     border-left:none;
     border-right:none;
@@ -129,6 +133,9 @@ QMessageBox QPushButton, QInputDialog QPushButton {
     padding:.5em;
     padding-left:2em;
     padding-right:2em;
+}
+
+QInputDialog QPushButton {
     margin-left:.5em;
     margin-right:.5em;
 }
@@ -136,6 +143,7 @@ QMessageBox QPushButton, QInputDialog QPushButton {
 QMessageBox QPushButton {
     margin:0 auto;
 }
+
 
 .launcherIcon {
     background-color:_bk2_;
@@ -164,11 +172,30 @@ QCheckBox {
     font-size:12pt;
 }
 
-QPlainTextEdit {
+QPlainTextEdit, QLineEdit {
     border:1px solid _textInputBorder_;
     background-color:_bk2_;
-    padding:.4em;
     /* I stole this font-family from stackoverflow */
     font-family: Consolas, Menlo, Monaco, Lucida Console, Liberation Mono, DejaVu Sans Mono, Bitstream Vera Sans Mono, Courier New, monospace, serif;
     font-size:11pt;
 }
+
+.paletteHighlight {
+    border:1px solid white;
+}
+
+QListView{
+    font-size:11pt;
+}
+QListView::item:hover {
+    background-color:_bk2_;
+}
+
+QListView::item:selected {
+    background-color:_bkMenuHighlight_;
+}
+
+
+/* gets rid of all focus rectangles */
+*{outline: none;}
+

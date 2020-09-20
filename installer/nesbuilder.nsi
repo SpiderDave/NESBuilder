@@ -117,6 +117,8 @@ Section "-DefaultStuff"
         "${GitURL}plugins/nesst.lua" "plugins/nesst.lua"\
         "${GitURL}plugins/nesst.py" "plugins/nesst.py"\
         "${GitURL}templates/codeTemplate.zip" "templates/codeTemplate.zip"\
+        "${GitURL}icons/__init__.py" "icons/__init__.py"\
+        "${GitURL}cursors/__init__.py" "cursors/__init__.py"\
         /END
     Pop $0
 SectionEnd

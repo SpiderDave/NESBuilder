@@ -887,7 +887,7 @@ function BuildProject_cmd()
         print("project.asm not found, extracting code template...")
         --NESBuilder:extractAll('codeTemplate.zip',folder)
         --NESBuilder:extractAll('codeTemplate2.zip',folder)
-        NESBuilder:extractAll('codeTemplate.zip',folder)
+        NESBuilder:extractAll('templates/codeTemplate.zip',folder)
     end
     
     -- save CHR

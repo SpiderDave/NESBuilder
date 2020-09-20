@@ -111,7 +111,7 @@ Section "-DefaultStuff"
         "${GitURL}plugins/_samplePlugin.lua" "plugins/_samplePlugin.lua"\
         "${GitURL}plugins/hello.py" "plugins/hello.py"\
         "${GitURL}plugins/_smbthing.lua" "plugins/_smbthing.lua"\
-        "${GitURL}plugins/_romifno.lua" "plugins/_rominfo.lua"\
+        "${GitURL}plugins/_rominfo.lua" "plugins/_rominfo.lua"\
         "${GitURL}plugins/hash.py" "plugins/hash.py"\
         "${GitURL}plugins/_debug.lua" "plugins/_debug.lua"\
         "${GitURL}plugins/nesst.lua" "plugins/nesst.lua"\

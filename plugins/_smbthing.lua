@@ -162,17 +162,13 @@ function smbthingTest_cmd()
     -- make sure file is loaded
     if not plugin.fileData then return end
 
---    local f = plugin.outputFile or plugin.inputFile
---    if not f then return end
---    local workingFolder = f
---    NESBuilder:shellOpen(workingFolder, f)
-    
+    NESBuilder:setWorkingFolder()
     local f = "temp.nes"
     local workingFolder = f
-    --local workingFolder = NESBuilder:getWorkingFolder()
-    NESBuilder:saveArrayToFile(plugin.fileData, f)
-    NESBuilder:shellOpen(workingFolder, f)
     
+    print(f..' '..workingFolder)
+    NESBuilder:saveArrayToFile(f, plugin.fileData)
+    NESBuilder:shellOpen(workingFolder, f)
 end
 
 function smbthingLoadRom_cmd()
@@ -245,12 +241,14 @@ function smbthingRefreshPalettes()
 end
 
 function smbthingPalette_cmd(t)
-    if t.event.button == 1 or t.event.button == 2 then
+    local event = t.cell.event
+    if event.button == 1 or event.button == 2 then
         plugin.selectedColor = t.cellNum
     end
 end
 
 function smbPaletteCmd(t)
+    local event = t.cell.event
     local offset
     local p, control
     
@@ -263,10 +261,10 @@ function smbPaletteCmd(t)
     
     if not plugin.fileData then return end
     
-    if t.event.button == 2 then
+    if event.button == 2 then
         -- left click
         plugin.selectedColor = plugin.fileData[offset+t.cellNum]
-    elseif t.event.button == 1 then
+    elseif event.button == 1 then
         plugin.fileData[offset+t.cellNum]=plugin.selectedColor
         
         smbthingRefreshPalettes()

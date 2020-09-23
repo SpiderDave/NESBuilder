@@ -93,20 +93,17 @@ function plugin.onInit()
     x=pop()
     y = y + control.height+pad
     
-    push(x)
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=6*7.5,h=buttonHeight, name="testHand",text="split"}
-    y = y + control.height+pad
+--    push(x)
+--    control = NESBuilder:makeButtonQt{x=x,y=y,w=6*7.5,h=buttonHeight, name="testHand",text="split"}
+--    y = y + control.height+pad
     
-    --control=NESBuilder:makeSpinBox{x=x,y=y,w=60,h=buttonHeight, name="splitNum", index=i}
-    control=NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="splitNum", index=i}
-    x = x + control.width+pad
-    --control=NESBuilder:makeSpinBox{x=x,y=y,w=60,h=buttonHeight, name="splitY", index=i}
-    control=NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="splitY", index=i}
+--    control=NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="splitNum", index=i}
+--    x = x + control.width+pad
+--    control=NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="splitY", index=i}
     
+--    x=pop()
     
-    x=pop()
-    y = y + control.height+pad
-    --control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth,h=buttonHeight, name="testRefresh",text="refresh"}
+--    y = y + control.height+pad
     
     y,x = pop(2)
     
@@ -279,6 +276,7 @@ function nesstRefreshScreen()
     local control = NESBuilder:getControlNew("nesstCanvas")
     
     if not plugin.data.nameTable then
+        print('setting nametable default')
         plugin.data.nameTable = control.setNameTable()
         plugin.data.attrTable = control.setAttrTable()
     end
@@ -324,13 +322,14 @@ function plugin.testHand_cmd(t)
 end
 
 function plugin.nesstTileset_cmd(t)
-    local x = math.floor(t.event.x()/t.scale)
-    local y = math.floor(t.event.y()/t.scale)
+    local event = t.control.event
+    local x = math.floor(event.x/t.scale)
+    local y = math.floor(event.y/t.scale)
     local mtileX = math.floor(x/8)
     local mtileY = math.floor(y/8)
     local mtileNum = mtileY*16+mtileX
     
-    if t.event and t.event.type == "ButtonPress" then
+    if event and event.type == "ButtonPress" then
         local control = NESBuilder:getControlNew("nesstCanvas")
         plugin.data.tool = "draw"
         control.setCursor('pencil')
@@ -341,15 +340,16 @@ function plugin.nesstTileset_cmd(t)
 end
 
 function plugin.nesstCanvas_cmd(t)
-    if not plugin.data.nameTable then 
+    local event = t.control.event
+    if not plugin.data.nameTable then
         local control = NESBuilder:getControlNew("nesstCanvas")
         plugin.data.nameTable = control.setNameTable()
         plugin.data.attrTable = control.setAttrTable()
         return
     end
     local tile
-    local x = math.floor(t.event.x()/t.scale)
-    local y = math.floor(t.event.y()/t.scale)
+    local x = math.floor(event.x/t.scale)
+    local y = math.floor(event.y/t.scale)
     x,y=math.max(x,0),math.max(y,0)
     x,y=math.min(x,t.columns*8-1),math.min(y,t.rows*8-1)
     
@@ -362,7 +362,7 @@ function plugin.nesstCanvas_cmd(t)
     local tileNum = tileY*t.columns+tileX
     
     if plugin.data.tool == "split" then
-        if t.event.button == 1 then
+        if event.button == 1 then
             local control = NESBuilder:getControlNew("nesstCanvas")
             control.horizontalLine(y)
             print(y)
@@ -372,7 +372,7 @@ function plugin.nesstCanvas_cmd(t)
             NESBuilder:getControl("splitY").set(y)
             
             plugin.splits[value+1] = y
-        elseif t.button==3 and t.event.type == "ButtonPress" then
+        elseif event.button==2 and event.type == "ButtonPress" then
             local value = math.floor(NESBuilder:getControl("splitNum").get())
             NESBuilder:getControl("splitY").set(0)
             
@@ -381,7 +381,8 @@ function plugin.nesstCanvas_cmd(t)
     end
     
     if (plugin.data.tool or "draw") == "draw" then
-        if t.event.button == 1 then
+        --if t.event.button == 1 then
+        if event.button == 1 then
             plugin.data.nameTable[tileNum] = plugin.data.selectedTile or 0
             
             NESBuilder:setAttribute(plugin.data.attrTable, tileX, tileY, data.project.palettes.index)
@@ -396,7 +397,7 @@ function plugin.nesstCanvas_cmd(t)
             control.repaint()
         end
         
-        if t.event.button == 2 then
+        if event.button == 2 then
             plugin.data.selectedTile = plugin.data.nameTable[tileNum]
             --print(string.format("%04b",plugin.data.attrTable[attrY*4+attrX]))
             

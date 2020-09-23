@@ -41,7 +41,7 @@ QPushButton[hasIcon] {
     padding-left:8px;
 }
 
-.paletteCell {
+.paletteCell, .listPaletteCell {
     padding-left:2px;
     font-size:10pt;
     font-family: consolas;
@@ -49,6 +49,12 @@ QPushButton[hasIcon] {
 .paletteControl {
     border:1px solid _borderLight_;
 }
+
+.listPaletteCell {
+    text-indent: -9999px; 
+    font-size:24pt;
+}
+
 
 .test {
     border:1px solid red;
@@ -187,7 +193,7 @@ QPlainTextEdit, QLineEdit {
 QListView{
     font-size:11pt;
 }
-QListView::item:hover {
+QListView::item:hover, .listPaletteCell:hover {
     background-color:_bk2_;
 }
 
@@ -195,7 +201,34 @@ QListView::item:selected {
     background-color:_bkMenuHighlight_;
 }
 
-
 /* gets rid of all focus rectangles */
 *{outline: none;}
+
+.paletteListItem {
+    color:_fg_;
+    font-size:12pt;
+}
+.paletteListItem span {
+    font-size:9pt;
+}
+.paletteListItem:hover {
+    background-color:_bk2_;
+}
+
+
+QScrollBar::handle {
+    background-color:_bk3_;
+}
+QScrollBar::handle:hover {
+    background-color:rgb(65,65,90);
+}
+QScrollBar::sub-page, QScrollBar::add-page {
+    background-color:_bk2_
+}
+
+QHeaderView:section, QHeaderView  {
+    background-color:_bk2_;
+}
+
+.test {background-color:red;}
 

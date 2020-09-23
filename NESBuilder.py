@@ -448,6 +448,12 @@ class ForLua:
         window = controls[self.window]
         window.tab = tab
         self.tab=tab
+    def setContainer(self, widget=None):
+        window = self.windowQt
+        if widget == None:
+            self.tabQt = window
+            return
+        self.tabQt = widget
     def setTabQt(self, tab=None):
         window = self.windowQt
         if tab == None:
@@ -578,7 +584,7 @@ class ForLua:
         attrTable[attrIndex] = attr
         after = attr
         
-        print(' tilexy=({},{}) attrIndex={} i={} pal={} {}-->{}'.format(attrTable[0], tileX,tileY, attrIndex,i, pal,b(before),b(after)))
+        #print(' tilexy=({},{}) attrIndex={} i={} pal={} {}-->{}'.format(attrTable[0], tileX,tileY, attrIndex,i, pal,b(before),b(after)))
         
         return attrIndex, attrTable[attrIndex]
     def imageToCHR(self, f, outputfile="output.chr", colors=False):
@@ -827,6 +833,50 @@ class ForLua:
         # store the eval return value so we can pass return value to lua space.
         exec('ForLua.execRet = {0}'.format(s))
         return ForLua.execRet
+    def embedTest(self):
+        import subprocess
+        import time
+        import win32gui
+        
+        print('embed test')
+
+        # create a process
+        #exePath = "C:\\Windows\\system32\\calc.exe"
+        exePath = r"J:\Games\Nes\fceux-2.2.3-win32\fceux.exe"
+        subprocess.Popen(exePath)
+        #hwnd = win32gui.FindWindowEx(0, 0, "CalcFrame", "Calculator")
+        #hwnd = win32gui.FindWindowEx(0, 0, 0, "FCEUX 2.2.3-interim git9cd4b59cb3e02f911e9a96ba8f01fa0a95bc2f0c")
+        hwnd = win32gui.FindWindow(0, "FCEUX 2.2.3-interim git9cd4b59cb3e02f911e9a96ba8f01fa0a95bc2f0c")
+        #hwnd = win32gui.FindWindowEx(0, 0, "CalcFrame", None)
+        #hwnd = win32gui.FindWindow(0, "Calculator")
+        time.sleep(0.05)
+        #time.sleep(0.15)
+        #time.sleep(2)
+        m = QtDave.QWidget()
+        layout = QtDave.QVBoxLayout(m)
+        #layout = main.layout()
+        
+        window = QtDave.QWindow.fromWinId(hwnd)
+        window.setFlags(QtDave.Qt.FramelessWindowHint)
+        #widget = QtDave.QWidget.createWindowContainer(window, controlsNew.get('testTab'))
+        widget = QtDave.QWidget.createWindowContainer(window)
+        #widget = QtDave.QWidget.createWindowContainer(window, main)
+        #widget = main.createWindowContainer(window, main)
+        #widget.show()
+        #widget.resize(800,800)
+        #main.addWidget(widget, 'test')
+        #layout.addWidget(widget)
+        #main.layout().addWidget(widget)
+        #layout = QtDave.QVBoxLayout()
+        #main.setCentralWidget(widget)
+        layout.addWidget(widget)
+        #widget.setLayout(layout)
+        #main.setLayout(layout)
+        m.show()
+        
+#        self.setGeometry(500, 500, 450, 400)
+#        self.setWindowTitle('File dialog')
+#        self.show()
     def getControlNew(self, n):
         if not n:
             return controlsNew
@@ -863,10 +913,14 @@ class ForLua:
         
         ctrl = QtDave.Canvas(self.tabQt)
         ctrl.init(t)
+        t.control = ctrl
         
-        ctrl.mousePressEvent = makeCmdNew(t)
+        #ctrl.mousePressEvent = makeCmdNew(t)
+        #ctrl.mouseReleaseEvent = makeCmdNew(t)
         #ctrl.mouseMoveEvent = makeCmdNew(t)
         ctrl.onMouseMove = makeCmdNew(t)
+        ctrl.onMousePress = makeCmdNew(t)
+        ctrl.onMouseRelease = makeCmdNew(t)
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
@@ -900,6 +954,21 @@ class ForLua:
         
         return self.makeButtonQt(self, t)
     @lupa.unpacks_lua_table
+    def makeTable(self, t):
+        ctrl = QtDave.Table(self.tabQt)
+        ctrl.init(t)
+        
+        ctrl.setRowCount(t.rows)
+        ctrl.setColumnCount(t.columns)
+        ctrl.verticalHeader().hide()
+        
+        t.control = ctrl
+        #ctrl.onChange = makeCmdNoEvent(t)
+        
+        ctrl.clicked.connect(makeCmdNew(t))
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
     def makeSideSpin(self, t):
         ctrl = QtDave.SideSpin(self.tabQt)
         ctrl.init(t)
@@ -932,6 +1001,7 @@ class ForLua:
             ctrl.setIcon(filename)
         
         ctrl.clicked.connect(makeCmdNew(t))
+        #ctrl.onMouseRelease = makeCmdNew(t)
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     def getCursorFile(self, cursorName):
@@ -961,6 +1031,13 @@ class ForLua:
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
+    def makeFrame(self, t):
+        ctrl = QtDave.Frame(self.tabQt)
+        ctrl.init(t)
+        #ctrl.clicked.connect(makeCmdNew(t))
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
     def makeList(self, t):
         ctrl = QtDave.ListWidget(self.tabQt)
         ctrl.setSortingEnabled(False)
@@ -977,7 +1054,9 @@ class ForLua:
         #ctrl.clicked.connect(makeCmdNew(t))
         #ctrl.clicked.connect(makeCmdNoEvent(t))
         #ctrl.itemClicked.connect(makeCmdNoEvent(t))
-        ctrl.itemClicked.connect(makeCmdNew(t))
+        #ctrl.itemClicked.connect(makeCmdNew(t))
+        ctrl.currentItemChanged.connect(makeCmdNew(t))
+        
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
@@ -1345,138 +1424,15 @@ class ForLua:
                 set = ctrl.set,
                 setAll = ctrl.setAll,
             )
-            cell.mousePressEvent = makeCmdNew(t2)
+            #cell.mousePressEvent = makeCmdNew(t2)
+            #cell.onMouseMove = makeCmdNew(t2)
+            cell.onMousePress = makeCmdNew(t2)
+            #cell.onMouseRelease = makeCmdNew(t2)
+
+        
         
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
-    def makePaletteControl(self, t, variables):
-        x,y,w,h = variables
-
-        pw=len(t.palette) %0x10+1
-        ph=math.floor(len(t.palette) /0x10)+1
-        
-        w=coalesce(t.cellWidth, 30)
-        h=coalesce(t.cellHeight, 30)
-        
-        control = tk.Frame(self.getTab(self), width=pw*(w+1)+1, height=ph*(h+1)+1, name="_{0}_frame".format(t.name))
-        
-        control.place(x=t.x,y=t.y)
-        
-        control.cellNum = 0
-        
-        
-        def cellClick(ev):
-            control.cellNum = ev.widget.index
-            ev.index = ev.widget.index
-            #control.cellEvent = ev
-            
-            # This stuff is just taking a ride on the event
-            # but will be on the main table
-            ev.extra = dict(cellEvent = ev, cellNum = ev.widget.index)
-            
-            ev.widget.parent.cmd(ev)
-        
-        def highlight(highlight=False):
-            if highlight:
-                control.config(bg=config.colors.fg)
-            else:
-                control.config(bg=config.colors.bk)
-        #t.name="Palette"
-        control.allCells = []
-        for y in range(0,ph):
-            for x in range(0,pw):
-                i=y*0x10+x
-                bg = "#{0:02x}{1:02x}{2:02x}".format(t.palette[i][1],t.palette[i][2],t.palette[i][3])
-        
-                n="{0}_{1:02x}".format(t.name,i)
-                
-                # These values are the first white text of each row
-                fg = 'white' if x>=(0x00,0x01,0x0d,0x0e)[y] else 'black'
-                
-                if cfg.getValue("main","upperhex")==1:
-                    l = tk.Label(control, text="{0:02X}".format(t.palette[i].index), borderwidth=0, bg=bg, fg=fg, relief="solid")
-                else:
-                    l = tk.Label(control, text="{0:02x}".format(t.palette[i].index), borderwidth=0, bg=bg, fg=fg, relief="solid")
-                
-                l.place(x=1+x*(w+1), y=1+y*(h+1), height=h, width=w)
-                
-                l.bind("<Button>", cellClick)
-                
-                l.index=i
-                l.parent = control
-                
-                controls.update({n:l})
-                controls[n].update()
-                control.allCells.append(l)
-        self.x = t.x+pw*(w+1)+1
-        self.y = t.y+ph*(h+1)+1
-        self.w=pw*(w+1)+1
-        self.h=ph*(h+1)+1
-        def set(index, p):
-            changed = False
-            cell = control.allCells[index]
-            colorIndex = p
-            
-            # These values are the first white text of each row
-            fg = 'white' if (colorIndex % 16)>=(0x00,0x01,0x0d,0x0e)[math.floor(colorIndex/16)] else 'black'
-            
-            c = '#{0:02x}{1:02x}{2:02x}'.format(nesPalette[colorIndex][0],nesPalette[colorIndex][1],nesPalette[colorIndex][2])
-            
-            text="{0:02x}".format(colorIndex)
-            if cfg.getValue("main","upperhex")==1:
-                text=text.upper()
-            if cell['text'] != text:
-                changed = True
-            cell.config(bg=c, fg=fg, text=text)
-            return changed
-        def setAll(p):
-            changed = False
-            for i, cell in enumerate(control.allCells):
-                colorIndex = p[i+1]
-                
-                # These values are the first white text of each row
-                fg = 'white' if (colorIndex % 16)>=(0x00,0x01,0x0d,0x0e)[math.floor(colorIndex/16)] else 'black'
-                
-                c = '#{0:02x}{1:02x}{2:02x}'.format(nesPalette[colorIndex][0],nesPalette[colorIndex][1],nesPalette[colorIndex][2])
-                text="{0:02x}".format(colorIndex)
-                if cfg.getValue("main","upperhex")==1:
-                    text=text.upper()
-
-                if cell['text'] != text:
-                    changed = True
-                cell.config(bg=c, fg=fg, text=text)
-            return changed
-        def setAllRGB(p):
-            base = 0
-            if not p[0]:
-                base = 1
-            for i, cell in enumerate(control.allCells):
-                c = '#{0:02x}{1:02x}{2:02x}'.format(p[i+base][0],p[i+base][1],p[i+base][2])
-                cell.config(bg=c)
-        def getCellNum():
-            return control.cellNum
-        def getCellEvent():
-            # This is a way to get the event for each cell from the parent frame
-            #print(control.cellEvent)
-            control.cellEvent.index = control.cellNum
-            return control.cellEvent
-        
-        t=lua.table(name=t.name,
-                    control=control,
-                    getCellNum = getCellNum,
-                    getCellEvent = getCellEvent,
-                    set = set,
-                    setAll = setAll,
-                    noParentEvent = True,
-                    highlight=highlight,
-                    )
-
-        controls.update({t.name:t})
-
-        control.cmd = makeCmdNew(t)
-        control.bind( "<ButtonRelease-1>", control.cmd)
-        
-        return t
     def selectTab(self, tab):
         window = self.getWindow(self)
         window.tabParent.select(list(window.tabs).index(tab))
@@ -1847,7 +1803,6 @@ def onHoverWidget(widget):
     try:
         lua_func = lua.eval('function(o) if onHover then onHover(o) end end')
         lua_func(widget)
-
     except LuaError as err:
         print("*** onHoverWidget() Failed")
         handleLuaError(err)

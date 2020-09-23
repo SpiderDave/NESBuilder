@@ -16,6 +16,7 @@ class Calculator(ast.NodeVisitor):
     def __call__(self, expression="None"):
         if expression:
             expression = expression.replace("^","**")
+            return self.evaluate(expression)
             try:
                 return self.evaluate(expression)
             except:

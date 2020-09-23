@@ -6,14 +6,15 @@ import numpy as np
 from PIL.ImageQt import ImageQt
 
 from PyQt5 import QtGui
-from PyQt5.QtGui import QIcon, QPainter, QColor, QImage, QBrush, QPixmap, QPen, QCursor
+from PyQt5.QtGui import QIcon, QPainter, QColor, QImage, QBrush, QPixmap, QPen, QCursor, QWindow
 from PyQt5.QtCore import QDateTime, Qt, QTimer, QCoreApplication, QSize, QRect
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
         QDial, QDialog, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
         QProgressBar, QPushButton, QRadioButton, QScrollBar, QSizePolicy,
         QSlider, QSpinBox, QStyleFactory, QTableWidget, QTabWidget, QTextEdit,
         QVBoxLayout, QWidget, QAction, QMainWindow, QMessageBox, QFileDialog, 
-        QInputDialog, QErrorMessage, QFrame, QPlainTextEdit, QListWidget, QListWidgetItem
+        QInputDialog, QErrorMessage, QFrame, QPlainTextEdit, QListWidget, QListWidgetItem,
+        QVBoxLayout,QTableWidgetItem, 
         )
 
 nesPalette=[
@@ -116,6 +117,10 @@ class Base():
         self.statusBarText = ""
         self.onMouseMove = False
         self.onMouseHover = False
+        self.onMousePress = False
+        self.onMouseRelease = False
+        self.onClick = False
+        self.onChange = False
         self.helpText = False
         try: self.setMouseTracking(True)
         except: pass
@@ -126,7 +131,49 @@ class Base():
         self.resize(t.w, t.h)
         self.text = t.text
         self.scale = t.scale or 1
-    def mouseMoveEvent(self, event: QtGui.QResizeEvent):
+    def mousePressEvent(self, event):
+        if getattr(self, 'clicked', False):
+            super().mousePressEvent(event)
+            return
+        if self.onMousePress:
+            b = dict({
+                2:'ButtonPress',
+                3:'ButtonRelease',
+                4:'ButtonDblClick',
+                5:'Move',
+                })
+            ev = Map(
+                x = event.x(),
+                y = event.y(),
+                button = int(event.buttons()),
+                type = b.get(event.type()),
+            )
+            self.event = ev
+            self.onMousePress(ev)
+        else:
+            super().mousePressEvent(event)
+    def mouseReleaseEvent(self, event):
+        if getattr(self, 'clicked', False):
+            super().mouseReleaseEvent(event)
+            return
+        if self.onMouseRelease:
+            b = dict({
+                2:'ButtonPress',
+                3:'ButtonRelease',
+                4:'ButtonDblClick',
+                5:'Move',
+                })
+            ev = Map(
+                x = event.x(),
+                y = event.y(),
+                button = int(event.buttons()),
+                type = b.get(event.type()),
+            )
+            self.event = ev
+            self.onMouseRelease(ev)
+        else:
+            super().mousePressEvent(event)
+    def mouseMoveEvent(self, event):
         if int(event.buttons()) == 0:
             self.window().setHoveredWidget(self)
             if self.onMouseHover:
@@ -139,12 +186,14 @@ class Base():
                 5:'Move',
                 })
             ev = Map(
-                x = event.x,
-                y = event.y,
+                x = event.x(),
+                y = event.y(),
                 button = int(event.buttons()),
                 type = b.get(event.type()),
             )
             #self.onMouseMove(event)
+            
+            self.event = ev
             self.onMouseMove(ev)
         else:
             super().mouseMoveEvent(event)
@@ -250,7 +299,7 @@ class TextEdit(Base, QPlainTextEdit):
             with open(filename, "r") as file:
                 self.setPlainText(file.read())
         except:
-            pass
+            print("Error: Could not load file "+filename)
 
 class Button(Base, QPushButton):
     def setIcon(self, f):
@@ -303,7 +352,9 @@ class Link(Label):
 
 class CheckBox(Base, QCheckBox): pass
 
-class LauncherIcon(Base, QFrame):
+class Frame(Base, QFrame): pass
+
+class LauncherIcon(Frame):
     def init(self, t):
         super().init(t)
         
@@ -600,11 +651,13 @@ class Canvas(ClipOperations, Base, QLabel):
 
 #        painter.fillRect(0,y,self.width/self.scale,y+1,QBrush(Qt.white))
 #        painter.end()
-    def setPixel(self, x,y):
+    def setPixel(self, x,y, c=[0,0,0]):
         painter = Painter(self.pixmap())
         painter.scale(self.scale, self.scale)
         #painter.setPen(QColor(168, 34, 3))
-        painter.fillRect(x,y,1,1,QBrush(Qt.white))
+        #painter.fillRect(x,y,1,1,QBrush(Qt.white))
+        #painter.fillRect(x,y,1,1,QBrush(QColor(*fix(c))))
+        painter.fillRect(x,y,1,1,QBrush(QColor(c[1],c[2],c[3])))
         painter.end()
     def test(self, chr):
         pix = NESPixmap(8*16,8*16)
@@ -954,7 +1007,18 @@ class NESPixmap(ClipOperations, Base, QPixmap):
         painter.end()
 
 
+class listItemLabel(Label, QListWidgetItem):pass
+
 class ListWidget(Base, QListWidget):
+    def addCustomItem(self, t):
+        for i in range(5):
+            item = QListWidgetItem()
+            fmt = '<span style="color:{}; width:5px;">\u2588</span>'
+            txt = '{}{}{}{} {}'.format(fmt.format("black"),fmt.format("red"),fmt.format("green"),fmt.format("blue"), '<span class="paletteListText">Test</span>')
+            widget = Label(txt)
+            widget.addCssClass('paletteListItem')
+            super().addItem(item)
+            self.setItemWidget(item, widget)
     def setList(self, items):
         self.clear()
         for item in fix(items):
@@ -965,3 +1029,30 @@ class ListWidget(Base, QListWidget):
         return super().currentItem().text()
     def addItem(self, text):
         super().addItem(QListWidgetItem(text))
+
+
+class Table(Base, QTableWidget):
+    def set(self, x,y, text):
+        self.setItem(x,y, QTableWidgetItem(text))
+    def setHorizontalHeaderLabels(self, *args):
+        args = fix(args)
+        super().setHorizontalHeaderLabels(args)
+    def getRow(self, row=0):
+        l=[]
+        for i in range(self.columnCount()):
+            if self.item(row, i):
+                l.append(self.item(row, i).text())
+            else:
+                l.append(None)
+        return l
+    def getData(self):
+        l=[]
+        for i in range(self.rowCount()):
+            l.append(self.getRow(i))
+        return l
+    def clear(self):
+        for r in range(self.rowCount()):
+            for c in range(self.columnCount()):
+                self.set(r,c,None)
+    
+    

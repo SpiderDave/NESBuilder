@@ -229,7 +229,8 @@ function init()
     end
     
     NESBuilder:setTabQt("Image")
-    control=NESBuilder:makeCanvasQt{x=8,y=8,w=128,h=128,name="canvasQt", scale=3}
+    x,y=8,8
+    control=NESBuilder:makeCanvasQt{x=x,y=y,w=128,h=128,name="canvasQt", scale=3}
     --NESBuilder:setCanvas("canvas")
     --control.setCursor('pencil')
     --control.setCursor('ArrowCursor')

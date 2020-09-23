@@ -117,8 +117,6 @@ Section "-DefaultStuff"
         "${GitURL}plugins/nesst.lua" "plugins/nesst.lua"\
         "${GitURL}plugins/nesst.py" "plugins/nesst.py"\
         "${GitURL}templates/codeTemplate.zip" "templates/codeTemplate.zip"\
-        "${GitURL}icons/__init__.py" "icons/__init__.py"\
-        "${GitURL}cursors/__init__.py" "cursors/__init__.py"\
         /END
     Pop $0
 SectionEnd
@@ -182,6 +180,8 @@ Section "NESBuilder Source"
         "${GitURL}icons/gear32.png" "icons/gear32.png"\
         "${GitURL}icons/note32.png" "icons/note32.png"\
         "${GitURL}icons/clock32.png" "icons/clock32.png"\
+        "${GitURL}icons/__init__.py" "icons/__init__.py"\
+        "${GitURL}cursors/__init__.py" "cursors/__init__.py"\
         /END
     Pop $0
 

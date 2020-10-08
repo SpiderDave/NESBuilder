@@ -799,11 +799,8 @@ function launcherProjectType_cmd(t)
     data.projectType = data.projectTypes[t.index+1].name
     if data.projectType == 'dev' then
         NewProject_cmd()
-    elseif devMode() and data.projectType == 'romhack' then
-        -- crashes when trying to save too much file data
+    elseif data.projectType == 'romhack' then
         NewProject_cmd()
-    else
-        notImplemented()
     end
 end
 
@@ -1234,11 +1231,11 @@ function SaveProject()
 --    end
     
     --local toBytes = python.eval("lambda x:bytes(x).decode('utf')")
-    if data.project.rom then
+    --if data.project.rom then
         --romData = data.project.rom.data
         --data.project.rom.data = toBytes(data.project.rom.data)
-        data.project.rom.data = nil
-    end
+        --data.project.rom.data = nil
+    --end
     
     
     handlePluginCallback("onSaveProject")
@@ -1524,6 +1521,10 @@ function CHRList_cmd(t)
     
     print(type(currentChr()))
     
+    local size = python.eval("lambda x:x.size")
+    
+    print(len(currentChr()))
+    
     
     refreshCHR()
 end
@@ -1761,18 +1762,18 @@ function canvasTile_cmd(t)
         
         local cBits = NESBuilder:numberToBitArray(data.selectedColorIndex)
         for i=0, 1 do
-            local b = data.project.chr[data.project.chr.index][tileOffset+1+(i*8)+y%8]
+            local b = data.project.chr[data.project.chr.index][tileOffset+(i*8)+y%8]
             local l=NESBuilder:numberToBitArray(b)
             l[x%8]=cBits[7-i]
             b = NESBuilder:bitArrayToNumber(l)
-            data.project.chr[data.project.chr.index][tileOffset+1+(i*8)+y%8] = b
+            data.project.chr[data.project.chr.index][tileOffset+(i*8)+y%8] = b
         end
     end
     if event.button == 2 then
         local control = NESBuilder:getControl(t.name)
         local c=0
         for i = 0,1 do
-            local b = data.project.chr[data.project.chr.index][tileOffset+1+((i)*8)+y%8]
+            local b = data.project.chr[data.project.chr.index][tileOffset+((i)*8)+y%8]
             local cBits = NESBuilder:numberToBitArray(b)
             --print(cBits[x])
             c = c + cBits[x]
@@ -1853,6 +1854,11 @@ function getChrData(n) return data.project.chr[n or data.project.chr.index] end
 function setChrData(chrData, n) data.project.chr[n or data.project.chr.index]=chrData end
 function boolNumber(v) if v then return 1 else return 0 end end
 function devMode() return (cfgGet('dev')==1) end
+function type(item) return NESBuilder:type(item) end
+local int = python.eval("lambda x:int(x)")
+local sliceList = python.eval("lambda x,y,z:x[y:z]")
+local joinList = python.eval("lambda x,y:x+y")
+
 
 function cfgGet(section, key)
     key, section = key or section, (key and section) or "main"
@@ -1929,12 +1935,17 @@ function loadRom()
     -- make sure folders exist for this project
     NESBuilder:makeDir(data.folders.projects..data.project.folder)
     
-    NESBuilder:setWorkingFolder(data.folders.projects..data.project.folder)
-    NESBuilder:copyFile(f, baseFileName)
+--    NESBuilder:setWorkingFolder(data.folders.projects..data.project.folder)
+--    NESBuilder:copyFile(f, baseFileName)
     
     f = baseFileName
     
-    local fileData = NESBuilder:listToTable(NESBuilder:getFileAsArray(f))
+    --local fileData = NESBuilder:listToTable(NESBuilder:getFileAsArray(f))
+    local fileData = NESBuilder:getFileAsArray(f)
+    print(fileData)
+    
+    
+    print(NESBuilder:getLen(fileData))
     
 --    data.rom = {
 --        filename = f,
@@ -1952,7 +1963,7 @@ function loadRom()
 end
 
 function importMultiChr_cmd()
-    local chrData
+    local chrData, chrStart, nPrg, nChr
     local f = NESBuilder:openFile{filetypes={{"CHR", ".chr"}}}
     if f == "" then
         print("Open cancelled.")
@@ -1972,7 +1983,6 @@ function importMultiChr_cmd()
     local control = NESBuilder:getControl('CHRList')
     control.clear()
     
-    local sliceList = python.eval("lambda x,y,z:x[y:z]")
     for i = 0,(nChr*2)-1 do
         chrData = sliceList(fileData, chrStart + i * 0x1000, chrStart + i * 0x1000 + 0x1000)
         setChrData(NESBuilder:listToTable(chrData), i)
@@ -1985,14 +1995,14 @@ function importMultiChr_cmd()
 end
 
 function importAllChr()
-    local chrData
+    local chrData, chrStart, nPrg, nChr
     local fileData = NESBuilder:tableToList(data.project.rom.data,0)
     
     --local fileData = getRomData()
     --local fileData = NESBuilder:tableToList(data.rom.data,0)
     
-    nPrg = fileData[4]
-    nChr = fileData[5]
+    nPrg = int(fileData[4])
+    nChr = int(fileData[5])
     chrStart = 0x10 + nPrg * 0x4000
     
     -- wipe all chr
@@ -2003,7 +2013,7 @@ function importAllChr()
     local sliceList = python.eval("lambda x,y,z:x[y:z]")
     for i = 0,(nChr*2)-1 do
         chrData = sliceList(fileData, chrStart + i * 0x1000, chrStart + i * 0x1000 + 0x1000)
-        setChrData(NESBuilder:listToTable(chrData), i)
+        setChrData(chrData, i)
         --if i > control.count() -1 then addCHR_cmd() end
         addCHR_cmd()
     end
@@ -2013,27 +2023,31 @@ function importAllChr()
 end
 
 function exportAllChr()
-    local chrData
-    local fileData = NESBuilder:tableToList(data.project.rom.data,0)
+    local chrData, chrStart, nPrg, nChr
+    local fileData = data.project.rom.data
     
-    nPrg = fileData[4]
-    nChr = fileData[5]
+    nPrg = int(fileData[4])
+    nChr = int(fileData[5])
     chrStart = 0x10 + nPrg * 0x4000
     
-    local sliceList = python.eval("lambda x,y,z:x[y:z]")
-    local joinList = python.eval("lambda x,y:x+y")
+    print(nPrg)
+    print(nChr)
+    print(chrStart)
     
     -- remove all chr
     fileData = sliceList(fileData, 0, chrStart)
     
+    local npConcat = python.eval("lambda x,y: np.concatenate([x,y])")
+    
     for i = 0,(nChr*2)-1 do
-        fileData = joinList(fileData, NESBuilder:tableToList(getChrData(i), 0))
+        fileData = npConcat(fileData, getChrData(i))
     end
     
     local f = data.folders.projects..data.project.folder.."game.nes"
     data.project.rom.outputFilename = data.project.rom.outputFilename or f
     
     NESBuilder:saveArrayToFile(data.project.rom.outputFilename, fileData)
+    
 end
 
 
@@ -2047,8 +2061,8 @@ function importAllChr_cmd(t)
     end
     local fileData = NESBuilder:getFileAsArray(f)
     
-    nPrg = fileData[4]
-    nChr = fileData[5]
+    nPrg = int(fileData[4])
+    nChr = int(fileData[5])
     chrStart = 0x10 + nPrg * 0x4000
     
     -- wipe all chr
@@ -2056,11 +2070,9 @@ function importAllChr_cmd(t)
     local control = NESBuilder:getControl('CHRList')
     control.clear()
     
-    local sliceList = python.eval("lambda x,y,z:x[y:z]")
     for i = 0,(nChr*2)-1 do
         chrData = sliceList(fileData, chrStart + i * 0x1000, chrStart + i * 0x1000 + 0x1000)
-        setChrData(NESBuilder:listToTable(chrData), i)
-        --if i > control.count() -1 then addCHR_cmd() end
+        setChrData(chrData, i)
         addCHR_cmd()
     end
     
@@ -2079,9 +2091,6 @@ function exportAllChr_cmd(t)
     nPrg = fileData[4]
     nChr = fileData[5]
     chrStart = 0x10 + nPrg * 0x4000
-    
-    local sliceList = python.eval("lambda x,y,z:x[y:z]")
-    local joinList = python.eval("lambda x,y:x+y")
     
     -- remove all chr
     fileData = sliceList(fileData, 0, chrStart)

@@ -1010,8 +1010,6 @@ class NESPixmap(ClipOperations, Base, QPixmap):
         
         return ret
         
-        
-        
     def loadCHR(self, imageData, columns=None, rows=None):
         """Loads CHR data using 4 preset base colors."""
         painter = Painter(self)
@@ -1019,13 +1017,11 @@ class NESPixmap(ClipOperations, Base, QPixmap):
         columns = self.columns = coalesce(columns, self.columns, 16)
         rows = self.rows = coalesce(rows, self.rows, 16)
         
-        
         try:
             if not imageData:
                 imageData = [0] * (16*columns*rows)
         except:
             pass
-        
         
         imageData = fix(imageData)
         
@@ -1038,7 +1034,7 @@ class NESPixmap(ClipOperations, Base, QPixmap):
                     c=0
                     x1=tileX * 8 + (7-x)
                     y1=tileY * 8 + y
-                    if (int(imageData[tile*16+y]) & (1<<x)):
+                    if (imageData[tile*16+y] & (1<<x)):
                         c=c+1
                     if (imageData[tile*16+y+8] & (1<<x)):
                         c=c+2

@@ -300,7 +300,7 @@ class ForLua:
                     attr = getattr(self, method_name)
                     wrapped = self.QtWrapper(attr)
                     setattr(self, method_name, wrapped)
-                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap','listToTable','tableToList','print']:
+                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap','listToTable','tableToList','print','type']:
                     # getNESColors: excluded because it may have a table as its first parameter
                     # makeControl: excluded because it's a decorator
                     pass
@@ -329,6 +329,14 @@ class ForLua:
     def repr(self, item):
         return repr(item)
     def type(self, item):
+        if type(item) == None: return "None"
+        if type(item) == bool: return "boolean"
+        if type(item) == float: return "number"
+        if type(item) == int: return "number"
+        if type(item) == str: return "string"
+        
+        if lupa.lua_type(item):
+            return lupa.lua_type(item)
         return item.__class__.__name__
     def calc(self, s):
         calc = Calculator()
@@ -633,7 +641,7 @@ class ForLua:
     def getLen(self, item):
         # todo: make work for lua stuff
         if type(item) == np.ndarray:
-            return len(item)
+            return item.size
 
         if not item:
             return 0
@@ -737,7 +745,7 @@ class ForLua:
         file.close()
         return list(fileData)
     def getFileAsArray(self, f):
-        return np.fromfile(f, dtype='B')[0]
+        return np.fromfile(f, dtype='B')
     def _getFileAsArray(self, f):
         file=open(f,"rb")
         fileData = file.read()

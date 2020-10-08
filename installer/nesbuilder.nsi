@@ -169,7 +169,6 @@ Section "NESBuilder Source"
         "${GitURL}include/Tserial.lua" "include/Tserial.lua"\
         "${GitURL}include/util.lua" "include/util.lua"\
         "${GitURL}include/SMBLevelExtract.py" "include/SMBLevelExtract.py"\
-        "${GitURL}include/tkDave.py" "include/tkDave.py"\
         "${GitURL}include/QtDave.py" "include/QtDave.py"\
         "${GitURL}include/style.qss" "include/style.qss"\
         "${GitURL}include/config.py" "include/config.py"\

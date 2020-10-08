@@ -2,14 +2,12 @@ from . import SMBLevelExtract
 from . import calc
 from . import config
 #from .ips import ips
-from . import tkDave
 from . import QtDave
 
 __all__ = [
             'SMBLevelExtract',
             'Calculator',
             'Cfg',
-            'tkDave',
             'QtDave',
 #            'ips',
           ]

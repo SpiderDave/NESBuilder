@@ -40,6 +40,8 @@ import textwrap
 try: import numpy as np
 except: badImport('numpy')
 
+import pickle
+
 from shutil import copyfile
 import subprocess
 import traceback
@@ -50,6 +52,7 @@ from tempfile import NamedTemporaryFile
 import math
 import webbrowser
 
+import binascii
 from binascii import hexlify, unhexlify
 
 import importlib, pkgutil
@@ -135,6 +138,7 @@ cfg.setDefault('main', 'breakonpythonerrors', 0)
 cfg.setDefault('main', 'breakonluaerrors', 0)
 cfg.setDefault('main', 'autosave', 1)
 cfg.setDefault('main', 'autosaveinterval', 1000 * 60 * 5) # 5 minutes
+cfg.setDefault('main', 'dev', 0)
 
 # make cfg available to lua
 lua_func = lua.eval('function(o) {0} = o return o end'.format('cfg'))
@@ -296,7 +300,7 @@ class ForLua:
                     attr = getattr(self, method_name)
                     wrapped = self.QtWrapper(attr)
                     setattr(self, method_name, wrapped)
-                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap','listToTable','tableToList']:
+                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap','listToTable','tableToList','print']:
                     # getNESColors: excluded because it may have a table as its first parameter
                     # makeControl: excluded because it's a decorator
                     pass
@@ -329,19 +333,50 @@ class ForLua:
     def calc(self, s):
         calc = Calculator()
         return calc(s)
-    def getPrintable(self, item):
-        if type(item) is str: return item
-        if repr(item).startswith("<"):
-            return repr(item)
-        else:
-            return str(item)
+    def print(self, item, *args, indent=0,limit=5):
+        def getPrintable(item, indent=0):
+            if type(item) == np.ndarray:
+                return('{}{}'.format(" "*indent, item))
+            elif (item==None) or (type(item) == bool):
+                return('{}{}'.format(" "*indent, item))
+            elif lupa.lua_type(item) == "None":
+                return('{}{}'.format(" "*indent, item))
+            elif (type(item)==str) or (lupa.lua_type(item) == "string"):
+                
+                # This should be changed to make everything printable too
+                if args:
+                    item = item.format(*args)
+                
+                return('{}{}'.format(" "*indent, item))
+            elif lupa.lua_type(item) == "function":
+                return('{}()'.format(" "*indent))
+            elif lupa.lua_type(item) == "table":
+                ret = '{\n'
+                #l = len(list(item))
+                n=0
+                for i, (k,v) in enumerate(item.items()):
+                    if n>=limit:
+                        ret+='{}...\n'.format(" "*(indent+2))
+                        break
+                    if type(k) != str:
+                        k = '[{}]'.format(k)
+                        n=n+1
+                    if lupa.lua_type(v)=="function":
+                        # Dont need to show a value for functions
+                        ret+='{}{}(),\n'.format(" "*(indent+2), k)
+                    elif type(v)==str:
+                        ret+='{}{} = {},\n'.format(" "*(indent+2), k, repr(v))
+                    else:
+                        ret+='{}{} = {},\n'.format(" "*(indent+2), k, getPrintable(v, indent+2).lstrip())
+                ret+= '{}}}'.format(" "*(indent))
+                return ret
+            else:
+                if str(item).startswith('<include.QtDave.'):
+                    return('{}<{}>'.format(" "*indent, item.__class__.__name__))
+                return('{}{}'.format(" "*indent, item))
+            return
+        print(getPrintable(item))
     def printNoPrefix(self, item):
-        if repr(item).startswith("<"):
-            print(repr(item))
-        else:
-            print(item)
-    def print(self, prefix, item):
-        print(prefix, end="")
         if repr(item).startswith("<"):
             print(repr(item))
         else:
@@ -502,7 +537,7 @@ class ForLua:
         setattr(self, f, getattr(m, f))
         
         return getattr(m,f)
-    def copyfile(self, src,dst):
+    def copyFile(self, src,dst):
         copyfile(src,dst)
     def canvasPaint(self, x,y, c):
         canvas = self.getCanvas(self)
@@ -597,9 +632,25 @@ class ForLua:
         f.close()
     def getLen(self, item):
         # todo: make work for lua stuff
+        if type(item) == np.ndarray:
+            return len(item)
+
         if not item:
             return 0
         return len(item)
+    def npTest(self):
+        size = 0x1000
+        #size = 10
+        dType = [
+            ('name', 'U30'),
+            ('data', ('B',size)),
+        ]
+
+        data = np.array(
+            [('Test', np.zeros((1,size))), ('Test2', np.ones((1,size)))],
+            dtype=dType
+            )
+        return data
     def tableToList(self, t,base=1):
         if t.__class__.__name__ == '_LuaTable':
             ret = [t[x] for x in list(t)]
@@ -612,7 +663,14 @@ class ForLua:
         return list(bytearray.fromhex(s))
     def listToTable(self, l, base=1):
         if lupa.lua_type(l)=='table': return l
-        if l==None: return l
+        
+        if type(l) == np.ndarray:
+            # This is here because the comparison to None will fail
+            # with np arrays with more than one element.
+            pass
+        elif l==None:
+            return l
+        
         if type(l) is int: return None
         
         if base==0:
@@ -679,6 +737,8 @@ class ForLua:
         file.close()
         return list(fileData)
     def getFileAsArray(self, f):
+        return np.fromfile(f, dtype='B')[0]
+    def _getFileAsArray(self, f):
         file=open(f,"rb")
         fileData = file.read()
         file.close()
@@ -1024,6 +1084,14 @@ class ForLua:
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
+    def makeCodeEdit(self, t):
+        #ctrl = QtDave.CodeEdit(t.text, self.tabQt)
+        ctrl = QtDave.CodeEdit(self.tabQt)
+        ctrl.init(t)
+        #ctrl.clicked.connect(makeCmdNew(t))
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
     def makeTextEdit(self, t):
         ctrl = QtDave.TextEdit(t.text, self.tabQt)
         ctrl.init(t)
@@ -1257,80 +1325,6 @@ class ForLua:
         #windows.update({t.name:window})
         
         #control.bind( "<ButtonRelease-1>", makeCmdNew(t))
-        return t
-    def makeText(self, t, variables):
-        x,y,w,h = variables
-        
-        control = tkDave.Text(self.getTab(self), borderwidth=0, relief="solid",height=t.lineHeight)
-        control.config(fg=config.colors.fg, bg=config.colors.bk3)
-        
-        control.insert(tk.END, t.text)
-        control.place(x=x, y=y)
-        if not t.lineHeight:
-            control.place(height=h)
-        control.place(width=w)
-        
-        def setText(text):
-            control.delete(1.0, tk.END)
-            control.insert(tk.END, text)
-        def addText(text):
-            control.insert(tk.END, text)
-        def print(text=''):
-            text=str(text)
-            control.insert(tk.END, text+"\n")
-        def clear():
-            control.delete(1.0, tk.END)
-        t=lua.table(name=t.name,
-                    control=control,
-                    height=h,
-                    width=w,
-                    setText = setText,
-                    addText = addText,
-                    print = print,
-                    clear = clear,
-                    )
-
-        controls.update({t.name:t})
-
-        #control.bind( "<Button-1>", makeCmdNew(t))
-        control.bind( "<ButtonRelease-1>", makeCmdNew(t))
-        control.bind( "<Return>", makeCmdNew(t))
-        
-        return t
-    def makeEntry(self, t, variables):
-        x,y,w,h = variables
-        control=None
-        padX=5
-        padY=1
-        frame = tk.Frame(self.getTab(self), borderwidth=0, relief="solid")
-        frame.config(bg=config.colors.bk3)
-        frame.place(x=x,y=y, width=w, height=h)
-        
-        control = tkDave.Entry(self.getTab(self), borderwidth=0, relief="solid",height=t.lineHeight)
-        control.config(fg=config.colors.fg, bg=config.colors.bk3, insertbackground = config.colors.fg)
-        control.insert(tk.END, t.text)
-        control.place(x=x+padX, y=y+padY)
-        if not t.lineHeight:
-            control.place(height=h-padY*2)
-        control.place(width=w-padX*2)
-        
-        def setText(text=""):
-            control.delete(0, tk.END)
-            control.insert(tk.END, text)
-        t=lua.table(name=t.name,
-                    control=control,
-                    height=h,
-                    width=w,
-                    clear = lambda:setText(),
-                    setText = setText,
-                    getText = control.get,
-                    )
-        
-        controls.update({t.name:t})
-
-        control.bind( "<ButtonRelease-1>", makeCmdNew(t))
-        control.bind( "<Return>", makeCmdNew(t))
-        
         return t
     def makeTree(self, t, variables):
         x,y,w,h = variables
@@ -1748,6 +1742,8 @@ try:
 except LuaError as err:
     print("*** onReady() Failed")
     handleLuaError(err)
+except Exception as err:
+    handlePythonError(err)
 
 w = cfg.getValue('main', 'w', default=coalesce(config.width, 800))
 h = cfg.getValue('main', 'h', default=coalesce(config.height, 800))

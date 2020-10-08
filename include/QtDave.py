@@ -3,10 +3,12 @@ import math
 from random import randrange
 import numpy as np
 
+import re
+
 from PIL.ImageQt import ImageQt
 
 from PyQt5 import QtGui
-from PyQt5.QtGui import QIcon, QPainter, QColor, QImage, QBrush, QPixmap, QPen, QCursor, QWindow
+from PyQt5.QtGui import QIcon, QPainter, QColor, QImage, QBrush, QPixmap, QPen, QCursor, QWindow, QFont
 from PyQt5.QtCore import QDateTime, Qt, QTimer, QCoreApplication, QSize, QRect
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
         QDial, QDialog, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
@@ -16,6 +18,28 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
         QInputDialog, QErrorMessage, QFrame, QPlainTextEdit, QListWidget, QListWidgetItem,
         QVBoxLayout,QTableWidgetItem, 
         )
+
+from PyQt5.Qsci import *
+
+opcodes = [
+    'adc', 'and', 'asl', 'bcc', 'bcs', 'beq', 'bit', 'bmi', 'bne', 'bpl', 'brk', 'bvc', 'bvs', 'clc',
+    'cld', 'cli', 'clv', 'cmp', 'cpx', 'cpy', 'dec', 'dex', 'dey', 'eor', 'inc', 'inx', 'iny', 'jmp',
+    'jsr', 'lda', 'ldx', 'ldy', 'lsr', 'nop', 'ora', 'pha', 'php', 'pla', 'plp', 'rol', 'ror', 'rti',
+    'rts', 'sbc', 'sec', 'sed', 'sei', 'sta', 'stx', 'sty', 'tax', 'tay', 'tsx', 'txa', 'txs', 'tya'
+]
+
+directives = [
+    'if', 'elseif', 'else', 'endif', 'ifdef', 'ifndef', 'equ', 'org', 'base', 'pad',
+    'include', 'incsrc', 'incbin', 'bin', 'hex', 'word', 'dw', 'dcw', 'dc.w', 'byte',
+    'db', 'dcb', 'dc.b', 'dsw', 'ds.w', 'dsb', 'ds.b', 'align', 'macro', 'rept',
+    'endm', 'endr', 'enum', 'ende', 'ignorenl', 'endinl', 'fillvalue', 'dl', 'dh',
+    'error', 'inesprg', 'ineschr', 'inesmir', 'inesmap', 'nes2chrram', 'nes2prgram',
+    'nes2sub', 'nes2tv', 'nes2vs', 'nes2bram', 'nes2chrbram', 'unstable', 'hunstable'
+]
+
+opcodes = opcodes + [x.upper() for x in opcodes]
+directives = directives + ['.'+x for x in directives]
+directives = directives + [x.upper() for x in directives]
 
 nesPalette=[
 [0x74,0x74,0x74],[0x24,0x18,0x8c],[0x00,0x00,0xa8],[0x44,0x00,0x9c],
@@ -107,6 +131,48 @@ class App(QApplication):
         super().exec_()
     def quit(self):
         QCoreApplication.quit()
+
+
+class Base_Light():
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
+        self.control = self # backwards compatability
+        self.anonymous = False
+        self.data = dict()
+        self.statusBarText = ""
+        self.onMouseMove = False
+        self.onMouseHover = False
+        self.onMousePress = False
+        self.onMouseRelease = False
+        self.onClick = False
+        self.onChange = False
+        self.helpText = False
+        try: self.setMouseTracking(True)
+        except: pass
+    def init(self, t):
+        self.name = t.name
+        self.tooltip=t.tooltip
+        self.move(t.x,t.y)
+        self.resize(t.w, t.h)
+        self.text = t.text
+        self.scale = t.scale or 1
+    def __getattribute__(self, key):
+        if key == 'tooltip':
+            return self.toolTip()
+        if key == 'width':
+            return super().width()
+        if key == 'height':
+            return super().height()
+        return super().__getattribute__(key)
+    def __setattr__(self, key, v):
+        if key == 'tooltip':
+            self.setToolTip(v)
+        if key == 'width':
+            self.resize(v, super().height())
+        if key == 'height':
+            self.resize(super().width(), v)
+        else:
+            super().__setattr__(key,v)
 
 class Base():
     def __init__(self, *args, **kw):
@@ -300,6 +366,31 @@ class TextEdit(Base, QPlainTextEdit):
                 self.setPlainText(file.read())
         except:
             print("Error: Could not load file "+filename)
+
+class CodeEdit(Base_Light, QsciScintilla):
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
+        self.setLexer(None)
+        self.setUtf8(True)
+        self.setFont("Verdana",12)
+        self.setLexer(MyLexer(self))
+        
+        self.setCaretForegroundColor(QColor("white"))
+        self.setMarginsBackgroundColor(QColor("#404050"))
+    def setFont(self, fontName, size):
+        super().setFont(QtGui.QFont(fontName, size))
+        self.adjustSize()
+    def __getattribute__(self, key):
+        if key == 'text':
+            return super().text()
+        else:
+            return super().__getattribute__(key)
+    def __setattr__(self, key, v):
+        if key == 'text':
+            super().setText(str(v))
+        else:
+            super().__setattr__(key,v)
+
 
 class Button(Base, QPushButton):
     def setIcon(self, f):
@@ -928,8 +1019,13 @@ class NESPixmap(ClipOperations, Base, QPixmap):
         columns = self.columns = coalesce(columns, self.columns, 16)
         rows = self.rows = coalesce(rows, self.rows, 16)
         
-        if not imageData:
-            imageData = [0] * (16*columns*rows)
+        
+        try:
+            if not imageData:
+                imageData = [0] * (16*columns*rows)
+        except:
+            pass
+        
         
         imageData = fix(imageData)
         
@@ -942,7 +1038,7 @@ class NESPixmap(ClipOperations, Base, QPixmap):
                     c=0
                     x1=tileX * 8 + (7-x)
                     y1=tileY * 8 + y
-                    if (imageData[tile*16+y] & (1<<x)):
+                    if (int(imageData[tile*16+y]) & (1<<x)):
                         c=c+1
                     if (imageData[tile*16+y+8] & (1<<x)):
                         c=c+2
@@ -1055,4 +1151,73 @@ class Table(Base, QTableWidget):
             for c in range(self.columnCount()):
                 self.set(r,c,None)
     
-    
+class MyLexer(QsciLexerCustom):
+    def __init__(self, parent):
+        super(MyLexer, self).__init__(parent)
+        self.parent = parent
+        self.setDefaultColor(QColor("#ff000000"))
+        self.setDefaultPaper(QColor("#303046"))
+        self.setDefaultFont(QFont("Consolas", 14))
+
+        colors = [
+            "#e0e0f0", # 0 default
+            "#8090ff", # 1 opcodes 
+            "#60a060", # 2 text
+            "#708090", # 3 comments
+            "#ffa0e0", # 4 hex numbers (immediate)
+            "#800000", # 5 dec numbers (immediate)
+            "#d080f0", # 6 bin numbers (immediate)
+            "#a08020", # 7 directives
+            "#c0d0f0", # 8 hex number
+            "#ff5050", # 9 dec number
+        ]
+        
+        
+        for i, color in enumerate(colors):
+            self.setColor(QColor(color), i)
+            #self.setPaper(QColor("#ffffffff"), i)
+            self.setPaper(QColor("#303046"), i)
+            
+            if i == 1:
+                self.setFont(QFont("Consolas", 12, weight=QFont.Normal), i)
+            else:
+                self.setFont(QFont("Consolas", 12, weight=QFont.Normal), i)
+        
+        self.colors = colors
+    def styleText(self, start, end):
+            colors = self.colors
+            self.startStyling(start)
+            
+            text = self.parent.text[start:end]
+            p = re.compile(r""";.*|".*?"|#\$[0-9a-fA-F]+|#%[0-1]{8}|#[0-9]+|\$[0-9a-fA-F]+|\.\w+|\s+|\w+|\W""")
+            
+            token_list = [ (token, len(bytearray(token, "utf-8"))) for token in p.findall(text)]
+            # -> 'token_list' is a list of tuples: (token_name, token_len)
+
+            for i, token in enumerate(token_list):
+                if token[0].startswith(r"#$"):
+                    self.setStyling(token[1], 4)
+                elif token[0].startswith(r"#%"):
+                    self.setStyling(token[1], 6)
+                elif token[0].startswith(r"#"):
+                    self.setStyling(token[1], 5)
+                elif token[0].startswith("$"):
+                    self.setStyling(token[1], 8)
+                elif token[0].isnumeric():
+                    self.setStyling(token[1], 9)
+                elif token[0].startswith('"'):
+                    self.setStyling(token[1], 2)
+                elif token[0] in directives:
+                    self.setStyling(token[1], 7)
+                elif token[0].startswith(";"):
+                    self.setStyling(token[1], 3)
+                elif token[0] in opcodes:
+                    self.setStyling(token[1], 1)
+                else:
+                    self.setStyling(token[1], 0)
+
+    def description(self, style):
+        if style <=len(self.colors):
+            return "myStyle_{}".format(style)
+        else:
+            return ""

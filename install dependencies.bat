@@ -26,6 +26,9 @@ if %errorlevel% NEQ 0 set errormessage=Could not install NumPy&goto error
 echo Attempting to install PyQt5...
 %pycmd% -m pip install PyQt5
 if %errorlevel% NEQ 0 set errormessage=Could not install PyQt5&goto error
+echo Attempting to install QScintilla...
+%pycmd% -m pip install QScintilla
+if %errorlevel% NEQ 0 set errormessage=Could not install QScintilla&goto error
 
 goto theend
 

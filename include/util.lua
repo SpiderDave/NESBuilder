@@ -6,13 +6,36 @@ util.stripSpaces = function(s)
 end
 
 
+util.serializeHelper = function(data)
+    local f = python.eval("lambda x:'base64pickle:'+ binascii.b2a_base64(x.dumps(), newline=False).decode()")
+    return f(data)
+end
+
 util.serialize = function(t)
     if not t then return end
-    return Tserial.pack(t)
+    return Tserial.pack(t, util.serializeHelper)
 end
+
+util.unpickleAll = function(t)
+    local startsWith = python.eval("lambda x,y: x.startswith(y)")
+    local unpickle = python.eval("lambda x: pickle.loads(binascii.a2b_base64(x.split('base64pickle:')[1]))")
+
+    for k,v in pairs(t) do
+        if type(v) == "string" and startsWith(v,'base64pickle:') then
+            t[k]=unpickle(t[k])
+        elseif type(v) == "table" then
+            util.unpickleAll(t[k])
+        end
+    end
+end
+
 util.unserialize = function(s)
     if not s then return end
-    return Tserial.unpack(s)
+    local ret = Tserial.unpack(s)
+    
+    util.unpickleAll(ret)
+    
+    return ret
 end
 
 function util.writeToFile(file,address, data, wipe)

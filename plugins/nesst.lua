@@ -29,6 +29,7 @@ function plugin.onInit()
     NESBuilder:setTabQt("nesst")
     
     control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth, name="nesstLoad",text="Open Session"}
+    control.helpText = "Load a .nss file created with Shiru's NES Screen tool."
     push(x, y+control.height+pad)
     x = x + control.width + pad
     control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth,h=buttonHeight, name="testRefresh",text="refresh"}

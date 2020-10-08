@@ -57,49 +57,18 @@ recentProjects = NESBuilder:newStack{maxlen=config.nRecentFiles}
 local foo=42
 pad,left,top=config.pad, config.left, config.top
 
+data = {}
 
--- Overriding print and adding all sorts of neat things.
--- This is really complicated and should probably move to
--- the Python side of things.
+data.projectTypes = {
+    {name = "dev", text = "NES Game"},
+    {name = "romhack", text = "Rom Hack"},
+}
+
+
+-- Override print with something custom.
 _print = print
-local prefix = "[Lua] "
-print = function(item)
-    
-    pcall(function()
-    
-    if type(item)=="userdata" then
-        _print(prefix..NESBuilder:getPrintable(item))
-    elseif (type(item)=="table") and item.dontPrintThis then
-        -- plugin table
-    elseif type(item)=="table" then
-        print("{")
-        for k,v in pairs(item) do
-            if type(v) == "function" then
-                -- It's a Lua function
-                v = "<function>"
-            elseif NESBuilder:type(v) == "function" then
-                -- It's a Python function
-                v = "<function>"
-            else
-                v = NESBuilder:repr(v)
-            end
-            print("  "..k .. "=" .. v..",")
-        end
-        print("}")
-    elseif type(item)=="number" then
-        -- seems like this would do nothing but it actually changes
-        -- python numbers that would display like "42.0" to "42".
-        if item == math.floor(item) then item = math.floor(item) end
-        _print(prefix..item)
-    elseif type(item)=="boolean" then
-        _print(prefix..(tostring(item)))
-    else
-        _print(prefix..(item or ''))
-    end
-    
-    end)
-    
-end
+print = function(...) NESBuilder:print(...) end
+
 
 makeHex = function(n)
     if NESBuilder:cfgGetValue("main", "upperhex")==1 then
@@ -109,7 +78,7 @@ makeHex = function(n)
     end
 end
 
-data = {selectedColor = 0}
+data.selectedColor = 0
 data.palettes = {}
 
 data.palettes = {
@@ -121,13 +90,12 @@ data.palettes = {
 }
 
 data.projectID = "project1" -- this determines the folder that it will load the project data from
---data.projectID = "newproject"
+
 data.folders = {
     projects = "projects/",
     tools = "tools/",
     plugins = config.pluginFolder.."/",
 }
-
 
 data.project = {chr={}}
 
@@ -412,7 +380,6 @@ function init()
     
     NESBuilder:setContainer(data.launchFrames.recent)
     
-    
     local c = {
         {text="Days"},
         {text="go"},
@@ -440,8 +407,6 @@ function init()
     
     for i, item in pairs(c) do
         recentData[i-1]={}
-        --x = 250+((i-1) % columns)*100
-        --y = startY+math.floor((i-1)/columns)*150
         x = ((i-1) % columns)*100 + pad
         y = math.floor((i-1)/columns)*150
         
@@ -449,6 +414,16 @@ function init()
         recentData[i-1].icon = control
         recentData[i-1].label = control
     end
+    
+    NESBuilder:setContainer(data.launchFrames.new)
+    for i, item in ipairs(data.projectTypes) do
+        --recentData[i-1]={}
+        x = ((i-1) % columns)*100 + pad
+        y = math.floor((i-1)/columns)*150
+        
+        control = NESBuilder:makeLauncherIcon{x=x,y=y,h=132, w=80, name="launcherProjectType",text=item.text, index=i-1}
+    end
+
     
     
     NESBuilder:makeTabQt{name="tsa", text="Metatiles"}
@@ -510,6 +485,13 @@ function onReady()
     control = NESBuilder:makeMenuQt{name="menuProject", text="Project", menuItems=items}
     
     local items = {
+        {name="importAllChr", text="Import all CHR from .nes"},
+        {name="exportAllChr", text="Export all CHR to .nes"},
+        {name="importMultiChr", text="Import all CHR from .chr"},
+    }
+    control = NESBuilder:makeMenuQt{name="menuTools",text="Tools", menuItems=items}
+    
+    local items = {
         {name="About", text="About"},
     }
     control = NESBuilder:makeMenuQt{name="menuHelp", text="Help", menuItems=items}
@@ -521,6 +503,9 @@ function onReady()
         -- minimum auto save interval is 45 seconds
         main.setTimer(math.max(cfgGet('autosaveinterval'), 1000*45), autoSave, true)
     end
+    
+    -- Just remove Metatiles tab since it's broken.
+    if not devMode() then closeTab('tsa') end
 end
 
 function handlePluginCallback(f, arg)
@@ -588,15 +573,13 @@ function doCommand(t)
     return true
 end
 
-function Palette_cmd(t)
+function PaletteQt_cmd(t)
     local event = t.cell.event
     if event.button == 1 or event.button == 2 then
         print(string.format("Selected palette %02x",t.cellNum))
         data.selectedColor = t.cellNum
     end
 end
-
-PaletteQt_cmd = Palette_cmd
 
 function CHRPalette_cmd(t)
     local event = t.cell.event
@@ -746,7 +729,7 @@ function NewProject_cmd()
         if q==nil then return end
         
         if q==true then
-            SaveProject_cmd()
+            SaveProject()
         end
     end
 
@@ -782,6 +765,14 @@ function NewProject_cmd()
     print(string.format('Creating new project "%s"',n))
     data.projectID = n
     LoadProject_cmd()
+    
+    -- wipe the project rom, regardless of project type
+    data.project.rom = nil
+    
+    if data.project.type == "romhack" then
+        loadRom()
+        importAllChr()
+    end
 end
 
 
@@ -794,13 +785,26 @@ function Copy_cmd() notImplemented() end
 function Paste_cmd() notImplemented() end
 
 function launcherButtonOpen_cmd() Open_cmd() end
-function launcherButtonNew_cmd() NewProject_cmd() end
+function launcherButtonNew_cmd()
+    data.launchFrames.set('new')
+end
 function launcherButtonRecent_cmd()
-    --NESBuilder:getControlNew('frameRecentProjects').show()
     data.launchFrames.set('recent')
 end
 function launcherButtonTemplates_cmd()
     data.launchFrames.set('templates')
+end
+
+function launcherProjectType_cmd(t)
+    data.projectType = data.projectTypes[t.index+1].name
+    if data.projectType == 'dev' then
+        NewProject_cmd()
+    elseif devMode() and data.projectType == 'romhack' then
+        -- crashes when trying to save too much file data
+        NewProject_cmd()
+    else
+        notImplemented()
+    end
 end
 
 function launcherButtonPreferences_cmd()
@@ -897,11 +901,12 @@ end
 function OpenProject_cmd()
     Open_cmd()
 end
-function SaveProject_cmd()
-    Save_cmd()
-end
 function BuildProjectTest_cmd()
     BuildTest_cmd()
+end
+
+function Save_cmd()
+    SaveProject()
 end
 
 function openProjectFolder_cmd()
@@ -910,11 +915,11 @@ function openProjectFolder_cmd()
 end
 
 function Build_cmd()
-    BuildProject_cmd()
+    BuildProject()
 end
 
 function BuildTest_cmd()
-    BuildProject_cmd()
+    BuildProject()
 
     local workingFolder = data.folders.projects..data.project.folder
     local f = data.folders.projects..data.project.folder.."game.nes"
@@ -922,8 +927,23 @@ function BuildTest_cmd()
     NESBuilder:shellOpen(workingFolder, f)
 end
 
+function BuildProject()
+    if data.project.type == 'dev' then
+        BuildProject_cmd()
+    else
+        NESBuilder:setWorkingFolder()
+        -- make sure folders exist for this project
+        NESBuilder:makeDir(data.folders.projects..data.project.folder)
+        
+        handlePluginCallback("onBuild")
+        
+        exportAllChr()
+    end
+end
+
 function BuildProject_cmd()
     local out = ""
+    local filename
     print("building project...")
     
     refreshCHR()
@@ -944,25 +964,43 @@ function BuildProject_cmd()
         print("project.asm not found, extracting code template...")
         --NESBuilder:extractAll('codeTemplate.zip',folder)
         --NESBuilder:extractAll('codeTemplate2.zip',folder)
-        NESBuilder:extractAll('templates/codeTemplate.zip',folder)
+        NESBuilder:extractAll('templates/codeTemplate3.zip',folder)
     end
+    
+    local out = ''
     
     -- save CHR
     for i=0,#data.project.chr do
         if data.project.chr[i] then
             local f = data.folders.projects..data.project.folder..string.format("chr/chr%02x.chr",i)
             print("File created "..f)
-            print('****')
             print(data.project.chr[i][0])
             NESBuilder:saveArrayToFile(f, data.project.chr[i])
+            out = out..string.format("    .incbin chr/chr%02x.chr\n",i)
         end
     end
+    
+    if #data.project.chr == 1 then
+        -- add 3 more
+        out = out..string.format("    .incbin chr/chr00.chr\n",i)
+        out = out..string.format("    .incbin chr/chr00.chr\n",i)
+        out = out..string.format("    .incbin chr/chr00.chr\n",i)
+    elseif #data.project.chr == 2 then
+        -- add 2 more
+        out = out..string.format("    .incbin chr/chr00.chr\n",i)
+        out = out..string.format("    .incbin chr/chr01.chr\n",i)
+    end
+    
+    out = out .. '\n'
+    
+    filename = data.folders.projects..projectFolder.."code/chrlist.asm"
+    util.writeToFile(filename,0, out, true)
     
     data.project.const.nChr = len(data.project.chr)
     if data.project.chr[0] then data.project.const.nChr = data.project.const.nChr+1 end
     
     local c = NESBuilder:getControl('PaletteList')
-    local filename = data.folders.projects..projectFolder.."code/palettes.asm"
+    filename = data.folders.projects..projectFolder.."code/palettes.asm"
 
     out=""
     
@@ -1075,6 +1113,10 @@ function BuildProject_cmd()
 end
 
 function LoadProject_cmd()
+    LoadProject()
+end
+
+function LoadProject()
     NESBuilder:setWorkingFolder()
     print("loading project "..data.projectID)
     
@@ -1084,9 +1126,12 @@ function LoadProject_cmd()
     data.project = util.unserialize(util.getFileContents(filename))
     
     if not data.project then
-        data.project = {}
+        data.project = {type = data.projectType}
     end
     data.project.const = data.project.const or {}
+    
+    -- Add this to projects that didn't have a project type
+    data.project.type = data.project.type or "dev"
     
     -- Wipe data stored on the canvas control
     --NESBuilder:getControlNew('tsaCanvas').loadCHRData()
@@ -1133,6 +1178,11 @@ function LoadProject_cmd()
         control.set(i,2,row.comment)
     end
     
+--    NESBuilder:setWorkingFolder(data.folders.projects..data.project.folder)
+--    if data.project.rom then
+--        data.project.rom.data = NESBuilder:listToTable(NESBuilder:getFileAsArray(data.project.rom.filename))
+--    end
+--    NESBuilder:setWorkingFolder()
     
     handlePluginCallback("onLoadProject")
     
@@ -1153,19 +1203,23 @@ function LoadProject_cmd()
     updateTitle()
 end
 
-function SaveProject_cmd()
+function SaveProject()
+    NESBuilder:setWorkingFolder()
+    
     -- make sure folder exists for this project
     NESBuilder:makeDir(data.folders.projects..data.project.folder)
     
     -- Convert python lists so they can be serialized.
-    for i=0, #data.project.chr do
-        data.project.chr[i] = NESBuilder:listToTable(data.project.chr[i])
-    end
+--    print("converting chr...")
+--    for i=0, #data.project.chr do
+--        data.project.chr[i] = NESBuilder:listToTable(data.project.chr[i])
+--    end
     for i,v in ipairs(data.project.palettes) do
         data.project.palettes[i] = NESBuilder:listToTable(data.project.palettes[i])
     end
     
     -- Convert symbols table
+    print("converting symbols...")
     local d = NESBuilder:getControlNew('symbolsTable1').getData()
     local t = {}
     for i, row in python.enumerate(d) do
@@ -1173,13 +1227,41 @@ function SaveProject_cmd()
     end
     data.project.constants = t
     
+--    local romData
+--    if data.project.rom then
+--        romData = data.project.rom.data
+--        data.project.rom.data = nil
+--    end
+    
+    --local toBytes = python.eval("lambda x:bytes(x).decode('utf')")
+    if data.project.rom then
+        --romData = data.project.rom.data
+        --data.project.rom.data = toBytes(data.project.rom.data)
+        data.project.rom.data = nil
+    end
+    
     
     handlePluginCallback("onSaveProject")
     
     --print(type(data.project.screenTool.nameTable))
     
+    local time = python.eval("time.time")
+    local t = time()
+    
     local filename = data.folders.projects..data.project.folder.."project.dat"
     util.writeToFile(filename,0, util.serialize(data.project), true)
+    
+    --print(time()-t)
+    
+    --NESBuilder:writeToFile(filename, util.serialize(data.project))
+    
+--    local filename2 = data.folders.projects..data.project.folder.."project2.dat"
+--    NESBuilder:writeToFile(filename2, util.serialize(data.rom))
+--    util.writeToFile(filename2,0, util.serialize(data.rom), true)
+    
+--    if data.project.rom then
+--        data.project.rom.data = romData
+--    end
     
     dataChanged(false)
     
@@ -1397,7 +1479,7 @@ function Open_cmd()
         if q==nil then return end
         
         if q==true then
-            SaveProject_cmd()
+            SaveProject()
         end
     end
     
@@ -1411,10 +1493,6 @@ function Open_cmd()
     end
 end
 
-function Save_cmd()
-    SaveProject_cmd()
-end
-
 function onExit(cancel)
     print("onExit")
     
@@ -1425,7 +1503,7 @@ function onExit(cancel)
         if q==nil then return true end
         
         if q==true then
-            SaveProject_cmd()
+            SaveProject()
         end
     end
     
@@ -1443,6 +1521,9 @@ function CHRList_cmd(t)
     
     local control = NESBuilder:getControl('CHRName')
     control.setText(t.getItem())
+    
+    print(type(currentChr()))
+    
     
     refreshCHR()
 end
@@ -1649,7 +1730,7 @@ function launcherRecentIcon_cmd(t)
             if q==nil then return end
             
             if q==true then
-                SaveProject_cmd()
+                SaveProject()
             end
         end
         
@@ -1768,8 +1849,10 @@ function currentPalette(n) return data.project.palettes[n or data.project.palett
 function currentChr(n) return data.project.chr[n or data.project.chr.index] end
 function setChr(n) data.project.chr.index = n end
 function loadChr(f, n) data.project.chr[n or data.project.chr.index] = NESBuilder:getFileContents(f) end
+function getChrData(n) return data.project.chr[n or data.project.chr.index] end
 function setChrData(chrData, n) data.project.chr[n or data.project.chr.index]=chrData end
 function boolNumber(v) if v then return 1 else return 0 end end
+function devMode() return (cfgGet('dev')==1) end
 
 function cfgGet(section, key)
     key, section = key or section, (key and section) or "main"
@@ -1827,6 +1910,190 @@ function addCHR_cmd()
     
     local n = #data.project.chr+1
     data.project.chr[n] = NESBuilder:newCHRData()
-    data.project.chrNames[n] = string.format("CHR %02x", n)
+    data.project.chrNames[n] = string.format("CHR %02x", n-1)
     control.addItem(data.project.chrNames[n])
 end
+
+function loadRom()
+    local f = NESBuilder:openFile{filetypes={{"NES Rom", ".nes"}}}
+    if f == "" then
+        print("Open cancelled.")
+        return
+    end
+    
+    pathSplit = python.eval("lambda x:list(os.path.split(x))")
+    local baseFileName = pathSplit(f)[1]
+    
+    -- make sure projects folder exists
+    NESBuilder:makeDir(data.folders.projects)
+    -- make sure folders exist for this project
+    NESBuilder:makeDir(data.folders.projects..data.project.folder)
+    
+    NESBuilder:setWorkingFolder(data.folders.projects..data.project.folder)
+    NESBuilder:copyFile(f, baseFileName)
+    
+    f = baseFileName
+    
+    local fileData = NESBuilder:listToTable(NESBuilder:getFileAsArray(f))
+    
+--    data.rom = {
+--        filename = f,
+--        data = fileData,
+--    }
+    
+--    data.project.rom = {
+--        filename = f
+--    }
+    
+    data.project.rom = {
+        filename = f,
+        data = fileData,
+    }
+end
+
+function importMultiChr_cmd()
+    local chrData
+    local f = NESBuilder:openFile{filetypes={{"CHR", ".chr"}}}
+    if f == "" then
+        print("Open cancelled.")
+        return
+    end
+    local fileData = NESBuilder:getFileAsArray(f)
+    
+    local nChr = len(fileData) / 0x1000
+    
+--    nPrg = fileData[4]
+--    nChr = fileData[5]
+--    chrStart = 0x10 + nPrg * 0x4000
+    chrStart = 0
+    
+    -- wipe all chr
+    data.project.chr = {index=0}
+    local control = NESBuilder:getControl('CHRList')
+    control.clear()
+    
+    local sliceList = python.eval("lambda x,y,z:x[y:z]")
+    for i = 0,(nChr*2)-1 do
+        chrData = sliceList(fileData, chrStart + i * 0x1000, chrStart + i * 0x1000 + 0x1000)
+        setChrData(NESBuilder:listToTable(chrData), i)
+        --if i > control.count() -1 then addCHR_cmd() end
+        addCHR_cmd()
+    end
+    
+    refreshCHR()
+    NESBuilder:setWorkingFolder()
+end
+
+function importAllChr()
+    local chrData
+    local fileData = NESBuilder:tableToList(data.project.rom.data,0)
+    
+    --local fileData = getRomData()
+    --local fileData = NESBuilder:tableToList(data.rom.data,0)
+    
+    nPrg = fileData[4]
+    nChr = fileData[5]
+    chrStart = 0x10 + nPrg * 0x4000
+    
+    -- wipe all chr
+    data.project.chr = {index=0}
+    local control = NESBuilder:getControl('CHRList')
+    control.clear()
+    
+    local sliceList = python.eval("lambda x,y,z:x[y:z]")
+    for i = 0,(nChr*2)-1 do
+        chrData = sliceList(fileData, chrStart + i * 0x1000, chrStart + i * 0x1000 + 0x1000)
+        setChrData(NESBuilder:listToTable(chrData), i)
+        --if i > control.count() -1 then addCHR_cmd() end
+        addCHR_cmd()
+    end
+    
+    refreshCHR()
+    NESBuilder:setWorkingFolder()
+end
+
+function exportAllChr()
+    local chrData
+    local fileData = NESBuilder:tableToList(data.project.rom.data,0)
+    
+    nPrg = fileData[4]
+    nChr = fileData[5]
+    chrStart = 0x10 + nPrg * 0x4000
+    
+    local sliceList = python.eval("lambda x,y,z:x[y:z]")
+    local joinList = python.eval("lambda x,y:x+y")
+    
+    -- remove all chr
+    fileData = sliceList(fileData, 0, chrStart)
+    
+    for i = 0,(nChr*2)-1 do
+        fileData = joinList(fileData, NESBuilder:tableToList(getChrData(i), 0))
+    end
+    
+    local f = data.folders.projects..data.project.folder.."game.nes"
+    data.project.rom.outputFilename = data.project.rom.outputFilename or f
+    
+    NESBuilder:saveArrayToFile(data.project.rom.outputFilename, fileData)
+end
+
+
+
+function importAllChr_cmd(t)
+    local chrData
+    local f = NESBuilder:openFile{filetypes={{"NES Rom", ".nes"}}}
+    if f == "" then
+        print("Open cancelled.")
+        return
+    end
+    local fileData = NESBuilder:getFileAsArray(f)
+    
+    nPrg = fileData[4]
+    nChr = fileData[5]
+    chrStart = 0x10 + nPrg * 0x4000
+    
+    -- wipe all chr
+    data.project.chr = {index=0}
+    local control = NESBuilder:getControl('CHRList')
+    control.clear()
+    
+    local sliceList = python.eval("lambda x,y,z:x[y:z]")
+    for i = 0,(nChr*2)-1 do
+        chrData = sliceList(fileData, chrStart + i * 0x1000, chrStart + i * 0x1000 + 0x1000)
+        setChrData(NESBuilder:listToTable(chrData), i)
+        --if i > control.count() -1 then addCHR_cmd() end
+        addCHR_cmd()
+    end
+    
+    refreshCHR()
+end
+
+function exportAllChr_cmd(t)
+    local chrData
+    local f = NESBuilder:saveFileAs{filetypes={{"NES Rom", ".nes"}}}
+    if f == "" then
+        print("Open cancelled.")
+        return
+    end
+    local fileData = NESBuilder:getFileAsArray(f)
+    
+    nPrg = fileData[4]
+    nChr = fileData[5]
+    chrStart = 0x10 + nPrg * 0x4000
+    
+    local sliceList = python.eval("lambda x,y,z:x[y:z]")
+    local joinList = python.eval("lambda x,y:x+y")
+    
+    -- remove all chr
+    fileData = sliceList(fileData, 0, chrStart)
+    
+    for i = 0,(nChr*2)-1 do
+        fileData = joinList(fileData, NESBuilder:tableToList(getChrData(i), 0))
+    end
+    NESBuilder:saveArrayToFile(f, fileData)
+end
+
+--getRomData()
+--    NESBuilder:setWorkingFolder(data.folders.projects..data.project.folder)
+--    local fileData = NESBuilder:listToTable(NESBuilder:getFileAsArray(data.project.rom.filename))
+--    return fileData
+--end

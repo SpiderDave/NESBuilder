@@ -19,7 +19,8 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
         QVBoxLayout,QTableWidgetItem, 
         )
 
-from PyQt5.Qsci import *
+#from PyQt5.Qsci import *
+from PyQt5.Qsci import QsciScintilla, QsciLexerCustom
 
 opcodes = [
     'adc', 'and', 'asl', 'bcc', 'bcs', 'beq', 'bit', 'bmi', 'bne', 'bpl', 'brk', 'bvc', 'bvs', 'clc',
@@ -197,6 +198,8 @@ class Base():
         self.resize(t.w, t.h)
         self.text = t.text
         self.scale = t.scale or 1
+        if t['class']:
+            self.addCssClass(t['class'])
     def mousePressEvent(self, event):
         if getattr(self, 'clicked', False):
             super().mousePressEvent(event)
@@ -451,26 +454,32 @@ class LauncherIcon(Frame):
         
         self.addCssClass("launcherFrame")
         
-        l = Label(self)
-        l.addCssClass("launcherText")
-        l.init(t)
-        l.move(0,self.height-l.height-8)
-        
-        self.label = l
+#        l = Label(self)
+#        l.addCssClass("launcherText")
+#        l.init(t)
+#        l.move(0,self.height-l.height-8)
+#        self.label = l
         
         ctrl = Label("", self)
         t.text = ""
         ctrl.init(t)
-        ctrl.resize(self.width, self.height-l.height-8)
+        #ctrl.resize(self.width, self.height-l.height-8)
+        ctrl.resize(self.width, self.height)
         ctrl.move(0,0)
         ctrl.addCssClass("launcherIcon")
+        
+#        pixmap = QPixmap('project.png')
+#        ctrl.setAlignment(Qt.AlignHCenter)
+#        ctrl.setPixmap(pixmap)
+        
         self.iconCtrl = ctrl
         
         # This is very hacky but it fixes an issue where 
         # the labels are initially cut off.
-        QTimer.singleShot(400, self.label.adjustSize)
+        #QTimer.singleShot(400, self.label.adjustSize)
     def setText(self, text):
-        self.label.text = text
+        #self.label.text = text
+        pass
 
 class TabWidget(Base, QTabWidget):
     def init(self, t):
@@ -494,6 +503,7 @@ class MainWindow(Base, QMainWindow):
         self.onResize = False
         self.onHoverWidget = False
         self.timer = QTimer(self)
+        self.closing = False
         
         #exitAct = QAction(QIcon('exit.png'), '&Exit', self)
         #exitAct.setShortcut('Ctrl+Q')
@@ -548,14 +558,15 @@ class MainWindow(Base, QMainWindow):
         
     def initUI(self):
         self.setGeometry(300, 300, 300, 220)
-        #self.setWindowTitle("Window title")
     def closeEvent(self, event):
         if self.onClose:
             if self.onClose():
+                self.closing=True
                 event.accept()
             else:
                 event.ignore()
             return
+        self.closing=True
         event.accept()
     def setTimer(self, t, f, repeating=False):
         if repeating:
@@ -563,7 +574,6 @@ class MainWindow(Base, QMainWindow):
             self.timer.start(t)
         else:
             self.timer.singleShot(t, f)
-
 
 
 

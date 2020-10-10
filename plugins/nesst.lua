@@ -312,6 +312,12 @@ function nesstRefreshScreen()
     
     PaletteEntryUpdate()
     plugin.refresh = false
+
+
+    -- Fixes an issue where the app stays open if you quit while refreshing.
+    -- Need a better solution.
+    local main = NESBuilder:getControlNew('main')
+    if main.closing then NESBuilder:forceClose() end
 end
 
 

@@ -179,6 +179,7 @@ Section "NESBuilder Source"
         "${GitURL}icons/gear32.png" "icons/gear32.png"\
         "${GitURL}icons/note32.png" "icons/note32.png"\
         "${GitURL}icons/clock32.png" "icons/clock32.png"\
+        "${GitURL}icons/project.png" "icons/project.png"\
         "${GitURL}icons/__init__.py" "icons/__init__.py"\
         "${GitURL}cursors/__init__.py" "cursors/__init__.py"\
         /END

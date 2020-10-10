@@ -47,7 +47,6 @@ import subprocess
 import traceback
 
 from tempfile import NamedTemporaryFile
-#from textwrap import dedent
 
 import math
 import webbrowser
@@ -161,15 +160,6 @@ for k,v in cursorData.items():
         cursorData[k].update(filename = os.path.join(d, file))
 
 QtDave.loadCursors(cursorData)
-
-# set up our lua function
-#lua_func = lua.eval('function(o) {0} = o return o end'.format('tkConstants'))
-# get all the constants from tk.constants but leave out builtins, etc.
-#d= dict(enumerate([x for x in dir(tk.constants) if not x.startswith('_')]))
-# flip keys and values
-#d = {v:k for k,v in d.items()}
-# export to lua.  the values will still be python
-#lua_func(lua.table_from(d))
 
 def fancy(text):
     return "*"*60+"\n"+text+"\n"+"*"*60
@@ -553,26 +543,6 @@ class ForLua:
         canvas.control.create_rectangle(x*canvas.scale, y*canvas.scale, x*canvas.scale+canvas.scale-1, y*canvas.scale+canvas.scale-1,
                            width=1, outline=c, fill=c,
                            )
-
-#    def saveCanvasImage(self, f='test.png'):
-#        canvas = self.getCanvas(self).control
-#        grabcanvas=ImageGrab.grab(bbox=canvas)
-#        ttk.grabcanvas.save(f)
-#    def loadImageToCanvas(self, f):
-#        c = self.getCanvas(self).control
-#        canvas = c.control
-#        print("loadImageToCanvas: {0}".format(f))
-#        try:
-#            with Image.open(f) as im:
-#                px = im.load()
-            
-#            displayImage = ImageOps.scale(im, c.scale, resample=Image.NEAREST)
-#            canvas.image = ImageTk.PhotoImage(displayImage)
-            
-#            canvas.create_image(0, 0, image=canvas.image, anchor=tk.NW)
-#            canvas.configure(highlightthickness=0, borderwidth=0)
-#        except:
-#            print("error loading image")
     def newStack(self, arg=[], maxlen=None):
         stack = Stack(arg, maxlen)
         t = lua.table(
@@ -664,6 +634,7 @@ class ForLua:
             ret = [t[x] for x in list(t)]
             if base==1:
                 ret = [None]+ret
+                ret = np.array(ret)
             return ret
         else:
             return t
@@ -688,14 +659,6 @@ class ForLua:
             return t
         
         return lua.table_from(l)
-#    def test(self, x=0,y=0):
-#        canvas = self.getCanvas(self, 'tsaTileCanvas')
-#        f = r"J:\svn\NESBuilder\mtile.png"
-#        img = Image.open(f)
-#        photo = ImageTk.PhotoImage(ImageOps.scale(img, 2, resample=Image.NEAREST))
-#        self.images2.append(photo)
-#        canvas = self.getCanvas(self, 'testCanvas')
-#        canvas.control.create_image(x, y, image=photo, anchor=tk.NW)
     def imageToCHRData(self, f, colors=False):
         print('imageToCHRData')
         
@@ -1061,11 +1024,8 @@ class ForLua:
         
         if t.image:
             folder, file = os.path.split(t.image)
-            #print(folder,file)
             d = os.path.dirname(sys.modules[folder].__file__)
-            #print(d)
             filename = os.path.join(d, file)
-            #print(filename)
             ctrl.setIcon(filename)
         
         ctrl.clicked.connect(makeCmdNew(t))
@@ -1161,7 +1121,14 @@ class ForLua:
     def makeLauncherIcon(self, t):
         ctrl = QtDave.LauncherIcon(self.tabQt)
         ctrl.init(t)
-        ctrl.mousePressEvent = makeCmdNew(t)
+        
+        #ctrl.iconCtrl.onMouseMove = makeCmdNew(t)
+        ctrl.iconCtrl.onMousePress = makeCmdNew(t)
+        #ctrl.iconCtrl.onMouseRelease = makeCmdNew(t)
+        
+#        ctrl.label.onMouseMove = ctrl.onMouseMove
+#        ctrl.iconCtrl.onMouseMove = ctrl.onMouseMove
+        
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
@@ -1175,21 +1142,21 @@ class ForLua:
     def makeLabelQt(self, t):
         ctrl = QtDave.Label(t.text, self.tabQt)
         ctrl.init(t)
-        ctrl.mousePressEvent = makeCmdNew(t)
+        ctrl.onMouseMove = makeCmdNew(t)
+        ctrl.onMousePress = makeCmdNew(t)
+        ctrl.onMouseRelease = makeCmdNew(t)
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
     def makeMenuQt(self, t):
         window = self.getWindowQt(self)
         
-        # We'll turn this into a dictionary so our little class library
+        # We'll turn this into a dictionary so our class library
         # doesn't have to handle any lua.
         menuItems = [dict(x) for _,x in t.menuItems.items()]
         for i, item in enumerate(menuItems):
             if item.get('name', False):
                 if not item.get('action',False):
-                    
-                    
                     t2 = lua.table()
                     
                     if t.prefix:
@@ -1202,67 +1169,6 @@ class ForLua:
         return window.addMenu(t.name, t.text, menuItems)
     def setText(c,txt):
         c.setText(txt)
-    def makeMenu(self, t, variables):
-        x,y,w,h = variables
-        
-        window = self.getWindow(self)
-        if not window.menu:
-            menubar = tk.Menu(window.control)
-            window.menu = menubar
-            window.control.config(menu = menubar)
-        
-        tab = self.getTab(self)
-        
-        menu = False
-        control = False
-        
-        if controls.get(t.name):
-            # menu already exists, add to it instead.
-            menu = controls.get(t.name)
-            control = menu
-            
-            t=lua.table(name=t.name,
-                        control=control,
-                        items=t['items'],
-                        prefix=t.prefix,
-                        )
-        else:
-            # create menu
-            menu = tk.Menu(tab, tearoff=0)
-            
-            if cfg.getValue("main","styleMenus"):
-                menu.config(bg=config.colors.bk2,fg=config.colors.fg, activebackground=config.colors.bk_menu_highlight)
-            
-            window.menu.add_cascade(label=t.text, menu=menu)
-
-            control = menu
-            controls.update({t.name:control})
-
-            t=lua.table(name=t.name,
-                        control=control,
-                        items=t['items'],
-                        prefix=t.prefix,
-                        )
-
-        for i, item in t['items'].items():
-            name = item.name or str(i)
-            t2=lua.table(name=t.name+"_"+name,
-                        control=control,
-                        items=t['items'],
-                        )
-            if not t.prefix:
-                if item.name:
-                    t2.name = name
-                else:
-                    t2.name = "_"+name
-            
-            entry = dict(index=i, entry = item)
-            if item.text == "-":
-                menu.add_separator()
-            else:
-                menu.add_command(label=item.text, command=makeCmdNoEvent(t2, extra=entry))
-        
-        return t
     def makeWindow(self, t, variables):
         x,y,w,h = variables
         
@@ -1333,82 +1239,6 @@ class ForLua:
         #windows.update({t.name:window})
         
         #control.bind( "<ButtonRelease-1>", makeCmdNew(t))
-        return t
-    def makeTree(self, t, variables):
-        x,y,w,h = variables
-        
-        style.configure('new.Treeview', background=config.colors.bk, fg=config.colors.fg)
-        
-        control = ttk.Treeview(self.getTab(self), style = "new.Treeview")
-        control.place(x=x, y=y)
-        #control.place(x=x, y=y, height=h, width=w)
-        
-        tree = control
-        tree["columns"]=("one","two","three")
-        tree['show'] = 'headings'
-        tree.column("#0", width=50, minwidth=50, stretch=tk.NO)
-        tree.column("one", width=50, minwidth=50, stretch=tk.NO)
-        tree.column("two", width=50, minwidth=50, stretch=tk.NO)
-        tree.column("three", width=50, minwidth=50, stretch=tk.NO)
-        
-        tree.heading(0, text ="Foo") 
-        tree.heading(1, text ="Bar") 
-        tree.heading(2, text ="Baz")
-        
-        id = tree.insert("", 'end', "test", text ="test1",  values =("a", "b", "c")) 
-        tree.insert("", '0', "test2", text ="test2",  values =("a", "b", "c")) 
-        tree.insert("", 'end', "test3", text ="test3",  values =("a", "b", "c")) 
-        tree.insert(id, 'end', "test4", text ="test4",  values =("a", "b", "c")) 
-        
-        t=lua.table(name=t.name,
-                    control=control,
-                    height=h,
-                    width=w,
-                    )
-        controls.update({t.name:t})
-
-        control.bind( "<Button-1>", makeCmdNew(t))
-        return t
-    def makeLabel(self, t, variables):
-        x,y,w,h = variables
-        
-        control = tkDave.Label(self.getTab(self), text=t.text, borderwidth=0, background="white", relief="solid")
-        control.config(fg=config.colors.fg, bg=config.colors.bk2)
-        
-        if t.clear:
-            control.config(fg=config.colors.fg, bg=config.colors.bk, borderwidth=0)
-        if t.clear:
-            control.place(x=x, y=y)
-        else:
-            control.place(x=x, y=y, height=h, width=w)
-        
-        def setFont(fontName="Verdana", size=12):
-            control.config(font=(fontName, size))
-            t.update()
-        def setText(text):
-            control.config(text=text)
-        def setJustify(j="left"):
-            t = {
-                "left":tk.LEFT,
-                "right":tk.RIGHT
-                }
-            control.config(justify=t.get(j, tk.LEFT))
-            control.place()
-        
-        #tkDave.make_draggable(control)
-        
-        t=lua.table(name=t.name,
-                    control=control,
-                    height=h,
-                    width=w,
-                    setText = setText,
-                    setFont = setFont,
-                    setJustify = setJustify,
-                    )
-        
-        controls.update({t.name:t})
-
-        if t.name: control.bind( "<Button-1>", makeCmdNew(t))
         return t
     @lupa.unpacks_lua_table
     def makePaletteControlQt(self, t):
@@ -1599,31 +1429,7 @@ ctrl.mousePressEvent = makeCmdNew(t)
 
 main.tabParent.currentChanged.connect(makeCmdNoEvent(t))
 
-
-#root = tk.Tk()
-#root = tkDave.Tk()
-
-# hide the window until it's ready
-#root.withdraw()
-#root.protocol( "WM_DELETE_WINDOW", onExit )
-#root.iconbitmap(sys.executable)
-
-#if not frozen:
-#    photo = ImageTk.PhotoImage(file = fixPath2("icon.ico"))
-#    root.iconphoto(False, photo)
-
-#tab_parent = ttk.Notebook(root)
-
 windows={}
-
-#tab_parent.pack(expand=1, fill='both')
-
-#var = tk.IntVar()
-#def on_click():
-#    print(var.get())
-
-#style = ttk.Style()
-#style.configure('new.TFrame')
 
 
 def handleLuaError(err):
@@ -1631,8 +1437,6 @@ def handleLuaError(err):
     err = err.replace('[string "<python>"]',"[main.lua]")
     err = err.replace('[C]',"[lua]")
     err = err.replace("stack traceback:","\nstack traceback:")
-    #err = '\n'.join(textwrap.wrap(err, width=70))
-    #err = textwrap.indent(err, " "*4)
     
     err = [line.strip() for line in err.splitlines()]
     if err[0].startswith("error loading module "):
@@ -1760,6 +1564,7 @@ x,y = cfg.getValue('main', 'x'), cfg.getValue('main', 'y')
 
 main.setGeometry(x,y,w,h)
 
+
 s = pkgutil.get_data('include', 'style.qss').decode('utf8')
 r = dict(
     bk=config.colors.bk,
@@ -1778,6 +1583,11 @@ r = dict(
 )
 for (k,v) in r.items():
     s = s.replace("_"+k+"_", v)
+
+if frozen:
+    folder = os.path.dirname(sys.modules['icons'].__file__)
+    s=s.replace("url('icons/","url('"+folder.replace("\\","/")+"/")
+    print(s)
 
 app.setStyleSheet(s)
 

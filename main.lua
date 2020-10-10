@@ -60,8 +60,8 @@ pad,left,top=config.pad, config.left, config.top
 data = {}
 
 data.projectTypes = {
-    {name = "dev", text = "NES Game"},
-    {name = "romhack", text = "Rom Hack"},
+    {name = "dev", text = "NES Game", helpText="Create a new NES game."},
+    {name = "romhack", text = "Rom Hack", helpText="Modify an existing NES Rom."},
 }
 
 
@@ -155,9 +155,10 @@ function init()
     control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Image",text="CHR"}
     control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Symbols",text="Symbols"}
     
+    local items
     -- The separator and Quit items will be added
     -- in onReady() so plugins can add items before them.
-    local items = {
+    items = {
         {name="New", text="New Project"},
         {name="Open", text="Open Project"},
         {name="Save", text="Save Project"},
@@ -165,9 +166,22 @@ function init()
     }
     control = NESBuilder:makeMenuQt{name="menuFile", text="File", menuItems=items}
     
-    local items = {
+    items = {
+        {name="hFlip", text="Flip tile horizontally"},
+        {name="vFlip", text="Flip tile vertically"},
+    }
+    control = NESBuilder:makeMenuQt{name="menuEdit", text="Edit", menuItems=items}
+    
+    
+    --control.control.setEnable(false)
+    --local f = python.eval("lambda x: x[0]")
+    --print(control)
+    --print(f(control))
+    
+    items = {
         {name="Build", text="Build"},
         {name="BuildTest", text="Build and Test"},
+        {name="TestRom", text="Re-Test Last"},
     }
     control = NESBuilder:makeMenuQt{name="menuProject", text="Project", menuItems=items}
     
@@ -380,51 +394,43 @@ function init()
     
     NESBuilder:setContainer(data.launchFrames.recent)
     
-    local c = {
-        {text="Days"},
-        {text="go"},
-        {text="by"},
-        {text="and"},
-        {text="still"},
-        {text="I"},
-        {text="think"},
-        {text="of"},
-        {text="you."},
-        {text="Days"},
-        {text="when"},
-        {text="I"},
-        {text="couldn't"},
-        {text="live"},
-        {text="my"},
-        {text="life"},
-        {text="without"},
-        {text="you."},
-        {text="Without"},
-        {text="you."},
-    }
     local columns = 5
+    local rows = 4
     recentData = {}
     
-    for i, item in pairs(c) do
+    for i = 1,rows*columns do
         recentData[i-1]={}
-        x = ((i-1) % columns)*100 + pad
-        y = math.floor((i-1)/columns)*150
+        x = ((i-1) % columns)*105 + pad
+        y = math.floor((i-1)/columns)*130
         
-        control = NESBuilder:makeLauncherIcon{x=x,y=y,h=132, w=80, name="launcherRecentIcon",text=item.text, index=i-1}
+        control = NESBuilder:makeLauncherIcon{x=x,y=y,h=120, w=90, name="launcherRecentIcon", index=i-1}
         recentData[i-1].icon = control
+        
+        y=y+control.height-25
+        control = NESBuilder:makeLabelQt{x=x,y=y, name="launcherRecentLabel",text="", class="launcherText"}
+        control.autoSize = false
+        control.width = 90
+        control.height=20
+        
         recentData[i-1].label = control
     end
     
     NESBuilder:setContainer(data.launchFrames.new)
     for i, item in ipairs(data.projectTypes) do
         --recentData[i-1]={}
-        x = ((i-1) % columns)*100 + pad
-        y = math.floor((i-1)/columns)*150
+        x = ((i-1) % columns)*105 + pad
+        y = math.floor((i-1)/columns)*130
         
-        control = NESBuilder:makeLauncherIcon{x=x,y=y,h=132, w=80, name="launcherProjectType",text=item.text, index=i-1}
-    end
+        control = NESBuilder:makeLauncherIcon{x=x,y=y,h=120, w=90, name="launcherProjectType", index=i-1}
+        control.helpText = item.helpText
 
-    
+        y=y+control.height-25
+        control = NESBuilder:makeLabelQt{x=x,y=y, name="launcherRecentLabel", text=item.text, class="launcherText"}
+        control.autoSize = false
+        control.width = 90
+        control.height=20
+
+    end
     
     NESBuilder:makeTabQt{name="tsa", text="Metatiles"}
     NESBuilder:setTabQt("tsa")
@@ -496,7 +502,7 @@ function onReady()
     }
     control = NESBuilder:makeMenuQt{name="menuHelp", text="Help", menuItems=items}
     
-    LoadProject_cmd()
+    LoadProject()
     
     if cfgGet('autosave')==1 then
         local main = NESBuilder:getWindowQt()
@@ -758,13 +764,13 @@ function NewProject_cmd()
 
         -- yes
         data.projectID = n
-        LoadProject_cmd()
+        LoadProject()
         return
     end
     
     print(string.format('Creating new project "%s"',n))
     data.projectID = n
-    LoadProject_cmd()
+    LoadProject()
     
     -- wipe the project rom, regardless of project type
     data.project.rom = nil
@@ -893,7 +899,8 @@ function launcherButtonInfo_cmd()
 end
 
 function New_cmd()
-    NewProject_cmd()
+    data.launchFrames.set('new')
+    NESBuilder:switchTab("Launcher")
 end
 function OpenProject_cmd()
     Open_cmd()
@@ -917,7 +924,10 @@ end
 
 function BuildTest_cmd()
     BuildProject()
+    TestRom_cmd()
+end
 
+function TestRom_cmd()
     local workingFolder = data.folders.projects..data.project.folder
     local f = data.folders.projects..data.project.folder.."game.nes"
     print("shellOpen "..f)
@@ -1145,6 +1155,17 @@ function LoadProject()
     
     data.project.chr = data.project.chr or {index=0}
     data.project.chrNames = data.project.chrNames or {}
+    
+    local converted = false
+    local makeNp = python.eval("lambda x: np.array(x)")
+    for i=0,#data.project.chr do
+        if type(data.project.chr[i]) == "table" then
+            data.project.chr[i] = NESBuilder:tableToList(data.project.chr[i], 0)
+            data.project.chr[i] = makeNp(data.project.chr[i])
+            converted = true
+        end
+    end
+    if converted then print("converted old chr tables to ndarray") end
     
     local control = NESBuilder:getControl('CHRList')
     control.clear()
@@ -1486,7 +1507,7 @@ function Open_cmd()
     else
         print("file: "..f)
         data.projectID = projectID
-        LoadProject_cmd()
+        LoadProject()
     end
 end
 
@@ -1519,12 +1540,9 @@ function CHRList_cmd(t)
     local control = NESBuilder:getControl('CHRName')
     control.setText(t.getItem())
     
-    print(type(currentChr()))
-    
-    local size = python.eval("lambda x:x.size")
-    
-    print(len(currentChr()))
-    
+--    print(type(currentChr()))
+--    local size = python.eval("lambda x:x.size")
+--    print(len(currentChr()))
     
     refreshCHR()
 end
@@ -1736,13 +1754,50 @@ function launcherRecentIcon_cmd(t)
         end
         
         data.projectID = id
-        LoadProject_cmd()
+        LoadProject()
     end
 end
 
 function MainQttabs_cmd(t,a)
     --print(t.control.currentWidget())
     handlePluginCallback("onTabChanged", t.control.currentWidget())
+end
+
+function hFlip_cmd()
+    local tile = data.selectedTile
+    local tileOffset = 16*tile
+    
+    local y=0
+    local c=0
+    for y=0,7 do
+        for i = 0,1 do
+            local b = data.project.chr[data.project.chr.index][tileOffset+((i)*8)+y%8]
+            data.project.chr[data.project.chr.index][tileOffset+((i)*8)+y%8] = reverseByte(b)
+        end
+    end
+    refreshCHR()
+end
+
+function vFlip_cmd()
+    local tile = data.selectedTile
+    local tileOffset = 16*tile
+    
+    local y=0
+    local c=0
+    local bytes = {}
+    
+    for y=0,7 do
+        bytes[y] = {}
+        for i = 0,1 do
+            bytes[y][i] = data.project.chr[data.project.chr.index][tileOffset+((i)*8)+y%8]
+        end
+    end
+    for y=0,7 do
+        for i = 0,1 do
+            data.project.chr[data.project.chr.index][tileOffset+((i)*8)+y%8] = bytes[7-y][i]
+        end
+    end
+    refreshCHR()
 end
 
 function canvasTile_cmd(t)
@@ -1855,10 +1910,10 @@ function setChrData(chrData, n) data.project.chr[n or data.project.chr.index]=ch
 function boolNumber(v) if v then return 1 else return 0 end end
 function devMode() return (cfgGet('dev')==1) end
 function type(item) return NESBuilder:type(item) end
-local int = python.eval("lambda x:int(x)")
-local sliceList = python.eval("lambda x,y,z:x[y:z]")
-local joinList = python.eval("lambda x,y:x+y")
-
+int = python.eval("lambda x:int(x)")
+sliceList = python.eval("lambda x,y,z:x[y:z]")
+joinList = python.eval("lambda x,y:x+y")
+reverseByte = python.eval("lambda x:int(('{:08b}'.format(x))[::-1],2)")
 
 function cfgGet(section, key)
     key, section = key or section, (key and section) or "main"
@@ -1876,7 +1931,16 @@ function closeTab(tabName, switchTo)
 end
 
 function autoSave()
-    --print('Auto save')
+    -- This is here just so the app doesn't stay open if something goes
+    -- Wrong and it's running things while trying to close.  It's not a
+    -- great solution, but at least it wont have a process open in the
+    -- background forever.
+    local main = NESBuilder:getControlNew('main')
+    if main.closing then
+        NESBuilder:forceClose()
+        return
+    end
+    
     handlePluginCallback("onAutoSave")
 end
 

@@ -152,11 +152,16 @@ QMessageBox QPushButton {
 
 
 .launcherIcon {
-    background-color:_bk2_;
+    padding-top:.5em;
+    background: _bk2_ url('icons/project.png') center top no-repeat;
+    background-origin: content;
 }
 
 .launcherText {
+    background-color:_bk2_;
     font-size:11pt;
+    text-align:center;
+    padding-left:.5em;
 }
 
 .sideSpinLabel {
@@ -232,3 +237,7 @@ QHeaderView:section, QHeaderView  {
 
 .test {background-color:red;}
 
+
+.launcherIcon {
+    background: _bk2_ url('icons/project.png') center top no-repeat;
+}

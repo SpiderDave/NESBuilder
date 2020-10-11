@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
         QSlider, QSpinBox, QStyleFactory, QTableWidget, QTabWidget, QTextEdit,
         QVBoxLayout, QWidget, QAction, QMainWindow, QMessageBox, QFileDialog, 
         QInputDialog, QErrorMessage, QFrame, QPlainTextEdit, QListWidget, QListWidgetItem,
-        QVBoxLayout,QTableWidgetItem, 
+        QVBoxLayout,QTableWidgetItem, QMenu
         )
 
 #from PyQt5.Qsci import *
@@ -41,6 +41,9 @@ directives = [
 opcodes = opcodes + [x.upper() for x in opcodes]
 directives = directives + ['.'+x for x in directives]
 directives = directives + [x.upper() for x in directives]
+
+# keys are numerical, data is text
+keyConstMap = dict([(getattr(Qt,item),item[4:]) for item in dir(Qt) if item.startswith('Key_')])
 
 nesPalette=[
 [0x74,0x74,0x74],[0x24,0x18,0x8c],[0x00,0x00,0xa8],[0x44,0x00,0x9c],
@@ -189,8 +192,12 @@ class Base():
         self.onClick = False
         self.onChange = False
         self.helpText = False
+        self.keyEvent = False
         try: self.setMouseTracking(True)
         except: pass
+        
+#        if hasattr(self, 'setContextMenuPolicy'):
+#            self.setContextMenuPolicy(Qt.NoContextMenu)
     def init(self, t):
         self.name = t.name
         self.tooltip=t.tooltip
@@ -200,6 +207,17 @@ class Base():
         self.scale = t.scale or 1
         if t['class']:
             self.addCssClass(t['class'])
+    def keyPressEvent(self, event):
+        if getattr(self, 'onKeyPress', False):
+            k = keyConstMap.get(event.key(),event.text())
+            
+            ev = Map(
+                key = k,
+                type = "KeyPress",
+            )
+            self.event = ev
+            self.onKeyPress(event)
+
     def mousePressEvent(self, event):
         if getattr(self, 'clicked', False):
             super().mousePressEvent(event)
@@ -504,21 +522,9 @@ class MainWindow(Base, QMainWindow):
         self.onHoverWidget = False
         self.timer = QTimer(self)
         self.closing = False
+        self.onKeyPress = False
         
-        #exitAct = QAction(QIcon('exit.png'), '&Exit', self)
-        #exitAct.setShortcut('Ctrl+Q')
-        #exitAct.setStatusTip('Exit application')
-        #exitAct.triggered.connect(app.quit)
-        #exitAct.triggered.connect(lambda x:print("hi"))
-        
-        #menubar = self.menuBar()
-        #fileMenu = menubar.addMenu('&File')
-        
-        #fileMenu.addAction(QAction('Menu Item', self))
-        
-        #fileMenu.addAction(exitAct)
         QTimer.singleShot(1,self.onDisplay)
-    
     def setHoveredWidget(self, widget):
         self.hoveredWidget = widget
         if self.onHoverWidget:
@@ -533,7 +539,6 @@ class MainWindow(Base, QMainWindow):
             self.onResize(width, height, oldWidth, oldHeight)
     def onDisplay(self):
         self.loaded = True
-        #print('display')
     def addMenu(self, menuName, menuText, menuItems):
         if not self.menus.get(menuName, False):
             self.menus.update({menuName:self.menuBar().addMenu(menuText)})
@@ -553,6 +558,16 @@ class MainWindow(Base, QMainWindow):
                     action.triggered.connect(item.get('action'))
                 m.addAction(action)
         return m
+    def contextMenuEvent(self, event):
+        print("popup")
+        if True: return
+        contextMenu = QMenu(self)
+        newAct = contextMenu.addAction("New")
+        openAct = contextMenu.addAction("Open")
+        quitAct = contextMenu.addAction("Quit")
+        action = contextMenu.exec_(self.mapToGlobal(event.pos()))
+        if action == quitAct:
+            self.close()
     def setIcon(self, filename):
         self.setWindowIcon(QtGui.QIcon(filename))
         
@@ -1131,7 +1146,8 @@ class ListWidget(Base, QListWidget):
         return super().currentItem().text()
     def addItem(self, text):
         super().addItem(QListWidgetItem(text))
-
+    def removeItem(self, index):
+        self.takeItem(index)
 
 class Table(Base, QTableWidget):
     def set(self, x,y, text):

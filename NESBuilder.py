@@ -1083,15 +1083,13 @@ class ForLua:
         t.getIndex = ctrl.currentRow
         t.getItem = lambda: ctrl.currentItem().text()
         
-        
         if t.list:
             ctrl.setList(t.list)
         t.control = ctrl
-        #ctrl.clicked.connect(makeCmdNew(t))
-        #ctrl.clicked.connect(makeCmdNoEvent(t))
-        #ctrl.itemClicked.connect(makeCmdNoEvent(t))
-        #ctrl.itemClicked.connect(makeCmdNew(t))
-        ctrl.currentItemChanged.connect(makeCmdNew(t))
+        
+        #ctrl.currentItemChanged.connect(makeCmdNew(t, extra = {'functionName':t.name}))
+        ctrl.currentItemChanged.connect(makeCmdNew(t, functionName = t.name))
+        ctrl.onKeyPress = makeCmdNew(t, functionName = t.name+"_keyPress")
         
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
@@ -1305,7 +1303,7 @@ lua_func(lua.table(nesPalette))
 
 def coalesce(*arg): return next((a for a in arg if a is not None), None)
 
-def makeCmdNew(*args, extra = False):
+def makeCmdNew(*args, extra = False, functionName=False):
     if not args[0].name:
         # no name specified, dont create a function
         return
@@ -1313,6 +1311,10 @@ def makeCmdNew(*args, extra = False):
         print('anon')
     if not extra:
         extra = dict()
+
+    if functionName:
+        extra.update(functionName = functionName)
+    
     extra.update(plugin = lua.eval("_getPlugin and _getPlugin() or false"))
 
     return lambda x:doCommandNew(args, ev = x, extra = extra)
@@ -1373,7 +1375,7 @@ def doCommandNew(*args, ev=False, extra = False):
                 {0}_cmd(o)
             end
         end
-    end""".format(args.name))
+    end""".format(coalesce(args.functionName, args.name)))
     try:
         lua_func(args)
     except LuaError as err:

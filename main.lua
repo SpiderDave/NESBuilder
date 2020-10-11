@@ -560,18 +560,20 @@ function doCommand(t)
     else
         if t.anonymous then return false end
         
+        local functionName = t.functionName or t.name
+        
         pcall(function()
             t.event.button = t.event.event.button()
         end)
         
         if t.event and (t.event.type == "ButtonPress" or t.event.type=="") then
-            print("doCommand "..t.name)
+            print("doCommand "..functionName)
         else
-            print("doCommand "..t.name)
+            print("doCommand "..functionName)
         end
         if t.plugin then
-            if t.plugin[t.name.."_cmd"] then
-                t.plugin[t.name.."_cmd"](t)
+            if t.plugin[functionName.."_cmd"] then
+                t.plugin[functionName.."_cmd"](t)
                 return false
             end
         end
@@ -944,8 +946,60 @@ function BuildProject()
         
         handlePluginCallback("onBuild")
         
+        
+        local folder = data.folders.projects..data.project.folder
+        
+        -- remove old game.nes
+        NESBuilder:delete(folder.."game.nes")
+        
+        -- export chr to rom and build game.nes
         exportAllChr()
+        
+        buildXkas()
     end
+end
+
+function buildXkas()
+    local folder = data.folders.projects..data.project.folder
+    
+    NESBuilder:setWorkingFolder()
+    -- make sure folders exist for this project
+    NESBuilder:makeDir(data.folders.projects..data.project.folder)
+    --NESBuilder:makeDir(data.folders.projects..data.project.folder.."chr")
+    NESBuilder:makeDir(data.folders.projects..data.project.folder.."code")
+    
+    
+    -- create default code
+    if not NESBuilder:fileExists(folder.."project.asm") then
+        print("project.asm not found, extracting code template...")
+        NESBuilder:extractAll('templates/romhack_xkasplus1.zip',folder)
+    end
+    
+    local filename = data.folders.projects..projectFolder.."code/symbols.asm"
+    out=""
+    
+    local d = NESBuilder:getControlNew('symbolsTable1').getData()
+    for i, row in python.enumerate(d) do
+        k,v,comment = row[0],row[1],row[2]
+        if k~='' then
+            if comment~='' then
+                out = out .. string.format("define %s %s ; %s\n",k,v or 0,comment)
+            else
+                out = out .. string.format("define %s %s\n",k,v or 0)
+            end
+        end
+    end
+    util.writeToFile(filename,0, out, true)
+    
+    -- Start assembling with xkas plus
+    local cmd = data.folders.tools.."xkas-plus/xkas.exe"
+    local args = "-o game.nes project.asm"
+--    local cmd = data.folders.tools.."xkas06/xkas.exe"
+--    local args = "project.asm game.nes"
+    print("starting xkas...")
+    NESBuilder:setWorkingFolder(folder)
+    NESBuilder:run(folder, cmd, args)
+    print("done.")
 end
 
 function BuildProject_cmd()
@@ -1531,6 +1585,25 @@ function onExit(cancel)
     
 end
 
+function CHRList_keyPress_cmd(t,test)
+    local key = t.control.event.key
+    local index = t.getIndex()
+    if key == "Delete" then
+        local chr = {}
+        local chrNames = {}
+        
+        -- ToDo: handle removing of only chr (make blank?)
+        
+        table.remove(data.project.chr, index)
+        table.remove(data.project.chrNames, index)
+        local control = NESBuilder:getControl('CHRList')
+        --control.takeItem(index)
+        control.removeItem(index)
+        
+        CHRList_cmd(t)
+    end
+end
+
 function CHRList_cmd(t)
     local index = t.getIndex()
     if index == -1 then return end
@@ -1539,10 +1612,6 @@ function CHRList_cmd(t)
     
     local control = NESBuilder:getControl('CHRName')
     control.setText(t.getItem())
-    
---    print(type(currentChr()))
---    local size = python.eval("lambda x:x.size")
---    print(len(currentChr()))
     
     refreshCHR()
 end

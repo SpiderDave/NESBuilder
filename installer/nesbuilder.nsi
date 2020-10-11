@@ -100,6 +100,7 @@ Section "-DefaultStuff"
     CreateDirectory $INSTDIR
 
     CreateDirectory $INSTDIR\tools
+    CreateDirectory $INSTDIR\tools\xkas-plus
     CreateDirectory $INSTDIR\plugins
     CreateDirectory $INSTDIR\templates
     
@@ -108,6 +109,7 @@ Section "-DefaultStuff"
     
     inetc::get \
         "${GitURL}tools/asm6.exe" "tools/asm6.exe"\
+        "${GitURL}tools/xkas-plus/xkas.exe" "tools/xkas-plus/xkas.exe"\
         "${GitURL}plugins/_samplePlugin.lua" "plugins/_samplePlugin.lua"\
         "${GitURL}plugins/hello.py" "plugins/hello.py"\
         "${GitURL}plugins/_smbthing.lua" "plugins/_smbthing.lua"\
@@ -117,6 +119,7 @@ Section "-DefaultStuff"
         "${GitURL}plugins/nesst.lua" "plugins/nesst.lua"\
         "${GitURL}plugins/nesst.py" "plugins/nesst.py"\
         "${GitURL}templates/codeTemplate.zip" "templates/codeTemplate.zip"\
+        "${GitURL}templates/romhack_xkasplus1.zip" "templates/romhack_xkasplus1.zip"\
         /END
     Pop $0
 SectionEnd

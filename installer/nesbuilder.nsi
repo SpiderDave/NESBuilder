@@ -119,6 +119,7 @@ Section "-DefaultStuff"
         "${GitURL}plugins/nesst.lua" "plugins/nesst.lua"\
         "${GitURL}plugins/nesst.py" "plugins/nesst.py"\
         "${GitURL}templates/codeTemplate.zip" "templates/codeTemplate.zip"\
+        "${GitURL}templates/codeTemplate3.zip" "templates/codeTemplate3.zip"\
         "${GitURL}templates/romhack_xkasplus1.zip" "templates/romhack_xkasplus1.zip"\
         "${GitURL}templates/romhack_sdasm1.zip" "templates/romhack_sdasm1.zip"\
         /END

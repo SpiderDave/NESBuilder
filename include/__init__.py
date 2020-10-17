@@ -3,6 +3,7 @@ from . import calc
 from . import config
 #from .ips import ips
 from . import QtDave
+from . import SpiderDaveAsm
 
 __all__ = [
             'SMBLevelExtract',
@@ -10,10 +11,12 @@ __all__ = [
             'Cfg',
             'QtDave',
 #            'ips',
+            'sdasm',
           ]
 
 Calculator = calc.Calculator
 Cfg = config.Cfg
+sdasm = SpiderDaveAsm.sdasm
 
 def _exportToLua(lua, module, n=None):
     if n is None:

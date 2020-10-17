@@ -708,6 +708,7 @@ class ForLua:
         file.close()
         return list(fileData)
     def getFileAsArray(self, f):
+        f = fixPath2(f)
         return np.fromfile(f, dtype='B')
     def _getFileAsArray(self, f):
         file=open(f,"rb")

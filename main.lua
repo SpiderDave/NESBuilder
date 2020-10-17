@@ -955,11 +955,11 @@ function BuildProject()
         -- export chr to rom and build game.nes
         exportAllChr()
         
-        buildXkas()
+        build_sdasm()
     end
 end
 
-function buildXkas()
+function build_sdasm()
     local folder = data.folders.projects..data.project.folder
     
     NESBuilder:setWorkingFolder()
@@ -972,7 +972,8 @@ function buildXkas()
     -- create default code
     if not NESBuilder:fileExists(folder.."project.asm") then
         print("project.asm not found, extracting code template...")
-        NESBuilder:extractAll('templates/romhack_xkasplus1.zip',folder)
+        --NESBuilder:extractAll('templates/romhack_xkasplus1.zip',folder)
+        NESBuilder:extractAll('templates/romhack_sdasm1.zip',folder)
     end
     
     local filename = data.folders.projects..projectFolder.."code/symbols.asm"
@@ -991,14 +992,22 @@ function buildXkas()
     end
     util.writeToFile(filename,0, out, true)
     
-    -- Start assembling with xkas plus
-    local cmd = data.folders.tools.."xkas-plus/xkas.exe"
-    local args = "-o game.nes project.asm"
---    local cmd = data.folders.tools.."xkas06/xkas.exe"
---    local args = "project.asm game.nes"
-    print("starting xkas...")
     NESBuilder:setWorkingFolder(folder)
-    NESBuilder:run(folder, cmd, args)
+    local sdasm = python.eval('sdasm')
+    
+    -- Start assembling with dasm
+    print("Assembling with dasm...")
+    
+    -- Create temporary original rom so it can be .incbin by the project.
+    NESBuilder:saveArrayToFile(data.folders.projects..projectFolder..'original.bin', data.project.rom.data)
+    
+    local fixPath = python.eval('fixPath2')
+    
+    sdasm.assemble('project.asm', 'game.nes', 'output.txt', fixPath(data.folders.projects..projectFolder..'config.ini'))
+    
+    -- Remove temporary original rom.
+    NESBuilder:delete(data.folders.projects..projectFolder..'original.bin')
+    
     print("done.")
 end
 
@@ -2071,7 +2080,7 @@ function loadRom()
 --    NESBuilder:setWorkingFolder(data.folders.projects..data.project.folder)
 --    NESBuilder:copyFile(f, baseFileName)
     
-    f = baseFileName
+    --f = baseFileName
     
     --local fileData = NESBuilder:listToTable(NESBuilder:getFileAsArray(f))
     local fileData = NESBuilder:getFileAsArray(f)

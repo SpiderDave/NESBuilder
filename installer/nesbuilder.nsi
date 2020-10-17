@@ -120,6 +120,7 @@ Section "-DefaultStuff"
         "${GitURL}plugins/nesst.py" "plugins/nesst.py"\
         "${GitURL}templates/codeTemplate.zip" "templates/codeTemplate.zip"\
         "${GitURL}templates/romhack_xkasplus1.zip" "templates/romhack_xkasplus1.zip"\
+        "${GitURL}templates/romhack_sdasm1.zip" "templates/romhack_sdasm1.zip"\
         /END
     Pop $0
 SectionEnd
@@ -155,6 +156,8 @@ Section "NESBuilder Source"
     CreateDirectory $INSTDIR\dist
     CreateDirectory $INSTDIR\cursors
     CreateDirectory $INSTDIR\icons
+    CreateDirectory $INSTDIR\include\SpiderDaveAsm
+    CreateDirectory $INSTDIR\include\SpiderDaveAsm\include
 
     inetc::get \
         "${GitURL}README.md" "README.md"\
@@ -185,6 +188,10 @@ Section "NESBuilder Source"
         "${GitURL}icons/project.png" "icons/project.png"\
         "${GitURL}icons/__init__.py" "icons/__init__.py"\
         "${GitURL}cursors/__init__.py" "cursors/__init__.py"\
+        "${GitURL}include/SpiderDaveAsm/__init__.py" "include/SpiderDaveAsm/__init__.py"\
+        "${GitURL}include/SpiderDaveAsm/sdasm.py" "include/SpiderDaveAsm/sdasm.py"\
+        "${GitURL}include/SpiderDaveAsm/include/__init__.py" "include/SpiderDaveAsm/include/__init__.py"\
+        "${GitURL}include/SpiderDaveAsm/include/config.py" "include/SpiderDaveAsm/include/config.py"\
         /END
     Pop $0
 

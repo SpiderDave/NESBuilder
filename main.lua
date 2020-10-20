@@ -984,9 +984,9 @@ function build_sdasm()
         k,v,comment = row[0],row[1],row[2]
         if k~='' then
             if comment~='' then
-                out = out .. string.format("define %s %s ; %s\n",k,v or 0,comment)
+                out = out .. string.format("%s = %s ; %s\n",k,v or 0,comment)
             else
-                out = out .. string.format("define %s %s\n",k,v or 0)
+                out = out .. string.format("%s = %s\n",k,v or 0)
             end
         end
     end
@@ -998,15 +998,9 @@ function build_sdasm()
     -- Start assembling with dasm
     print("Assembling with dasm...")
     
-    -- Create temporary original rom so it can be .incbin by the project.
-    NESBuilder:saveArrayToFile(data.folders.projects..projectFolder..'original.bin', data.project.rom.data)
-    
     local fixPath = python.eval('fixPath2')
     
-    sdasm.assemble('project.asm', 'game.nes', 'output.txt', fixPath(data.folders.projects..projectFolder..'config.ini'))
-    
-    -- Remove temporary original rom.
-    NESBuilder:delete(data.folders.projects..projectFolder..'original.bin')
+    sdasm.assemble('project.asm', 'game.nes', 'output.txt', fixPath(data.folders.projects..projectFolder..'config.ini'), data.project.rom.data)
     
     print("done.")
 end

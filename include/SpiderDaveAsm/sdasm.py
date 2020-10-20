@@ -263,7 +263,7 @@ timeSymbols = ['year','month','day','hour','minute','second']
 
 specialSymbols+= timeSymbols
 
-def assemble(filename, outputFilename = 'output.bin', listFilename = 'output.txt', configFile=False):
+def assemble(filename, outputFilename = 'output.bin', listFilename = 'output.txt', configFile=False, fileData=False):
     if not configFile:
         configFile = inScriptFolder('config.ini')
     
@@ -291,13 +291,13 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = 'output.txt
     # save configuration so our defaults can be changed
     cfg.save()
 
-    _assemble(filename, outputFilename, listFilename, cfg=cfg)
+    _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData)
 #    except:
 #        print("sdasm Error")
 #        return False
 #    return True
 
-def _assemble(filename, outputFilename, listFilename, cfg):
+def _assemble(filename, outputFilename, listFilename, cfg, fileData):
     def bytesForNumber(n):
         return len(hex(n))-1 >>1
     
@@ -486,7 +486,10 @@ def _assemble(filename, outputFilename, listFilename, cfg):
     except:
         print("Error: could not open file.")
         exit()
-
+    
+    print('sdasm')
+    print(filename)
+    
     initialFolder = os.path.split(filename)[0]
 
     # Doing it this way removes the line endings
@@ -512,6 +515,9 @@ def _assemble(filename, outputFilename, listFilename, cfg):
         mode = ""
         showAddress = False
         out = []
+        
+        if type(fileData) != bool:
+            out = list(fileData)
         
         if np:
             out = np.array([],dtype="B")
@@ -990,7 +996,8 @@ def _assemble(filename, outputFilename, listFilename, cfg):
             if passNum == 2 and not hide:
                 nBytes = cfg.getValue('main', 'list_nBytes')
                 
-                outputText+='{:05x} '.format(len(out)-len(b))
+                #outputText+='{:05x} '.format(len(out)-len(b))
+                
                 if startAddress:
                     outputText+="{:05X} ".format(currentAddress)
                 else:

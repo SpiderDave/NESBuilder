@@ -191,6 +191,7 @@ Section "NESBuilder Source"
         "${GitURL}cursors/__init__.py" "cursors/__init__.py"\
         "${GitURL}include/SpiderDaveAsm/__init__.py" "include/SpiderDaveAsm/__init__.py"\
         "${GitURL}include/SpiderDaveAsm/sdasm.py" "include/SpiderDaveAsm/sdasm.py"\
+        "${GitURL}include/SpiderDaveAsm/README.md" "include/SpiderDaveAsm/README.md"\
         "${GitURL}include/SpiderDaveAsm/include/__init__.py" "include/SpiderDaveAsm/include/__init__.py"\
         "${GitURL}include/SpiderDaveAsm/include/config.py" "include/SpiderDaveAsm/include/config.py"\
         /END

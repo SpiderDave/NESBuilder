@@ -78,21 +78,11 @@ class Map(dict):
         super(Map, self).__delitem__(key)
         del self.__dict__[key]
 
-
-#directives = [
-#    'if', 'elseif', 'else', 'endif', 'ifdef', 'ifndef', 'equ', 'org', 'base', 'pad',
-#    'include', 'incsrc', 'incbin', 'bin', 'hex', 'word', 'dw', 'dcw', 'dc.w', 'byte',
-#    'db', 'dcb', 'dc.b', 'dsw', 'ds.w', 'dsb', 'ds.b', 'align', 'macro', 'rept',
-#    'endm', 'endr', 'enum', 'ende', 'ignorenl', 'endinl', 'fillvalue', 'dl', 'dh',
-#    'error', 'inesprg', 'ineschr', 'inesmir', 'inesmap', 'nes2chrram', 'nes2prgram',
-#    'nes2sub', 'nes2tv', 'nes2vs', 'nes2bram', 'nes2chrbram', 'unstable', 'hunstable'
-#]
-
 directives = [
-    'org','base','pad','align',
+    'org','base','pad','align','fill', 'fillvalue',
     'include','incsrc','includeall','incbin','bin',
     'db','dw','byte','byt','word','hex',
-    'enum','ende','endenum','fillvalue',
+    'enum','ende','endenum',
     'print','warning','error',
     'setincludefolder',
     'macro','endm','endmacro',
@@ -308,6 +298,13 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = 'output.txt
 #    return True
 
 def _assemble(filename, outputFilename, listFilename, cfg):
+    def bytesForNumber(n):
+        return len(hex(n))-1 >>1
+    
+    def getString(s):
+        s = s.replace('"','')
+        return s
+    
     def getSpecial(s):
         if s == 'sdasm':
             v = 1
@@ -432,12 +429,13 @@ def _assemble(filename, outputFilename, listFilename, cfg):
             return v,l
         
         if v == '$' or v.lower() == 'pc':
-            v = addr
-            l = 1 if v <=256 else 2
+            v = currentAddress
+            #l = 1 if v <=256 else 2
             l=2
         elif v.startswith("$"):
-            l = 1 if len(v)-1<=2 else 2
+            #l = 1 if len(v)-1<=2 else 2
             v = int(v[1:],16)
+            l = bytesForNumber(v)
         elif v.startswith("%"):
             l = 1
             v = int(v[1:],2)
@@ -502,9 +500,6 @@ def _assemble(filename, outputFilename, listFilename, cfg):
     macros = Map()
     blockComment = 0
     
-    if debug and (not np):
-        print('no numpy')
-    
     for passNum in (1,2):
         lines = originalLines
         addr = 0
@@ -542,7 +537,7 @@ def _assemble(filename, outputFilename, listFilename, cfg):
             
             hide = False
             
-            currentAddress = addr
+            #currentAddress = addr
             originalLine = line
             errorText = False
             
@@ -594,7 +589,7 @@ def _assemble(filename, outputFilename, listFilename, cfg):
                         line = ''
             
             if macro:
-                if line.split(" ",1)[0].strip().lower() not in ['endm','endmacro']:
+                if line.split(" ",1)[0].strip().lower() not in ['endm','endmacro','.endm','.endmacro']:
                     macros[macro].lines.append(originalLine)
                     line = ''
             
@@ -615,7 +610,7 @@ def _assemble(filename, outputFilename, listFilename, cfg):
                 if debug: print('label without suffix: {}'.format(k))
                 k=k+labelSuffix[0]
             if k.endswith(tuple(labelSuffix)):
-                symbols[k[:-1].lower()] = str(addr)
+                symbols[k[:-1].lower()] = str(currentAddress)
                 
                 # remove all local labels
                 if not k.startswith(tuple(localPrefix)):
@@ -708,29 +703,36 @@ def _assemble(filename, outputFilename, listFilename, cfg):
             
             elif k == "incbin" or k == "bin":
                 filename = line.split(" ",1)[1].strip()
+                filename = getString(filename)
                 filename = findFile(filename)
                 
+                b=False
                 try:
                     with open(filename, 'rb') as file:
                         b = list(file.read())
                 except:
                     print("Could not open file.")
-                lines = lines[:i]+['']+['setincludefolder '+currentFolder]+lines[i+1:]
+                if b:
+                    lines = lines[:i]+['']+['setincludefolder '+currentFolder]+lines[i+1:]
             elif k == "include" or k=="incsrc":
                 filename = line.split(" ",1)[1].strip()
+                filename = getString(filename)
                 filename = findFile(filename)
                 
+                newLines = False
                 try:
                     with open(filename, 'r') as file:
                         newLines = file.read().splitlines()
                 except:
                     print("Could not open file.")
-                folder = os.path.split(filename)[0]
                 
-                newLines = ['setincludefolder '+folder]+newLines+['setincludefolder '+currentFolder]
-                currentFolder = folder
-                
-                lines = lines[:i]+['']+newLines+lines[i+1:]
+                if newLines:
+                    folder = os.path.split(filename)[0]
+                    
+                    newLines = ['setincludefolder '+folder]+newLines+['setincludefolder '+currentFolder]
+                    currentFolder = folder
+                    
+                    lines = lines[:i]+['']+newLines+lines[i+1:]
             elif k == 'includeall':
                 folder = line.split(" ",1)[1].strip()
                 files = [x for x in os.listdir(folder) if os.path.splitext(x.lower())[1] in ['.asm']]
@@ -760,7 +762,7 @@ def _assemble(filename, outputFilename, listFilename, cfg):
                 noOutput = False
             
             if k in macros:
-                params = line.split(" ",1)[1].replace(',',' ').split()
+                params = (line.split(" ",1)+[''])[1].replace(',',' ').split()
                 
 #                print(macros[k].params)
 #                print(params)
@@ -791,22 +793,37 @@ def _assemble(filename, outputFilename, listFilename, cfg):
                 currentAddress = addr
             
             elif k == 'org':
+                addr = getValue(line.split(' ',1)[1])
+                
+                currentAddress = addr
+                
+                if bank != None:
+                    addr = addr % bankSize
+                
                 if startAddress==False:
-                    addr = getValue(line.split(' ',1)[1])
-                    currentAddress = addr
                     startAddress = addr
-                else:
                     k = 'pad'
-            
-            if k == "pad":
+                    line = 'pad ${:04x}'.format(addr)
+                
+            if k == 'pad':
                 data = line.split(' ',1)[1]
                 
                 fv = fillValue
                 if ',' in data:
                     fv = getValue(data.split(',')[1])
                 a = getValue(data.split(',')[0])
-                
+#                print('{:05x}'.format(a))
+#                print('{:05x}'.format(currentAddress))
                 b = b + ([fv] * (a-currentAddress))
+            elif k == 'fill':
+                data = line.split(' ',1)[1]
+                
+                fv = fillValue
+                if ',' in data:
+                    fv = getValue(data.split(',')[1])
+                n = getValue(data.split(',')[0])
+                
+                b = b + ([fv] * n)
             elif k == "align":
                 data = line.split(' ',1)[1]
                 
@@ -849,6 +866,7 @@ def _assemble(filename, outputFilename, listFilename, cfg):
                     ops = [x for x in asm if x.opcode==k]
                     
                     v = (line.split(" ",1)+[''])[1].strip()
+                    v=v.replace(', ',',').replace(' ,',',')
                     
                     if k == "jmp" and v.startswith("("):
                         op = getOpWithMode(k, 'Indirect')
@@ -885,12 +903,22 @@ def _assemble(filename, outputFilename, listFilename, cfg):
                             v = str(0x100 - ((addr+op.length) - getValue(v)))
                         else:
                             v = str(getValue(v) - (addr+op.length))
-                    b = [op.byte]
-                    if op.length == 2:
-                        b.append(getValue(v) % 0x100)
-                    elif op.length == 3:
-                        b.append(getValue(v) % 0x100)
-                        b.append(math.floor(getValue(v)/0x100))
+                    
+                    v,l = getValueAndLength(v)
+                    l = bytesForNumber(v)
+                    if (op.length>1) and l>op.length-1:
+                        b = [op.byte] + [0] * (op.length-1)
+                        errorText= 'out of range: ' + hex(v)
+                    else:
+                        b = [op.byte]
+                        if op.length == 2:
+                            #b.append(getValue(v) % 0x100)
+                            b.append(v % 0x100)
+                        elif op.length == 3:
+#                            b.append(getValue(v) % 0x100)
+#                            b.append(math.floor(getValue(v)/0x100))
+                            b.append(v % 0x100)
+                            b.append(math.floor(v/0x100))
             
             if k == 'define':
                 k = line.split(" ")[1].strip()
@@ -924,19 +952,24 @@ def _assemble(filename, outputFilename, listFilename, cfg):
             if len(b)>0:
                 showAddress = True
                 if noOutput==False and passNum == 2:
+                    
+#                    if True:
+#                         if any(x > 255 for x in b):
+#                            errorText = 'byte out of range:\n    '+line
+#                         if any(x < 0 for x in b):
+#                            errorText = 'byte out of range:\n    '+line
+                    
                     if bank == None:
                         if np:
                             out = np.append(out, np.array(b, dtype='B'))
                         else:
                             out = out + b
                     else:
-                        fileOffset = addr % bankSize + bank*bankSize+headerSize
+                        #fileOffset = addr % bankSize + bank*bankSize+headerSize
+                        fileOffset = addr + bank * bankSize + headerSize
+                        
                         if fileOffset == len(out):
                             # We're in the right spot, just append
-#                            print('yep')
-#                            print(hex(fileOffset))
-#                            print(hex(len(out)))
-#                            print(hex(addr))
 
                             if np:
                                 out = np.append(out, np.array(b, dtype='B'))
@@ -952,10 +985,12 @@ def _assemble(filename, outputFilename, listFilename, cfg):
                         elif fileOffset<len(out):
                             out = out[:fileOffset]+b+out[fileOffset+len(b):]
                 addr = addr + len(b)
+                currentAddress = currentAddress + len(b)
             
             if passNum == 2 and not hide:
                 nBytes = cfg.getValue('main', 'list_nBytes')
                 
+                outputText+='{:05x} '.format(len(out)-len(b))
                 if startAddress:
                     outputText+="{:05X} ".format(currentAddress)
                 else:
@@ -971,22 +1006,26 @@ def _assemble(filename, outputFilename, listFilename, cfg):
                         listBytes = ' '.join(['{:02X}'.format(x) for x in b[:nBytes]]).ljust(3*nBytes-1) + ('..' if len(b)>nBytes else '  ')
                     outputText+="{} {}\n".format(listBytes, originalLine)
                 if errorText:
-                    outputText+=errorText+"\n"
+                    outputText+='*** {}\n'.format(errorText)
                     errorText = False
             if k==".org": showAddress = True
+    if passNum == 2:
+        with open(listFilename, 'w') as file:
+            print(outputText, file=file)
+            print('{} written.'.format(listFilename))
 
-    with open(listFilename, 'w') as file:
-        print(outputText, file=file)
+        with open(outputFilename, "wb") as file:
+            file.write(bytes(out))
+            print('{} written.'.format(outputFilename))
 
-    with open(outputFilename, "wb") as file:
-        file.write(bytes(out))
-
-    if debug:
-        f = 'debug_symbols.txt'
-        with open(f, "w") as file:
-            for k,v in symbols.items():
-                print(k,repr(v), file=file)
-
+        #if debug:
+        if 1:
+            f = 'debug_symbols.txt'
+            with open(f, "w") as file:
+                for k,v in symbols.items():
+                    print(k,repr(v), file=file)
+            print('{} written.'.format(f))
+        print()
 if __name__ == '__main__':
     if len(sys.argv) <2:
         print("Error: no file specified.")

@@ -155,6 +155,7 @@ QMessageBox QPushButton {
     padding-top:.5em;
     background: _bk2_ url('icons/project.png') center top no-repeat;
     background-origin: content;
+    
 }
 
 .launcherText {
@@ -162,6 +163,7 @@ QMessageBox QPushButton {
     font-size:11pt;
     text-align:center;
     padding-left:.5em;
+    padding-left:4px;
 }
 
 .sideSpinLabel {
@@ -228,7 +230,7 @@ QScrollBar::handle:hover {
     background-color:rgb(65,65,90);
 }
 QScrollBar::sub-page, QScrollBar::add-page {
-    background-color:_bk2_
+    background-color:_bk2_;
 }
 
 QHeaderView:section, QHeaderView  {
@@ -241,3 +243,16 @@ QHeaderView:section, QHeaderView  {
 .launcherIcon {
     background: _bk2_ url('icons/project.png') center top no-repeat;
 }
+
+QTabBar::close-button {
+    padding:0px;
+    background: transparent url('icons/close.png') center no-repeat;
+    border: 1px solid transparent;
+    border-radius:5px;
+}
+
+QTabBar::close-button:hover {
+    background: _bkMenuHighlight_ url('icons/close_hover.png') center no-repeat;
+    border-color:_borderLight_;
+}
+

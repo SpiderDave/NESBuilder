@@ -123,7 +123,7 @@ for i=0,#nespalette do
 end
 
 function init()
-    local x,y,x2,y2,pad
+    local x,y,pad
     local control, b, c
     local top,left
     pad=6
@@ -135,6 +135,13 @@ function init()
     local buttonHeight = 27
     
     print("init")
+    
+    -- Tab close buttons aren't done yet.
+    if not devMode() then
+        local main = NESBuilder:getWindowQt()
+        main.tabParent.self.setTabsClosable(false)
+        main.update()
+    end
     
     NESBuilder:incLua("Tserial")
     util = NESBuilder:incLua("util")
@@ -241,9 +248,6 @@ function init()
         palette[i] = nespalette[p[i]]
     end
     
-    x2=NESBuilder.x+pad + 100
-    y2=pad*1.5
-    
     placeX = left
     placeY = top
     
@@ -259,8 +263,6 @@ function init()
     x = left
     y = y + b.height + pad
     
-    x2,y2=x,y
-    
     p = {[0]=0x0f,0x21,0x11,0x01}
     palette = {}
     for i=0,#p do
@@ -272,7 +274,7 @@ function init()
     push(y+control.height+pad)
 
     x=x+control.width+pad
-    c=NESBuilder:makeLabelQt{x=x,y=y2+pad,name="PaletteEntryLabelQt",clear=true,text="foobar"}
+    c=NESBuilder:makeLabelQt{x=x,y=y+pad,name="PaletteEntryLabelQt",clear=true,text="foobar"}
     c.setFont("Verdana", 10)
 
     x=left
@@ -432,8 +434,8 @@ function init()
 
     end
     
-    NESBuilder:makeTabQt{name="tsa", text="Metatiles"}
-    NESBuilder:setTabQt("tsa")
+    NESBuilder:makeTabQt{name="Metatiles", text="Metatiles"}
+    NESBuilder:setTabQt("Metatiles")
     
     x,y=left,top
     
@@ -444,9 +446,32 @@ function init()
     x = left
     y=y + control.height + pad
     
-    control = NESBuilder:makeCanvasQt{x=x,y=y,w=16,h=16,name="tsaCanvas2Qt", scale=6}
+    control = NESBuilder:makeCanvasQt{x=x,y=y,w=8,h=8,name="tsaTileCanvasQt", scale=8, columns=1, rows=1}
     
     y=y + control.height + pad
+    
+--    push(y)
+--    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidPrev",text="<"}
+--    y=pop()
+--    x= x + control.width+pad
+    
+--    push(y)
+--    control=NESBuilder:makeLineEdit{x=x,y=y,w=20,h=buttonHeight, name="tsaSquareoidNumber",text="0"}
+--    y=pop()
+--    x= x + control.width+pad
+    
+--    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidNext",text=">"}
+--    x = left
+--    y = y + control.height + pad
+    
+--    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth, name="tsaTest",text="Update"}
+    
+    x = pop()
+    y = pop()
+    push(x)
+    
+    control = NESBuilder:makeCanvasQt{x=x,y=y,w=16,h=16,name="tsaCanvas2Qt", scale=6}
+    y = y + control.height + pad
     
     push(y)
     control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidPrev",text="<"}
@@ -459,14 +484,11 @@ function init()
     x= x + control.width+pad
     
     control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidNext",text=">"}
-    x = left
+    x = pop()
     y = y + control.height + pad
     
-    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth, name="tsaTest",text="Update"}
-    
-    x= pop()
-    y = pop()
-    control = NESBuilder:makeCanvasQt{x=x,y=y,w=8,h=8,name="tsaTileCanvasQt", scale=8, columns=1, rows=1}
+    --control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth, name="tsaTest",text="Update"}
+
     
     data.launchFrames.set('recent')
     
@@ -487,6 +509,7 @@ function onReady()
     local items = {
         {text="-"},
         {name="openProjectFolder", text="Open Project Folder"},
+        {name="projectProperties", text="Project Properties"},
     }
     control = NESBuilder:makeMenuQt{name="menuProject", text="Project", menuItems=items}
     
@@ -637,6 +660,7 @@ function ButtonAddPalette_cmd()
 end
 
 function PaletteEntryUpdate()
+    --print('PeltteEntryUpdate()')
     local control = NESBuilder:getControlNew('SpinChangePalette')
     control.max = #data.project.palettes
     control.value = data.project.palettes.index
@@ -669,7 +693,7 @@ function SpinChangePalette_cmd(t)
     t.control.refresh()
     
     data.project.palettes.index = t.control.value
-    
+    --print('------')
     PaletteEntryUpdate()
 end
 
@@ -812,6 +836,33 @@ function launcherProjectType_cmd(t)
     end
 end
 
+function projectProperties_cmd()
+    local x,y,left,top,pad,control
+    pad = 6
+    left = pad*2
+    top = pad*2
+    x,y = left,top
+
+
+--    NESBuilder:makeWindow{x=0,y=0,w=760,h=600, name="prefWindow",title="Preferences"}
+--    NESBuilder:setWindow("prefWindow")
+    
+    NESBuilder:makeTabQt{name="tabProjectProperties",text="Project Properties"}
+    
+    NESBuilder:setTabQt("tabProjectProperties")
+    
+    control = NESBuilder:makeCheckbox{x=x,y=y,name="pptest1", text="Test", value=cfgGet('test')}
+    y = y + control.height + pad
+    
+    
+    
+    
+    y = y + pad*7
+    b=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="ppClose",text="close"}
+    
+    NESBuilder:switchTab("tabProjectProperties")
+end
+
 function launcherButtonPreferences_cmd()
     local x,y,left,top,pad,control
     pad = 6
@@ -827,16 +878,23 @@ function launcherButtonPreferences_cmd()
     
     NESBuilder:setTabQt("tabPreferences")
     
-    control = NESBuilder:makeCheckbox{x=x,y=y,name="prefLoadPlugins", text="Load plugins.", value=cfgGet('loadplugins')}
-    y = y + control.height + pad
     control = NESBuilder:makeCheckbox{x=x,y=y,name="prefUpperHex", text="Show hexidecimal in upper-case.", value=cfgGet('upperhex')}
     y = y + control.height + pad
     control = NESBuilder:makeCheckbox{x=x,y=y,name="prefAlphaWarning", text="Show Warning tab on startup.", value=cfgGet('alphawarning')}
+    y = y + control.height + pad
     
+    control = NESBuilder:makeCheckbox{x=x,y=y,name="prefLoadPlugins", text="Load plugins.", value=cfgGet('loadplugins')}
+    y = y + control.height + pad
     
+    push(x)
+    x=x+pad*4
+    for file in python.iter(cfgGet('plugins', 'list')) do
+        control = NESBuilder:makeCheckbox{x=x,y=y,name='prefPlugin_'.. replace(replace(file, '.','_'), '_lua', ''), text=file, value=cfgGet('plugins', file), file=file, functionName='prefEnablePlugin'}
+        y = y + control.height + pad
+    end
+    x=pop()
     
-    
-    y = y + control.height + pad*8
+    y = y + pad * 8
     control = NESBuilder:makeLabelQt{x=x,y=y, clear=true,text="Note: Some preferences may require a restart."}
     y = y + control.height + pad
     b=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="buttonPreferencesClose",text="close"}
@@ -860,6 +918,10 @@ function prefLoadPlugins_cmd(t)
     NESBuilder:cfgSetValue("main", "loadplugins", boolNumber(t.isChecked()))
 end
 
+function prefEnablePlugin_cmd(t)
+    NESBuilder:cfgSetValue("plugins", t.file, boolNumber(t.isChecked()))
+end
+
 
 function launcherButtonInfo_cmd()
     local x,y,left,top,pad
@@ -877,22 +939,14 @@ function launcherButtonInfo_cmd()
     control = NESBuilder:makeLabelQt{x=x,y=y,name="launchLabel",clear=true,text="NESBuilder"}
     control.setFont("Verdana", 24)
     
-    -- Getting wrong height here for some reason.  Doesn't happen in a plugin.
-    control.height = 26
-    
     y = y + control.height + pad*1.5
     
     control = NESBuilder:makeLabelQt{x=x,y=y,name="launchLabel2",clear=true,text=config.launchText}
     control.setFont("Verdana", 12)
-    --control.setJustify("left")
     
     y = y + control.height + pad
-    --control = NESBuilder:makeLink{x=x,y=y,name="launcherLink",clear=true,text="NESBuilder on GitHub", url=config.aboutURL}
     control = NESBuilder:makeLink{x=x,y=y,name="launcherLink",clear=true,text="NESBuilder on GitHub", url=config.aboutURL}
     control.setFont("Verdana", 12)
-    
---    control.setText('<a href="http://stackoverflow.com/">Link</a>')
---    control.setOpenExternalLinks(True)
     
     y = y + control.height + pad*8
     b=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="buttonInfoClose",text="close"}
@@ -978,7 +1032,6 @@ function build_sdasm()
     
     local filename = data.folders.projects..projectFolder.."code/symbols.asm"
     out=""
-    
     local d = NESBuilder:getControlNew('symbolsTable1').getData()
     for i, row in python.enumerate(d) do
         k,v,comment = row[0],row[1],row[2]
@@ -992,11 +1045,22 @@ function build_sdasm()
     end
     util.writeToFile(filename,0, out, true)
     
+    filename = data.folders.projects..projectFolder.."code/tiles.asm"
+    out = "Metatiles:\n"
+    for i=0, #data.project.metatiles do
+        local tile = data.project.metatiles[i]
+        if tile then
+            out=out..string.format('    .db $%02x, $%02x, $%02x, $%02x\n',tile[0], tile[1], tile[2], tile[3])
+        end
+    end
+    util.writeToFile(filename,0, out, true)
+    
+    
     NESBuilder:setWorkingFolder(folder)
     local sdasm = python.eval('sdasm')
     
-    -- Start assembling with dasm
-    print("Assembling with dasm...")
+    -- Start assembling with sdasm
+    print("Assembling with sdasm...")
     
     local fixPath = python.eval('fixPath2')
     
@@ -1114,8 +1178,8 @@ function BuildProject_cmd()
     
     out = "Metatiles:\n"
     filename = data.folders.projects..projectFolder.."code/tiles.asm"
-    for i=0, #data.project.squareoids do
-        local tile = data.project.squareoids[i]
+    for i=0, #data.project.metatiles do
+        local tile = data.project.metatiles[i]
         if tile then
             out=out..string.format('    .db $%02x, $%02x, $%02x, $%02x\n',tile[0], tile[1], tile[2], tile[3])
         end
@@ -1124,7 +1188,6 @@ function BuildProject_cmd()
     
     local filename = data.folders.projects..projectFolder.."code/constauto.asm"
     out=""
-    --out=out..string.format("SELECTED_PALETTE = $%02x\n\n", math.floor(data.project.palettes.index))
     
     data.project.const.SELECTED_PALETTE = math.floor(data.project.palettes.index)
     data.project.const.CURRENT_CHR = math.floor(data.project.chr.index)
@@ -1158,12 +1221,22 @@ function BuildProject_cmd()
     if NESBuilder:fileExists(folder.."project.asm") then
         -- remove old game.nes
         if NESBuilder:delete(folder.."game.nes") then
-            local cmd = data.folders.tools.."asm6.exe"
-            local args = "-L project.asm game.nes list.txt"
-            print("starting asm 6...")
             NESBuilder:setWorkingFolder(folder)
-            NESBuilder:run(folder, cmd, args)
-            --NESBuilder:shellOpen(folder, cmd.." "..args)
+            local asm6 = false
+            if asm6 then
+                local cmd = data.folders.tools.."asm6.exe"
+                local args = "-L project.asm game.nes list.txt"
+                print("Starting asm 6...")
+                
+                NESBuilder:run(folder, cmd, args)
+            else
+                local sdasm = python.eval('sdasm')
+                print("Starting sdasm...")
+                
+                local fixPath = python.eval('fixPath2')
+                
+                sdasm.assemble('project.asm', 'game.nes', 'output.txt', fixPath(data.folders.projects..projectFolder..'config.ini'))
+            end
         else
             print("Did not assemble project.")
         end
@@ -1208,7 +1281,7 @@ function LoadProject()
     -- use default palettes if not found
     data.project.palettes = data.project.palettes or util.deepCopy(data.palettes)
     
-    data.project.squareoids = data.project.squareoids or {index=0}
+    data.project.metatiles = data.project.metatiles or {index=0}
     
     data.project.chr = data.project.chr or {index=0}
     data.project.chrNames = data.project.chrNames or {}
@@ -1262,6 +1335,14 @@ function LoadProject()
     handlePluginCallback("onLoadProject")
     
     PaletteEntryUpdate()
+    
+    
+    -- refresh metatile tile canvas
+    local control = NESBuilder:getControlNew('tsaTileCanvasQt')
+    control.drawTile(0,0, data.selectedTile, currentChr(), currentPalette(), control.columns, control.rows)
+    control.update()
+    
+    updateSquareoid()
     
     dataChanged(false)
     
@@ -1396,6 +1477,7 @@ function Quit_cmd()
 end
 
 function refreshCHR()
+    --print('refreshCHR()')
     local w,h
     local c = NESBuilder:getControl('CHRNumLabelQt')
     c.text = string.format("%02x", data.project.chr.index)
@@ -1430,7 +1512,12 @@ function refreshCHR()
     control.chrData = currentChr()
     control.drawTile(0,0, data.selectedTile, currentChr(), currentPalette(), control.columns, control.rows)
     control.update()
-
+    control.copy()
+    
+    control = NESBuilder:getControl("tsaCanvasQt")
+    if control then
+        control.paste(surface)
+    end
     
     
     handlePluginCallback("onCHRRefresh", surface)
@@ -1605,6 +1692,7 @@ function CHRList_keyPress_cmd(t,test)
         
         CHRList_cmd(t)
     end
+    --print(key)
 end
 
 function CHRList_cmd(t)
@@ -1631,7 +1719,6 @@ function CHRName_cmd(t)
         
         data.project.chrNames[control.getIndex()] = t.control.text
     end
-    
 end
 
 function tsaCanvas_cmd(t)
@@ -1681,10 +1768,10 @@ function tsaCanvas2_cmd(t)
         if t.event.button == 1 then
             
             -- map the tiles to get the right offsets
-            local squareoidTileOffsets = {[0]=0,2,1,2+1}
+            local mtileOffsets = {[0]=0,2,1,2+1}
             
             -- this is the tile index as in the main image
-            local tileNum = data.project.squareoids[data.project.squareoids.index][squareoidTileOffsets[tileNum]]
+            local tileNum = data.project.metatiles[data.project.metatiles.index][mtileOffsets[tileNum]]
             
             NESBuilder:setCanvas("tsaTileCanvas")
             local TileData = {}
@@ -1707,12 +1794,12 @@ function tsaCanvas2_cmd(t)
                     t.chrData[tileOffset+i+1] = data.project.tileData[i+1]
                 end
 
-                data.project.squareoids[data.project.squareoids.index] = data.project.squareoids[data.project.squareoids.index] or {[0]=0,0,0,0}
+                data.project.metatiles[data.project.metatiles.index] = data.project.metatiles[data.project.metatiles.index] or {[0]=0,0,0,0}
                 if tileX<=1 and tileY<=1 then
                     -- 02
                     -- 13
-                    data.project.squareoids[data.project.squareoids.index][tileX*2+tileY] = data.project.tileNum
-                    data.project.squareoids[data.project.squareoids.index].palette = data.project.palettes.index
+                    data.project.metatiles[data.project.metatiles.index][tileX*2+tileY] = data.project.tileNum
+                    data.project.metatiles[data.project.metatiles.index].palette = data.project.palettes.index
                 end
                 NESBuilder:getControlNew(t.name).loadCHRData{t.chrData, p, rows=2, columns=2}
             else
@@ -1725,17 +1812,17 @@ end
 
 
 function tsaSquareoidPrev_cmd()
-    data.project.squareoids.index = math.max(0, data.project.squareoids.index - 1)
+    data.project.metatiles.index = math.max(0, data.project.metatiles.index - 1)
     updateSquareoid()
 end
 function tsaSquareoidNext_cmd()
-    data.project.squareoids.index = math.min(255, data.project.squareoids.index + 1)
+    data.project.metatiles.index = math.min(255, data.project.metatiles.index + 1)
     updateSquareoid()
 end
 
 function tsaSquareoidNumber_cmd(t)
-    if t.event.type == "KeyPress" and t.event.event.keycode==13 then
-        data.project.squareoids.index = tonumber(NESBuilder:getControl("tsaSquareoidNumber").getText())
+    if t.event and t.event.type == "KeyPress" and t.event.event.keycode==13 then
+        data.project.metatiles.index = tonumber(NESBuilder:getControl("tsaSquareoidNumber").getText())
     end
 end
 
@@ -1743,31 +1830,47 @@ function updateSquareoid()
     local tileNum
     local tileOffset1, tileOffset2
     
-    local controlFrom = NESBuilder:getControlNew("tsaCanvas")
-    local controlTo = NESBuilder:getControlNew("tsaCanvas2")
+    local controlFrom = NESBuilder:getControlNew("tsaCanvasQt")
+    local controlTo = NESBuilder:getControlNew("tsaCanvas2Qt")
     
-    data.project.squareoids[data.project.squareoids.index] = data.project.squareoids[data.project.squareoids.index] or {[0]=0,0,0,0}
+    data.project.metatiles[data.project.metatiles.index] = data.project.metatiles[data.project.metatiles.index] or {[0]=0,0,0,0}
     
-    --local p = data.project.squareoids[data.project.squareoids.index].palette or data.project.palettes[data.project.palettes.index]
-    local p = data.project.palettes[data.project.squareoids[data.project.squareoids.index].palette or 0]
+    --local p = data.project.metatiles[data.project.metatiles.index].palette or data.project.palettes[data.project.palettes.index]
+    local p = data.project.palettes[data.project.metatiles[data.project.metatiles.index].palette or 0]
     
     
-    --squareoidTileOffsets = {[0]=0,0x10,1,0x11}
-    local squareoidTileOffsets = {[0]=0,2,1,2+1}
-    for sqTileNum=0,3 do
-        tileNum = data.project.squareoids[data.project.squareoids.index][sqTileNum]
-        tileOffset1 = 16 * tileNum
-        tileOffset2 = 16 * squareoidTileOffsets[sqTileNum]
+--    local mtileOffsets = {[0]=0,2,1,2+1}
+--    for sqTileNum=0,3 do
+--        tileNum = data.project.metatiles[data.project.metatiles.index][sqTileNum]
+--        tileOffset1 = 16 * tileNum
+--        tileOffset2 = 16 * mtileOffsets[sqTileNum]
         
-        for i=0,15 do
-            controlTo.chrData[tileOffset2+i+1] = controlFrom.chrData[tileOffset1+i+1]
-        end
-    end
+--        for i=0,15 do
+--            controlTo.chrData[tileOffset2+i+1] = controlFrom.chrData[tileOffset1+i+1]
+--        end
+--    end
     
-    controlTo.loadCHRData{controlTo.chrData, p, rows=2, columns=2}
+    local m = currentMetatile()
+    local mtileOffsets = {[0]=0,2,1,3}
+    for i = 0,3 do
+        controlTo.drawTile(i%2 *8,math.floor(i/2) *8, m[mtileOffsets[i]], currentChr(), p, controlTo.columns, controlTo.rows)
+        controlTo.update()
+    end
+--    local mtileOffsets = {[0]=0,2,1,2+1}
+--    for sqTileNum=0,3 do
+--        t.control.drawTile(tileX*8,tileY*8, data.selectedTile, currentChr(), currentPalette(), t.control.columns, t.control.rows)
+--        t.control.update()
+        
+--        local m = currentMetatile()
+--        local mtileOffsets = {[0]=0,2,1,3}
+--        m[tileX*2+tileY] = data.selectedTile
+--        setMetatileData(m)
+    --print(data.project.metatiles)
+    
+    
     
     local control = NESBuilder:getControl("tsaSquareoidNumber")
-    control.setText(data.project.squareoids.index)
+    control.setText(string.format('%s',data.project.metatiles.index))
 end
 
 
@@ -1831,8 +1934,16 @@ function launcherRecentIcon_cmd(t)
 end
 
 function MainQttabs_cmd(t,a)
-    --print(t.control.currentWidget())
-    handlePluginCallback("onTabChanged", t.control.currentWidget())
+    if t.event and t.event.button == 4 then
+        print('middle click')
+        --closeTab('tabPreferences', 'Launcher')
+        print(t.control.currentWidget().name)
+    elseif t.event and t.event.button == 2 then
+        print('right click')
+    else
+        print('click')
+        handlePluginCallback("onTabChanged", t.control.currentWidget())
+    end
 end
 
 function hFlip_cmd()
@@ -1963,14 +2074,57 @@ function canvasQt_cmd(t)
     
 end
 
-tsaCanvasQt_cmd = canvasQt_cmd
-tsaCanvas2Qt_cmd = canvasQt_cmd
-tsaTileCanvasQt_cmd = canvasQt_cmd
+function tsaCanvasQt_cmd(t)
+    local control
+    local event = t.control.event
+    local x = math.floor(event.x/t.scale)
+    local y = math.floor(event.y/t.scale)
+    x = math.min(t.control.columns*8-1, math.max(0,x))
+    y = math.min(t.control.rows*8-1, math.max(0,y))
+
+    local tileX = math.floor(x/8)
+    local tileY = math.floor(y/8)
+    local tile = tileY*t.control.columns+tileX
+    local tileOffset = 16*tile
+    
+    data.selectedTile = tile
+    
+    local control = NESBuilder:getControlNew('tsaTileCanvasQt')
+    control.drawTile(0,0, tile, currentChr(), currentPalette(), control.columns, control.rows)
+    control.update()
+end
+
+function tsaCanvas2Qt_cmd(t)
+    local control
+    local event = t.control.event
+    local x = math.floor(event.x/t.scale)
+    local y = math.floor(event.y/t.scale)
+    x = math.min(t.control.columns*8-1, math.max(0,x))
+    y = math.min(t.control.rows*8-1, math.max(0,y))
+
+    local tileX = math.floor(x/8)
+    local tileY = math.floor(y/8)
+    local tile = tileY*t.control.columns+tileX
+    local tileOffset = 16*tile
+    
+    if event.button == 1 then
+        t.control.drawTile(tileX*8,tileY*8, data.selectedTile, currentChr(), currentPalette(), t.control.columns, t.control.rows)
+        t.control.update()
+        
+        local m = currentMetatile()
+        local mtileOffsets = {[0]=0,2,1,3}
+        m[tileX*2+tileY] = data.selectedTile
+        m.palette = data.project.palettes.index
+        setMetatileData(m)
+        print(data.project.metatiles)
+    end
+end
+--tsaTileCanvasQt_cmd = canvasQt_cmd
 
 function buttonWarningClose_cmd() closeTab('Warning', 'Launcher') end
 function buttonPreferencesClose_cmd() closeTab('tabPreferences', 'Launcher') end
 function buttonInfoClose_cmd() closeTab('infoTab', 'Launcher') end
-
+function ppClose_cmd() closeTab('tabProjectProperties', 'Launcher') end
 
 -- Convenience functions
 function currentPalette(n) return data.project.palettes[n or data.project.palettes.index] end
@@ -1982,10 +2136,15 @@ function setChrData(chrData, n) data.project.chr[n or data.project.chr.index]=ch
 function boolNumber(v) if v then return 1 else return 0 end end
 function devMode() return (cfgGet('dev')==1) end
 function type(item) return NESBuilder:type(item) end
+function currentMetatile() return data.project.metatiles[n or data.project.metatiles.index] or {[0]=0,0,0,0} end
+function setMetatileData(mTileData, n) data.project.metatiles[n or data.project.metatiles.index]=mTileData end
+
 int = python.eval("lambda x:int(x)")
 sliceList = python.eval("lambda x,y,z:x[y:z]")
 joinList = python.eval("lambda x,y:x+y")
 reverseByte = python.eval("lambda x:int(('{:08b}'.format(x))[::-1],2)")
+replace = python.eval("lambda x,y,z:x.replace(y,z)")
+list = python.eval("lambda *x:[item for item in x]")
 
 function cfgGet(section, key)
     key, section = key or section, (key and section) or "main"

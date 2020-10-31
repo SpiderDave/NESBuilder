@@ -193,11 +193,10 @@ class Base():
         self.onChange = False
         self.helpText = False
         self.keyEvent = False
+        self.closable = True
         try: self.setMouseTracking(True)
         except: pass
         
-#        if hasattr(self, 'setContextMenuPolicy'):
-#            self.setContextMenuPolicy(Qt.NoContextMenu)
     def init(self, t):
         self.name = t.name
         self.tooltip=t.tooltip
@@ -217,7 +216,8 @@ class Base():
             )
             self.event = ev
             self.onKeyPress(event)
-
+        else:
+            super().keyPressEvent(event)
     def mousePressEvent(self, event):
         if getattr(self, 'clicked', False):
             super().mousePressEvent(event)
@@ -504,9 +504,22 @@ class TabWidget(Base, QTabWidget):
         super().init(t)
         self.width = 1000
         self.height = 1000
-
+        self.self = self
+        self.setTabsClosable(True)
+        #self.tabCloseRequested.connect(lambda index: self.removeTab(index))
+        self.tabCloseRequested.connect(lambda index: self.closeTab(index))
+    def closeTab(self, index):
+        if self.tabsClosable():
+            print('closeTab')
+            print(index)
+            if self.widget(index).closable:
+                print('close')
+                self.removeTab(index)
+            else:
+                print('dont close')
+        
 class Widget(Base, QWidget): pass
-QWidget = QWidget
+QWidget = Widget
 
 class MainWindow(Base, QMainWindow):
     def __init__(self):

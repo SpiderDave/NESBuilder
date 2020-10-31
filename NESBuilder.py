@@ -11,6 +11,8 @@ ToDo:
 
 import os, sys, time
 
+import pathlib
+
 def badImport(m):
     print('Error: Could not import {0}.  Please run "install dependencies.bat".'.format(m))
     sys.exit(1)
@@ -263,8 +265,8 @@ class ForLua:
             t.index = index
             
             if not t.name:
-                t.name = "anonymous{0}".format(ForLua.anonCounter)
-                ForLua.anonCounter = ForLua.anonCounter + 1
+                t.name = "anonymous{0}".format(self.anonCounter)
+                self.anonCounter = self.anonCounter + 1
                 t.anonymous=True
 
             return t
@@ -280,7 +282,7 @@ class ForLua:
                           'makeMenu', 'makePaletteControl', 'makePopupMenu',
                           'makeText', 'makeWindow', 'makeSpinBox',
                           ]
-                QtWidgets = ['makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeCanvasQt', 'makeSideSpin', 'makeCheckbox', 'makeLink', 'makeTextEdit', 'makeList']
+                QtWidgets = ['makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeTab', 'makeCanvasQt', 'makeSideSpin', 'makeCheckbox', 'makeLink', 'makeTextEdit', 'makeList']
                 
                 if method_name in makers:
                     attr = getattr(self, method_name)
@@ -290,13 +292,13 @@ class ForLua:
                     attr = getattr(self, method_name)
                     wrapped = self.QtWrapper(attr)
                     setattr(self, method_name, wrapped)
-                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap','listToTable','tableToList','print','type']:
+                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap','listToTable','tableToList','print','type', 'executeLuaFile']:
                     # getNESColors: excluded because it may have a table as its first parameter
                     # makeControl: excluded because it's a decorator
                     pass
                 else:
                     #print(method_name, m.__class__)
-                    if method_name.startswith('make') and method_name not in ['makeDir', 'makeTab', 'makeIps']:
+                    if method_name.startswith('make') and method_name not in ['makeDir', 'makeIps', 'makeData']:
                         print("possible function to exclude from decorator: ", method_name, m.__class__)
                     attr = getattr(self, method_name)
                     wrapped = decorator(attr)
@@ -379,6 +381,27 @@ class ForLua:
             print(repr(item))
         else:
             print(item)
+    def findFile(self, filename, folderList):
+        # Search for files in this order:
+        #   Exact match
+        #   Relative to folders in folderList
+        #   Relative to current working folder
+        #   Relative to folders in folderList one level up
+        files = [
+            filename,
+        ]
+        
+        for folder in folderList:
+            files.append(os.path.join(folder, filename))
+        files.append(os.path.join(os.getcwd(),filename))
+        for folder in folderList:
+            files.append(os.path.join(str(pathlib.Path(*pathlib.Path(folder).parts[:1])),filename))
+        
+        for f in files:
+            if os.path.isfile(f):
+                return os.path.abspath(f)
+        
+        return None
     def fileExists(self, f):
         f = fixPath(script_path+"/"+f)
         return os.path.isfile(f)
@@ -463,10 +486,22 @@ class ForLua:
     def incLua(self, n):
         filedata = pkgutil.get_data( 'include', n+'.lua' )
         return lua.execute(filedata)
+    def executeLuaFile(self, filename, folders=[]):
+        try:
+            f = self.findFile(self, filename, folders)
+            print(f)
+            file = open(f,"rb")
+            lua.execute(file.read())
+            file.close()
+            #lua.execute('loadfile("{filename}")()')
+        except LuaError as err:
+            handleLuaError(err)
+        except Exception as err:
+            handlePythonError(err)
     def setDirection(self, d):
         self.direction=d
     def getWindow(self, window=None):
-        return windows.get(coalesce(window, ForLua.window))
+        return windows.get(coalesce(window, self.window))
     def setWindow(self, window):
         self.window=window
     def getWindowQt(self, name=None):
@@ -733,6 +768,31 @@ class ForLua:
         return unhexlify(str(s))
     def hexStringToList(self, s):
         return list(unhexlify(s))
+    def makeData(self, data, indent=0, nItems=16):
+        def chunker(seq, size):
+            res = []
+            for el in seq:
+                res.append(el)
+                if len(res) == size:
+                    yield res
+                    res = []
+            if res:
+                yield res
+
+        # make sure it's a list, tuple, etc
+        if type(data) in (int, str):
+            data = [data]
+        
+        out=''
+        for chunk in chunker(data, nItems):
+            newData = []
+            for i, item in enumerate(chunk):
+                if type(item) is int:
+                    newData.append('${0:02x}'.format(item))
+                else:
+                    newData.append(item)
+            out+=' '*indent+db+' '+', '.join(newData)+"\n"
+        return out
     def getFileContents(self, f, start=0):
         # returns a list
         file=open(f,"rb")
@@ -861,10 +921,10 @@ class ForLua:
             self.restart(self)
     def exec(self, s):
         exec(s)
-    def eval(s):
+#    def eval(s):
         # store the eval return value so we can pass return value to lua space.
-        exec('ForLua.execRet = {0}'.format(s))
-        return ForLua.execRet
+#        exec('ForLua.execRet = {0}'.format(s))
+#        return ForLua.execRet
     def embedTest(self):
         import subprocess
         import time
@@ -947,9 +1007,6 @@ class ForLua:
         ctrl.init(t)
         t.control = ctrl
         
-        #ctrl.mousePressEvent = makeCmdNew(t)
-        #ctrl.mouseReleaseEvent = makeCmdNew(t)
-        #ctrl.mouseMoveEvent = makeCmdNew(t)
         ctrl.onMouseMove = makeCmdNew(t)
         ctrl.onMousePress = makeCmdNew(t)
         ctrl.onMouseRelease = makeCmdNew(t)
@@ -1050,6 +1107,7 @@ class ForLua:
         #ctrl.clicked.connect(makeCmdNew(t))
         #ctrl.textChanged.connect(makeCmdNew(t))
         ctrl.textChanged.connect(makeCmdNoEvent(t))
+        #ctrl.onKeyPress = makeCmdNew(t, functionName = t.name+"_keyPress")
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
@@ -1121,13 +1179,7 @@ class ForLua:
         ctrl = QtDave.LauncherIcon(self.tabQt)
         ctrl.init(t)
         
-        #ctrl.iconCtrl.onMouseMove = makeCmdNew(t)
         ctrl.iconCtrl.onMousePress = makeCmdNew(t)
-        #ctrl.iconCtrl.onMouseRelease = makeCmdNew(t)
-        
-#        ctrl.label.onMouseMove = ctrl.onMouseMove
-#        ctrl.iconCtrl.onMouseMove = ctrl.onMouseMove
-        
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
@@ -1269,14 +1321,8 @@ class ForLua:
         window.tabParent.select(list(window.tabs).index(tab))
         print(list(window.tabParent.tabs))
     def forceClose(self):
-        #atexit.unregister(exitCleanup)
         sys.exit()
     def restart(self):
-        #app.quit()
-        #main.destroy()
-        #main.close()
-        
-        #if onExit(skipCallback=True):
         if onExit():
             print("\n"+"*"*20+" RESTART "+"*"*20+"\n")
             
@@ -1524,8 +1570,16 @@ if cfg.getValue("main","loadplugins"):
         lua.execute("""
         local _plugin
         """)
+        pluginList = []
         for file in os.listdir(folder):
             if file.endswith(".lua") and not file.startswith("_"):
+                pluginList.append(file)
+                cfg.setDefault("plugins", file, 1)
+        
+        cfg.setValue("plugins","list", ', '.join(pluginList))
+        
+        for file in pluginList:
+            if cfg.getValue("plugins",file, 1)==1:
                 print("Loading plugin: "+file)
                 code = """
                     NESBuilder:setWorkingFolder()

@@ -22,7 +22,7 @@ function plugin.onInit()
     y = y + control.height + pad
 
     -- Simple button test
-    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth, name="samplePluginButton",text="Test"}
+    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth, name="samplePluginButton1",text="Test"}
     y = y + control.height + pad
 
     -- import a method from a python module and run it.
@@ -34,12 +34,12 @@ function plugin.onInit()
 --    y = y + control.height + pad
 
     -- Make a popup menu for this tab
-    local items = {
-        {name="foo", text="Foo"},
-        {name="bar", text="Bar"},
-        {name="baz", text="Baz"},
-    }
-    control = NESBuilder:makePopupMenu{name="samplePluginPopup", items=items, prefix=true}
+--    local items = {
+--        {name="foo", text="Foo"},
+--        {name="bar", text="Bar"},
+--        {name="baz", text="Baz"},
+--    }
+--    control = NESBuilder:makePopupMenu{name="samplePluginPopup", items=items, prefix=true}
 end
 
 function plugin.onBuild()

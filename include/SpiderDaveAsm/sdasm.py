@@ -5,6 +5,7 @@ ToDo:
     * create large test .asm
     * text mapping
     * option to automatically localize labels in macros
+    * rept ... endr
 """
 
 
@@ -81,7 +82,8 @@ class Map(dict):
 directives = [
     'org','base','pad','align','fill', 'fillvalue',
     'include','incsrc','includeall','incbin','bin',
-    'db','dw','byte','byt','word','hex',
+    'db','dw','byte','byt','word','hex','dc.b','dc.w',
+    'dsb','dsw','ds.b','ds.w','dl','dh',
     'enum','ende','endenum',
     'print','warning','error',
     'setincludefolder',
@@ -248,6 +250,7 @@ Map(opcode = 'txs', mode = 'Implied', byte = 154, length = 1),
 Map(opcode = 'tya', mode = 'Implied', byte = 152, length = 1),
 ]
 
+
 # Converting to dictionary removes duplicates
 opcodes = list(dict.fromkeys([x.opcode for x in asm]))
 
@@ -302,7 +305,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
         return len(hex(n))-1 >>1
     
     def getString(s):
-        s = s.replace('"','')
+        s=s.strip()
+#        replaceItems = [(r'\n','\n')]
+#        for r1,r2 in replaceItems:
+#            s = s.replace(r1,r2)
+        
+        quotes = ['"""','"',"'"]
+        for q in quotes:
+            if s.startswith(q) and s.endswith(q):
+                s=s[len(q):-len(q)]
+                return s
         return s
     
     def getSpecial(s):
@@ -378,6 +390,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
         if v.startswith('-'):
             label = v.split(' ',1)[0]
             if len(aLabels) > 0:
+                #print([x[1] for x in aLabels if x[0]==label and x[1]<addr])
+#                print('********')
+#                print(label)
+#                print(aLabels)
+#                print(addr)
                 return [x[1] for x in aLabels if x[0]==label and x[1]<addr][-1], 2
             else:
                 # negative number?
@@ -498,6 +515,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
 
     symbols = Map()
     equ = Map()
+    
+    # Allow lda.b, lda.w, etc.
+    # It wont set the byte size but this is better than nothing.
+    def alias(opcode):
+        equ[opcode+'.b']=opcode
+        equ[opcode+'.w']=opcode
+    
+    for o in opcodes:
+        alias(o)
+    
     aLabels = []
     lLabels = []
     macros = Map()
@@ -534,6 +561,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
         bankSize = 0x10000
         bank = None
         
+        fileList = []
+        
         print('pass {}...'.format(passNum))
         
         for i in range(10000000):
@@ -559,11 +588,21 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             # {var} replacement
             for o,c in varOpenClose:
                 if o in line and c in line:
+                    while o+":" in line:
+                        start = line.find('{:')
+                        end = line.find('}', start)
+                        
+                        line = line.replace(line[start:end+1], str(getValue(line[start+2:end])))
+                        
+                        
+                        #line = line.replace(line[line.find('{:'):line.find('}')+1], str(getValue(line[line.find('{:')+2:line.find('}')])))
                     for item in symbols:
                         #line = line.replace(o+item+c, symbols[item])
                         while o+item+c in line.lower():
-                            line = line.replace(line[line.find('{'):line.find('}')+1], symbols[item])
-                        
+                            start = line.find('{')
+                            end = line.find('}', start)
+                            line = line.replace(line[start:end+1], symbols[item])
+                    
                     for item in specialSymbols:
                         if o+item+c in line:
                             s = getSpecial(item)
@@ -590,7 +629,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             if ifLevel:
                 if ifData[ifLevel].bool == False:
                     
-                    if line.split(" ",1)[0].strip().lower() not in ifDirectives:
+                    key = line.split(" ",1)[0].strip().lower()
+                    if key.startswith('.'):
+                        key = key[1:]
+                    
+                    if key not in ifDirectives:
                         ifData.line = line
                         line = ''
             
@@ -661,11 +704,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                 ifData[ifLevel] = Map()
                 
                 data = line.split(" ",1)[1].strip()
+                data = getString(data)
                 if findFile(data):
                     ifData[ifLevel].bool = True
                     ifData[ifLevel].done = True
                 else:
                     ifData[ifLevel].bool = False
+                print('ifLevel',ifLevel)
             if k == 'if':
                 ifLevel+=1
                 ifData[ifLevel] = Map()
@@ -719,6 +764,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                 except:
                     print("Could not open file.")
                 if b:
+                    fileList.append(filename)
                     lines = lines[:i]+['']+['setincludefolder '+currentFolder]+lines[i+1:]
             elif k == "include" or k=="incsrc":
                 filename = line.split(" ",1)[1].strip()
@@ -733,6 +779,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                     print("Could not open file.")
                 
                 if newLines:
+                    fileList.append(filename)
                     folder = os.path.split(filename)[0]
                     
                     newLines = ['setincludefolder '+folder]+newLines+['setincludefolder '+currentFolder]
@@ -747,7 +794,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             
             elif k == 'print' and passNum==2:
                 v = line.split(" ",1)[1].strip()
-                print(v)
+                print(getString(v))
             elif k == 'warning' and passNum==2:
                 v = line.split(" ",1)[1].strip()
                 print('warning: ' + v)
@@ -760,7 +807,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                 v = line.split(" ")[1].strip()
                 macro = v.lower()
                 macros[macro]=Map()
-                macros[macro].params = (line.split(" ", 2)+[''])[2].replace(',',' ').split()
+                data = line.split(" ", 2)
+                macros[macro].params = (data+[''])[2].replace(',',' ').split()
                 macros[macro].lines = []
                 noOutput = True
             elif k == 'endm' or k == 'endmacro':
@@ -843,15 +891,41 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             elif k == "hex":
                 data = line.split(' ',1)[1]
                 b = b + list(bytes.fromhex(''.join(['0'*(len(x)%2) + x for x in data.split()])))
+            
+            elif k == 'dsb' or k == 'ds.b':
+                data = line.split(' ',1)[1]
+                n = getValue(data.split(",")[0])
+                v = getValue((data.split(",")+['0'])[1])
+                b = b + [v] * n
                 
-            elif k == "db" or k=="byte" or k == 'byt':
+            elif k == 'dsw' or k == 'ds.w':
+                data = line.split(' ',1)[1]
+                n = getValue(data.split(",")[0])
+                v = getValue((data.split(",")+['0'])[1])
+                b = b + [v % 0x100, v>>8] * n
+                
+            elif k == "dl":
+                values = line.split(' ',1)[1].split(",")
+                values = [x.strip() for x in values]
+                
+                for v in [getValue(x) % 0x100 for x in values]:
+                    b = b + makeList(v)
+            
+            elif k == "dh":
+                values = line.split(' ',1)[1].split(",")
+                values = [x.strip() for x in values]
+                
+                for v in [getValue(x) >>8 for x in values]:
+                    b = b + makeList(v)
+            
+            elif k == 'db' or k=='byte' or k == 'byt' or k == 'dc.b':
                 values = line.split(' ',1)[1].split(",")
                 values = [x.strip() for x in values]
                 
                 for v in [getValue(x) for x in values]:
                     b = b + makeList(v)
                 
-            elif k == "dw" or k=="word" or k=='dbyt':
+            elif k == "dw" or k=="word" or k=='dbyt' or k == 'dc.w':
                 values = line.split(' ',1)[1].split(",")
                 values = [x.strip() for x in values]
                 values = [getValue(x) for x in values]
@@ -909,12 +983,17 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                             v = str(0x100 - ((addr+op.length) - getValue(v)))
                         else:
                             v = str(getValue(v) - (addr+op.length))
+#                    if op.mode == 'Relative':
+#                        if currentAddress>getValue(v):
+#                            v = str(0x100 - ((currentAddress+op.length) - getValue(v)))
+#                        else:
+#                            v = str(getValue(v) - (currentAddress+op.length))
                     
                     v,l = getValueAndLength(v)
                     l = bytesForNumber(v)
                     if (op.length>1) and l>op.length-1:
                         b = [op.byte] + [0] * (op.length-1)
-                        errorText= 'out of range: ' + hex(v)
+                        errorText= 'out of range: {} {} {}'.format(op.length, hex(v),l)
                     else:
                         b = [op.byte]
                         if op.length == 2:
@@ -1025,12 +1104,17 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             file.write(bytes(out))
             print('{} written.'.format(outputFilename))
 
-        #if debug:
-        if 1:
+        debug = True
+        if debug:
             f = 'debug_symbols.txt'
             with open(f, "w") as file:
                 for k,v in symbols.items():
-                    print(k,repr(v), file=file)
+                    print('{} = {}'.format(k,v), file=file)
+            print('{} written.'.format(f))
+        if debug:
+            f = 'debug_files.txt'
+            with open(f, "w") as file:
+                file.writelines(fileList)
             print('{} written.'.format(f))
         print()
 if __name__ == '__main__':

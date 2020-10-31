@@ -76,6 +76,10 @@ class Cfg(configparser.ConfigParser):
                         value = int(value)
             return value
     def getValue(self, section, key, default=None):
+        if default:
+            # make sure section exists
+            if not section in self.sections():
+                self[section] = {}
         return self.makeValue(self[section].get(key, default))
     def setValue(self, section, key, value):
         # make sure section exists

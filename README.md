@@ -3,7 +3,7 @@ NES development tool made with Python and Lua
 
 Current Stage: Alpha
 
-![_](https://i.imgur.com/HyRHRub.png)
+![_](https://i.imgur.com/iIQ8cAW.png)
 
 ## Features ##
 * Open source
@@ -33,7 +33,8 @@ You can use "install dependencies.bat" to install these.
 * pyinstaller
 * pillow
 * numpy
-
+* PyQt5
+* QScintilla
 
 ## Plugins ##
 Plugins are Lua scripts, but can also import Python scripts.

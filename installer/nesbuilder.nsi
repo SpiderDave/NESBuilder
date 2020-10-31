@@ -110,12 +110,12 @@ Section "-DefaultStuff"
     inetc::get \
         "${GitURL}tools/asm6.exe" "tools/asm6.exe"\
         "${GitURL}tools/xkas-plus/xkas.exe" "tools/xkas-plus/xkas.exe"\
-        "${GitURL}plugins/_samplePlugin.lua" "plugins/_samplePlugin.lua"\
+        "${GitURL}plugins/samplePlugin.lua" "plugins/samplePlugin.lua"\
         "${GitURL}plugins/hello.py" "plugins/hello.py"\
-        "${GitURL}plugins/_smbthing.lua" "plugins/_smbthing.lua"\
-        "${GitURL}plugins/_rominfo.lua" "plugins/_rominfo.lua"\
+        "${GitURL}plugins/smbthing.lua" "plugins/smbthing.lua"\
+        "${GitURL}plugins/rominfo.lua" "plugins/rominfo.lua"\
         "${GitURL}plugins/hash.py" "plugins/hash.py"\
-        "${GitURL}plugins/_debug.lua" "plugins/_debug.lua"\
+        "${GitURL}plugins/debug.lua" "plugins/debug.lua"\
         "${GitURL}plugins/nesst.lua" "plugins/nesst.lua"\
         "${GitURL}plugins/nesst.py" "plugins/nesst.py"\
         "${GitURL}templates/codeTemplate.zip" "templates/codeTemplate.zip"\

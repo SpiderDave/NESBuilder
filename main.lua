@@ -1258,9 +1258,12 @@ function LoadProject()
     print("loading project "..data.projectID)
     
     projectFolder = data.projectID.."/"
+    local projectID = data.projectID
     
     local filename = data.folders.projects..projectFolder.."project.dat"
     data.project = util.unserialize(util.getFileContents(filename))
+    
+    data.projectID = projectID
     
     if not data.project then
         data.project = {type = data.projectType}
@@ -2340,7 +2343,11 @@ function exportAllChr()
     
     local f = data.folders.projects..data.project.folder.."game.nes"
     data.project.rom.outputFilename = data.project.rom.outputFilename or f
-    
+    -- For now, if output path not found, use default file.
+    -- This will happen if a project folder is renamed
+    if not NESBuilder:pathExists(NESBuilder:pathToFolder(data.project.rom.outputFilename)) then
+        data.project.rom.outputFilename = f
+    end
     NESBuilder:saveArrayToFile(data.project.rom.outputFilename, fileData)
     
 end

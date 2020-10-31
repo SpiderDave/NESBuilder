@@ -1018,11 +1018,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                 k=''
 
             
-            if " equ " in line.lower():
+            if ' equ ' in line.lower():
                 k = line[:line.lower().find(' equ ')]
                 v = line[line.lower().find(' equ ')+len(' equ '):]
                 equ[k] = v
-            elif "=" in line:
+            #elif '=' in line:
+            elif (line.split('=')+[''])[1]:
                 k = line.split("=",1)[0].strip()
                 v = line.split("=",1)[1].strip()
                 if k == '$':

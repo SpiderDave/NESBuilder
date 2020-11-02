@@ -2148,6 +2148,7 @@ joinList = python.eval("lambda x,y:x+y")
 reverseByte = python.eval("lambda x:int(('{:08b}'.format(x))[::-1],2)")
 replace = python.eval("lambda x,y,z:x.replace(y,z)")
 list = python.eval("lambda *x:[item for item in x]")
+set = python.eval("lambda *x:set([item for item in x])")
 
 function cfgGet(section, key)
     key, section = key or section, (key and section) or "main"

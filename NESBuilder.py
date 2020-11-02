@@ -387,9 +387,12 @@ class ForLua:
         #   Relative to folders in folderList
         #   Relative to current working folder
         #   Relative to folders in folderList one level up
+        
         files = [
             filename,
         ]
+        
+        folderList = [x for x in folderList if x]
         
         for folder in folderList:
             files.append(os.path.join(folder, filename))
@@ -400,7 +403,7 @@ class ForLua:
         for f in files:
             if os.path.isfile(f):
                 return os.path.abspath(f)
-        
+                
         return None
     def fileExists(self, f):
         f = fixPath(script_path+"/"+f)
@@ -489,7 +492,6 @@ class ForLua:
     def executeLuaFile(self, filename, folders=[]):
         try:
             f = self.findFile(self, filename, folders)
-            print(f)
             file = open(f,"rb")
             lua.execute(file.read())
             file.close()

@@ -1,7 +1,7 @@
 from . import SMBLevelExtract
 from . import calc
 from . import config
-#from .ips import ips
+from . import ips
 from . import QtDave
 from . import SpiderDaveAsm
 
@@ -10,7 +10,7 @@ __all__ = [
             'Calculator',
             'Cfg',
             'QtDave',
-#            'ips',
+            'ips',
             'sdasm',
           ]
 

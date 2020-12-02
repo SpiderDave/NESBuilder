@@ -842,19 +842,29 @@ function projectProperties_cmd()
     left = pad*2
     top = pad*2
     x,y = left,top
-
+    local buttonWidth = config.buttonWidth*7.5
+    local buttonHeight = 27
 
 --    NESBuilder:makeWindow{x=0,y=0,w=760,h=600, name="prefWindow",title="Preferences"}
 --    NESBuilder:setWindow("prefWindow")
     
     NESBuilder:makeTabQt{name="tabProjectProperties",text="Project Properties"}
-    
     NESBuilder:setTabQt("tabProjectProperties")
     
     control = NESBuilder:makeCheckbox{x=x,y=y,name="pptest1", text="Test", value=cfgGet('test')}
     y = y + control.height + pad
     
+    control = NESBuilder:makeTable{x=x,y=y,w=buttonWidth*4,h=buttonHeight*8, name="patchesTable",rows=100, columns=1}
+    control.setHorizontalHeaderLabels("IPS patches")
+    local header = control.horizontalHeader()
+    header.setStretchLastSection(true)
     
+    control.clear()
+    for i,f in pairs(data.project.patches) do
+        control.set(i,0,f)
+    end
+    
+    y = y + control.height + pad
     
     
     y = y + pad*7
@@ -991,6 +1001,8 @@ function TestRom_cmd()
 end
 
 function BuildProject()
+    ppUpdate()
+    
     if data.project.type == 'dev' then
         BuildProject_cmd()
     else
@@ -1055,7 +1067,6 @@ function build_sdasm()
     end
     util.writeToFile(filename,0, out, true)
     
-    
     NESBuilder:setWorkingFolder(folder)
     local sdasm = python.eval('sdasm')
     
@@ -1064,7 +1075,24 @@ function build_sdasm()
     
     local fixPath = python.eval('fixPath2')
     
-    sdasm.assemble('project.asm', 'game.nes', 'output.txt', fixPath(data.folders.projects..projectFolder..'config.ini'), data.project.rom.data)
+    local romData = data.project.rom.data
+    
+--    data.project.patches = {
+--        'WW2v101.IPS',
+--        'Wai_Wai_World_2_021915.ips',
+--    }
+    
+    -- Apply IPS patches.
+    for i,f in ipairs(data.project.patches) do
+        f = NESBuilder:findFile(f, list(folder))
+        if f then
+            print('Applying IPS patch: '..f)
+            ipsData = NESBuilder:getFileAsArray(f)
+            romData = NESBuilder:applyIps(ipsData, romData)
+        end
+    end
+    
+    sdasm.assemble('project.asm', 'game.nes', 'output.txt', fixPath(data.folders.projects..projectFolder..'config.ini'), romData)
     
     print("done.")
 end
@@ -1329,6 +1357,8 @@ function LoadProject()
         control.set(i,2,row.comment)
     end
     
+    data.project.patches = data.project.patches or {}
+    
 --    NESBuilder:setWorkingFolder(data.folders.projects..data.project.folder)
 --    if data.project.rom then
 --        data.project.rom.data = NESBuilder:listToTable(NESBuilder:getFileAsArray(data.project.rom.filename))
@@ -1376,6 +1406,9 @@ function SaveProject()
     for i,v in ipairs(data.project.palettes) do
         data.project.palettes[i] = NESBuilder:listToTable(data.project.palettes[i])
     end
+    
+    -- make sure project properties update if the tab is open
+    ppUpdate()
     
     -- Convert symbols table
     print("converting symbols...")
@@ -2127,7 +2160,21 @@ end
 function buttonWarningClose_cmd() closeTab('Warning', 'Launcher') end
 function buttonPreferencesClose_cmd() closeTab('tabPreferences', 'Launcher') end
 function buttonInfoClose_cmd() closeTab('infoTab', 'Launcher') end
-function ppClose_cmd() closeTab('tabProjectProperties', 'Launcher') end
+function ppClose_cmd()
+    ppUpdate()
+    closeTab('tabProjectProperties', 'Launcher')
+end
+
+function ppUpdate()
+    local control = NESBuilder:getControlNew('patchesTable')
+    if not control then return end
+    
+    local d = control.getData()
+    data.project.patches = {}
+    for i, row in python.enumerate(d) do
+        data.project.patches[i] = row[0]
+    end
+end
 
 -- Convenience functions
 function currentPalette(n) return data.project.palettes[n or data.project.palettes.index] end

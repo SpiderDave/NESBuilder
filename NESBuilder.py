@@ -381,12 +381,15 @@ class ForLua:
             print(repr(item))
         else:
             print(item)
-    def findFile(self, filename, folderList):
+    def findFile(self, filename, folderList=[]):
         # Search for files in this order:
         #   Exact match
         #   Relative to folders in folderList
         #   Relative to current working folder
         #   Relative to folders in folderList one level up
+        
+        if not filename:
+            return None
         
         files = [
             filename,
@@ -734,6 +737,8 @@ class ForLua:
         ret = lua.table_from(out)
         
         return ret
+    def applyIps(self, ipsData, fileData):
+        return ips.applyIps(ipsData, fileData)
     def screenshotTest(self):
         main.screenshot(main)
     def updateApp(self):

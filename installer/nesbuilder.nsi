@@ -180,6 +180,7 @@ Section "NESBuilder Source"
         "${GitURL}include/style.qss" "include/style.qss"\
         "${GitURL}include/config.py" "include/config.py"\
         "${GitURL}include/calc.py" "include/calc.py"\
+        "${GitURL}include/ips.py" "include/ips.py"\
         "${GitURL}chr.png" "chr.png"\
         "${GitURL}icons/folder32.png" "icons/folder32.png"\
         "${GitURL}icons/folderplus32.png" "icons/folderplus32.png"\

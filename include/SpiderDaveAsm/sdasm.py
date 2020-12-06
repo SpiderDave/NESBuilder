@@ -18,6 +18,8 @@ from datetime import datetime
 import pathlib
 import operator
 
+import random
+
 #try: import numpy as np
 #except: np = False
 
@@ -90,10 +92,9 @@ directives = [
     'macro','endm','endmacro',
     'if','ifdef','ifndef','else','elseif','endif','iffileexist','iffile',
     'arch',
-]
-
-directives = directives + [
-'index','mem','bank','banksize','header','define',
+    'index','mem','bank','banksize','header','define',
+    '_find',
+    'seed',
 ]
 
 asm=[
@@ -324,7 +325,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             if bank == None:
                 return ''
             else:
-                #print(makeHex(bank))
                 return makeHex(bank)
         elif s in timeSymbols:
             v = list(datetime.now().timetuple())[timeSymbols.index(s)]
@@ -370,7 +370,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
     def isNumber(v):
         return all([x in "0123456789" for x in str(v)])
 
-    def getValueAndLength(v):
+    def getValueAndLength(v, mode=False):
+        if type(v) is int:
+            l = 1 if v <=256 else 2
+            return v,l
+            
         v = v.strip()
         l = False
         
@@ -387,14 +391,17 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
         if v=='':
             return 0,0
         
+        
+        if ',' in v:
+            v = [getValue(x) for x in v.split(',')]
+            l = len(v)
+            if mode == 'shuffle':
+                random.shuffle(v)
+            
+            return v,l
         if v.startswith('-'):
             label = v.split(' ',1)[0]
             if len(aLabels) > 0:
-                #print([x[1] for x in aLabels if x[0]==label and x[1]<addr])
-#                print('********')
-#                print(label)
-#                print(aLabels)
-#                print(addr)
                 return [x[1] for x in aLabels if x[0]==label and x[1]<addr][-1], 2
             else:
                 # negative number?
@@ -447,10 +454,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
         
         if v == '$' or v.lower() == 'pc':
             v = currentAddress
-            #l = 1 if v <=256 else 2
             l=2
+        elif v.lower() == 'randbyte':
+            v = random.randrange(0,256)
+            l=1
         elif v.startswith("$"):
-            #l = 1 if len(v)-1<=2 else 2
             v = int(v[1:],16)
             l = bytesForNumber(v)
         elif v.startswith("%"):
@@ -475,10 +483,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             l = -1
         return v, l
 
-    def getValue(v):
-        return getValueAndLength(v)[0]
-    def getLength(v):
-        return getValueAndLength(v)[1]
+    def getValue(v, mode=False):
+        return getValueAndLength(v, mode=mode)[0]
+    def getLength(v, mode=False):
+        return getValueAndLength(v, mode=mode)[1]
 
     def getOpWithMode(opcode,mode):
         ops = [x for x in asm if x.opcode==opcode]
@@ -593,11 +601,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                         end = line.find('}', start)
                         
                         line = line.replace(line[start:end+1], str(getValue(line[start+2:end])))
-                        
-                        
-                        #line = line.replace(line[line.find('{:'):line.find('}')+1], str(getValue(line[line.find('{:')+2:line.find('}')])))
                     for item in symbols:
-                        #line = line.replace(o+item+c, symbols[item])
                         while o+item+c in line.lower():
                             start = line.find('{')
                             end = line.find('}', start)
@@ -607,6 +611,19 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                         if o+item+c in line:
                             s = getSpecial(item)
                             line = line.replace(o+item+c, s)
+                    
+                    for item in ['shuffle']:
+                        while o+item+":" in line:
+                            start = line.find('{'+item+':')
+                            end = line.find('}', start)
+                            
+                            l = getValue(line[start+2+len(item):end], mode=item)
+                            if type(l) is int:
+                                l = str(l)
+                            elif type(l) is list:
+                                l = ','.join([str(x) for x in l])
+                            line = line.replace(line[start:end+1], l)
+
             
             # remove single line comments
             for sep in commentSep:
@@ -747,6 +764,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
 #                if debug:
 #                    print('  Bank: {}'.format(bank))
             
+            elif k == 'seed':
+                v = getValue(line.split(" ")[1].strip())
+                random.seed(v)
+            
             # hidden internally used directive used with include paths
             if k == "setincludefolder":
                 currentFolder = (line.split(" ",1)+[''])[1].strip()
@@ -803,6 +824,19 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                 print('Error: ' + v)
                 exit()
             
+            elif k == '_find':
+                data = line.split(' ',1)[1]
+                findData = list(bytes.fromhex(''.join(['0'*(len(x)%2) + x for x in data.split()])))
+                #b = b + list(bytes.fromhex(''.join(['0'*(len(x)%2) + x for x in data.split()])))
+                result = [i for i in range(len(out)-len(findData)+1) if out[i:i+len(findData)]==findData]
+                a = result[0]
+                print([hex(x-headerSize) for x in result])
+                
+                a = (a-headerSize)
+                resultBank = math.floor(a/bankSize)
+                a=a-resultBank*bankSize+0x8000
+                print('{:02x}:{:04x}'.format(resultBank,a))
+                
             elif k == 'macro':
                 v = line.split(" ")[1].strip()
                 macro = v.lower()
@@ -818,15 +852,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             if k in macros:
                 params = (line.split(" ",1)+[''])[1].replace(',',' ').split()
                 
-#                print(macros[k].params)
-#                print(params)
-                
                 for item in mergeList(macros[k].params, params):
                     symbols[item[0].lower()] = item[1]
-#                    print(item[0],'=',item[1])
-                
-#                for l in macros[k]['lines']:
-#                    print(l)
                 
                 lines = lines[:i]+['']+macros[k].lines+lines[i+1:]
                 
@@ -866,8 +893,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                 if ',' in data:
                     fv = getValue(data.split(',')[1])
                 a = getValue(data.split(',')[0])
-#                print('{:05x}'.format(a))
-#                print('{:05x}'.format(currentAddress))
                 b = b + ([fv] * (a-currentAddress))
             elif k == 'fill':
                 data = line.split(' ',1)[1]
@@ -919,11 +944,18 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                     b = b + makeList(v)
             
             elif k == 'db' or k=='byte' or k == 'byt' or k == 'dc.b':
-                values = line.split(' ',1)[1].split(",")
-                values = [x.strip() for x in values]
+                values = line.split(' ',1)[1]
+                values = getValue(values)
+                b = b + makeList(values)
                 
-                for v in [getValue(x) for x in values]:
-                    b = b + makeList(v)
+#                for v in [getValue(x) for x in values]:
+#                    b = b + makeList(v)
+                
+#                values = line.split(' ',1)[1].split(",")
+#                values = [x.strip() for x in values]
+                
+#                for v in [getValue(x) for x in values]:
+#                    b = b + makeList(v)
                 
             elif k == "dw" or k=="word" or k=='dbyt' or k == 'dc.w':
                 values = line.split(' ',1)[1].split(",")
@@ -934,6 +966,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                     b = b + [value % 0x100, value>>8]
                 
             elif k in opcodes:
+                # Special handling for pseudo opcode
+                # Example:
+                # nop $06 ; 6 nop instructions
+                if k == 'nop':
+                    v = (line.split(" ",1)+[''])[1].strip()
+                    if v:
+                        op = getOpWithMode(k, "Implied") # op will be set to False below
+                        b=b+([op.byte] * getValue(v))
+                    
                 v = "0"
                 if k in implied and k.strip() == line.strip().lower():
                     op = getOpWithMode(k, "Implied")

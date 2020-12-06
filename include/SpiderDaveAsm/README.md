@@ -376,3 +376,12 @@ endif
 
     includeIfExist file.asm
 ```
+
+seed
+    
+    Set the random number seed for use with anything that uses random values.
+    
+```
+    seed $42
+    db {shuffle:$00, $01, $02, $03, $04, $05}
+```

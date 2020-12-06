@@ -534,7 +534,7 @@ function onReady()
     end
     
     -- Just remove Metatiles tab since it's broken.
-    if not devMode() then closeTab('tsa') end
+    --if not devMode() then closeTab('Metatiles') end
 end
 
 function handlePluginCallback(f, arg)

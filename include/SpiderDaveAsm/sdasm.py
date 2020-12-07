@@ -262,7 +262,7 @@ ifDirectives = ['if','endif','else','elseif','ifdef','ifndef','iffileexist','iff
 mergeList = lambda a,b: [(a[i], b[i]) for i in range(0, len(a))]
 makeHex = lambda x: '$'+x.to_bytes(((x.bit_length()|1  + 7) // 8),"big").hex()
 
-specialSymbols = ['sdasm','bank']
+specialSymbols = ['sdasm','bank','randbyte','randword']
 timeSymbols = ['year','month','day','hour','minute','second']
 
 specialSymbols+= timeSymbols
@@ -326,6 +326,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                 return ''
             else:
                 return makeHex(bank)
+        elif s == 'randbyte':
+            return makeHex(random.randrange(0x100))
+        elif s == 'randword':
+            #return makeHex(random.randrange(0x10000))
+            return '${:04x}'.format(random.randrange(0x10000))
         elif s in timeSymbols:
             v = list(datetime.now().timetuple())[timeSymbols.index(s)]
         if type(v) in (int,float):
@@ -374,7 +379,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
         if type(v) is int:
             l = 1 if v <=256 else 2
             return v,l
-            
+        
+        if v.startswith("[") and v.endswith("]"):
+            v = v[1:-1]
+        
         v = v.strip()
         l = False
         
@@ -397,7 +405,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             l = len(v)
             if mode == 'shuffle':
                 random.shuffle(v)
-            
+            elif mode == 'choose':
+                random.shuffle(v)
+                v=v[0]
+                l=1
+                
             return v,l
         if v.startswith('-'):
             label = v.split(' ',1)[0]
@@ -481,6 +493,19 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
         else:
             v = 0
             l = -1
+        
+        if mode == 'get':
+            # this looks like the right result but i don't know why
+            # i have to subtract the 0x4000
+            fileOffset = v - 0x8000 + (bank * bankSize) + headerSize - 0x4000
+#            print('*'*10)
+#            print('v=', hex(v))
+#            print('bank=', hex(bank))
+#            print('bankSize=', hex(bankSize))
+#            print('fileOffset=', hex(fileOffset))
+            v = int(out[fileOffset])
+            l = 1
+            
         return v, l
 
     def getValue(v, mode=False):
@@ -601,18 +626,19 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                         end = line.find('}', start)
                         
                         line = line.replace(line[start:end+1], str(getValue(line[start+2:end])))
-                    for item in symbols:
-                        while o+item+c in line.lower():
-                            start = line.find('{')
-                            end = line.find('}', start)
-                            line = line.replace(line[start:end+1], symbols[item])
+                    
+#                    for item in symbols:
+#                        while o+item+c in line.lower():
+#                            start = line.find('{')
+#                            end = line.find('}', start)
+#                            line = line.replace(line[start:end+1], symbols[item])
                     
                     for item in specialSymbols:
                         if o+item+c in line:
                             s = getSpecial(item)
                             line = line.replace(o+item+c, s)
                     
-                    for item in ['shuffle']:
+                    for item in ['shuffle','get','choose']:
                         while o+item+":" in line:
                             start = line.find('{'+item+':')
                             end = line.find('}', start)
@@ -623,7 +649,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                             elif type(l) is list:
                                 l = ','.join([str(x) for x in l])
                             line = line.replace(line[start:end+1], l)
-
+                    while o in line:
+                        start = line.find(o)
+                        end = line.find(c, start)
+                        
+                        line = line.replace(line[start:end+1], str(getValue(line[start+1:end])))
             
             # remove single line comments
             for sep in commentSep:
@@ -727,7 +757,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                     ifData[ifLevel].done = True
                 else:
                     ifData[ifLevel].bool = False
-                print('ifLevel',ifLevel)
+                #print('ifLevel',ifLevel)
             if k == 'if':
                 ifLevel+=1
                 ifData[ifLevel] = Map()
@@ -1146,7 +1176,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             file.write(bytes(out))
             print('{} written.'.format(outputFilename))
 
-        debug = True
         if debug:
             f = 'debug_symbols.txt'
             with open(f, "w") as file:

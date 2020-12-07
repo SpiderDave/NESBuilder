@@ -77,6 +77,39 @@ Comments:
     include {file}.asm
 ```
     
+    There are a number of special formats using the format {name:data}
+    
+    shuffle
+        Shuffle a list of bytes.
+    
+```
+    db {shuffle:$00, $01, $02, $03, $04} ; outputs 5 bytes in random order
+```
+    
+    get
+        Get a byte at given address.
+    
+```
+    print {get:$9015} ; print the byte at $9015 in current bank.
+```
+    
+## Special Symbols ##
+    
+    sdasm
+        always 1
+    
+    bank
+        current bank
+    
+    year, month, day, hour, minute, second
+        appropriate numerical time value
+        
+    randbyte
+        random byte
+    
+    randword
+        random word
+    
 ## Strings ##
     
     String values are partially supported.

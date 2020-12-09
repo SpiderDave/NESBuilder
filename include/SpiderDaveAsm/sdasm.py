@@ -267,7 +267,7 @@ timeSymbols = ['year','month','day','hour','minute','second']
 
 specialSymbols+= timeSymbols
 
-def assemble(filename, outputFilename = 'output.bin', listFilename = 'output.txt', configFile=False, fileData=False):
+def assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False):
     if not configFile:
         configFile = inScriptFolder('config.ini')
     
@@ -294,9 +294,9 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = 'output.txt
     # save configuration so our defaults can be changed
     cfg.save()
 
-    _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData)
+    _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile)
 
-def _assemble(filename, outputFilename, listFilename, cfg, fileData):
+def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     def bytesForNumber(n):
         return len(hex(n))-1 >>1
     
@@ -308,9 +308,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             s = bytes(s).decode()
         
         s=s.strip()
-#        replaceItems = [(r'\n','\n')]
-#        for r1,r2 in replaceItems:
-#            s = s.replace(r1,r2)
         
         quotes = ['"""','"',"'"]
         for q in quotes:
@@ -550,6 +547,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
     print(filename)
     
     initialFolder = os.path.split(filename)[0]
+    currentFolder = initialFolder
 
     # Doing it this way removes the line endings
     lines = file.read().splitlines()
@@ -572,6 +570,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
     macros = Map()
     blockComment = 0
     
+    if binFile:
+        binFile = findFile(binFile)
+        with open(binFile,'rb') as file:
+            fileData = file.read()
+    
     for passNum in (1,2):
         lines = originalLines
         addr = 0
@@ -593,8 +596,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
         
         outputText = ''
         startAddress = False
-        currentFolder = ''
-        currentFolder = os.path.split(filename)[0]
+#        currentFolder = ''
+#        currentFolder = os.path.split(filename)[0]
         currentFolder = initialFolder
         ifLevel = 0
         ifData = Map()
@@ -685,6 +688,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                         line = line.replace(line[start:end+1], str(getValue(line[start+1:end])))
             
             if ifLevel:
+                if ifLevel>1 and ifData[ifLevel-1].bool == False:
+                    ifData[ifLevel].bool = False
+                    ifData[ifLevel].done = True
+
                 if ifData[ifLevel].bool == False:
                     
                     key = line.split(" ",1)[0].strip().lower()
@@ -772,6 +779,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                     ifData[ifLevel].bool = False
                 #print('ifLevel',ifLevel)
             if k == 'if':
+#                print(line)
+#                print('***ifLevel',ifLevel)
                 ifLevel+=1
                 ifData[ifLevel] = Map()
                 
@@ -790,6 +799,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                         ifData[ifLevel].done = True
                     else:
                         ifData[ifLevel].bool = False
+#                if ifLevel>1 and ifData[ifLevel-1].done == True:
+#                    ifData[ifLevel].bool = False
+
             if k == 'else':
                 ifData[ifLevel].bool = not ifData[ifLevel].done
             elif k == 'endif':
@@ -1203,15 +1215,37 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             print('{} written.'.format(f))
         print()
 if __name__ == '__main__':
-    if len(sys.argv) <2:
-        print("Error: no file specified.")
-        exit()
+    # This stuff doesn't work because I need to get the relative
+    # imports more organized.
+    
+    import argparse
 
-    filename = sys.argv[1]
+    parser = argparse.ArgumentParser(description='ASM 6502 Assembler made in Python')
+    
+    parser.add_argument('-l', type=str, nargs=1, metavar="<file>",
+                        help='Create a list file')
+    parser.add_argument('-bin', type=str, nargs=1, metavar="<file>",
+                        help='Include binary file')
+#    parser.add_argument('-q', action='store_true',
+#                        help='Quiet mode')
 
+    parser.add_argument('sourcefile', type=str,
+                        help='The file to assemble')
+    parser.add_argument('outputfile', type=str, nargs='?',
+                        help='The output file')
+
+    args = parser.parse_args()
+
+    filename = args.sourcefile
+    outputFilename = args.outputfile
+    listFilename = args.l
+    configFile = args.configfile
+    binFile = args.bin # not implemented
+    
     start = time.time()
-
-    assemble(filename)
+    
+    exit()
+    assemble(filename, outputFilename = outputFilename, listFilename = listFilename, configFile = configFile, binFile = binFile)
 
     end = time.time()-start
     if end>=3:

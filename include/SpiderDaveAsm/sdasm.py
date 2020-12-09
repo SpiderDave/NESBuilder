@@ -94,7 +94,7 @@ directives = [
     'arch',
     'index','mem','bank','banksize','header','define',
     '_find',
-    'seed',
+    'seed','outputfile','listfile',
 ]
 
 asm=[
@@ -272,7 +272,6 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = 'output.txt
         configFile = inScriptFolder('config.ini')
     
     cfg = False
-#    try:
     # create our config parser
     cfg = Cfg(configFile)
 
@@ -296,16 +295,18 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = 'output.txt
     cfg.save()
 
     _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData)
-#    except:
-#        print("sdasm Error")
-#        return False
-#    return True
 
 def _assemble(filename, outputFilename, listFilename, cfg, fileData):
     def bytesForNumber(n):
         return len(hex(n))-1 >>1
     
+    def getValueAsString(s):
+        return getString(getValue(s))
+    
     def getString(s):
+        if type(s) is list:
+            s = bytes(s).decode()
+        
         s=s.strip()
 #        replaceItems = [(r'\n','\n')]
 #        for r1,r2 in replaceItems:
@@ -375,7 +376,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
     def isNumber(v):
         return all([x in "0123456789" for x in str(v)])
 
-    def getValueAndLength(v, mode=False):
+    def getValueAndLength(v, mode=False, param=False, hint=False):
         if type(v) is int:
             l = 1 if v <=256 else 2
             return v,l
@@ -414,14 +415,14 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
         if v.startswith('-'):
             label = v.split(' ',1)[0]
             if len(aLabels) > 0:
-                return [x[1] for x in aLabels if x[0]==label and x[1]<addr][-1], 2
+                return [x[1] for x in aLabels if x[0]==label and x[1]<currentAddress][-1], 2
             else:
                 # negative number?
                 return -1, 0
         if v.startswith('+'):
             label = v.split(' ',1)[0]
             try:
-                return [x[1] for x in aLabels if x[0]==label and x[1]>=addr][0], 2
+                return [x[1] for x in aLabels if x[0]==label and x[1]>=currentAddress][0], 2
             except:
                 return 0,0
         
@@ -505,13 +506,21 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
 #            print('fileOffset=', hex(fileOffset))
             v = int(out[fileOffset])
             l = 1
-            
+        
+        if mode == 'hexstring':
+            v = "test"
+            l=len(v)
+#        if mode == 'format':
+#            fmtString = '{:' + param + '}'
+#            print('v = ',v)
+#            v = fmtString.format(v)
+#            l=len(v)
         return v, l
 
-    def getValue(v, mode=False):
-        return getValueAndLength(v, mode=mode)[0]
-    def getLength(v, mode=False):
-        return getValueAndLength(v, mode=mode)[1]
+    def getValue(v, mode=False, param=False, hint=False):
+        return getValueAndLength(v, mode=mode, param=param, hint=hint)[0]
+    def getLength(v, mode=False, param=False, hint=False):
+        return getValueAndLength(v, mode=mode, param=param, hint=hint)[1]
 
     def getOpWithMode(opcode,mode):
         ops = [x for x in asm if x.opcode==opcode]
@@ -595,7 +604,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
         bank = None
         
         fileList = []
-        
         print('pass {}...'.format(passNum))
         
         for i in range(10000000):
@@ -614,47 +622,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             # change tabs to spaces
             line = line.replace("\t"," ")
             
-            # "EQU" replacement
-            for item in equ:
-                line = line.replace(item, equ[item])
-            
-            # {var} replacement
-            for o,c in varOpenClose:
-                if o in line and c in line:
-                    while o+":" in line:
-                        start = line.find('{:')
-                        end = line.find('}', start)
-                        
-                        line = line.replace(line[start:end+1], str(getValue(line[start+2:end])))
-                    
-#                    for item in symbols:
-#                        while o+item+c in line.lower():
-#                            start = line.find('{')
-#                            end = line.find('}', start)
-#                            line = line.replace(line[start:end+1], symbols[item])
-                    
-                    for item in specialSymbols:
-                        if o+item+c in line:
-                            s = getSpecial(item)
-                            line = line.replace(o+item+c, s)
-                    
-                    for item in ['shuffle','get','choose']:
-                        while o+item+":" in line:
-                            start = line.find('{'+item+':')
-                            end = line.find('}', start)
-                            
-                            l = getValue(line[start+2+len(item):end], mode=item)
-                            if type(l) is int:
-                                l = str(l)
-                            elif type(l) is list:
-                                l = ','.join([str(x) for x in l])
-                            line = line.replace(line[start:end+1], l)
-                    while o in line:
-                        start = line.find(o)
-                        end = line.find(c, start)
-                        
-                        line = line.replace(line[start:end+1], str(getValue(line[start+1:end])))
-            
             # remove single line comments
             for sep in commentSep:
                 line = line.strip().split(sep,1)[0].strip()
@@ -672,6 +639,50 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                         blockComment = 0
             if blockComment>0:
                 line = ''
+            
+            # "EQU" replacement
+            for item in equ:
+                line = line.replace(item, equ[item])
+            
+            # {var} replacement
+            for o,c in varOpenClose:
+                if o in line and c in line:
+                    while o+":" in line:
+                        start = line.find('{:')
+                        end = line.find('}', start)
+                        
+                        line = line.replace(line[start:end+1], str(getValue(line[start+2:end])))
+                    
+                    for item in specialSymbols:
+                        if o+item+c in line:
+                            s = getSpecial(item)
+                            line = line.replace(o+item+c, s)
+                    
+                    for item in ['shuffle','get','choose','hexstring','format']:
+                        while o+item+":" in line:
+                            start = line.find('{'+item+':')
+                            end = line.find('}', start)
+                            
+                            if item == 'format':
+                                fmtStart = line.find(':',start)+1
+                                fmtEnd = line.find(':',fmtStart)
+                                fmtString = '{:' + line[fmtStart:fmtEnd] + '}'
+                                l = getValue(line[fmtEnd+1:end])
+                                l = fmtString.format(l)
+                            else:
+                                l = getValue(line[start+2+len(item):end], mode=item)
+                            
+                            if type(l) is int:
+                                l = str(l)
+                            elif type(l) is list:
+                                l = ','.join([str(x) for x in l])
+                            line = line.replace(line[start:end+1], l)
+                    
+                    while o in line:
+                        start = line.find(o)
+                        end = line.find(c, start)
+                        
+                        line = line.replace(line[start:end+1], str(getValue(line[start+1:end])))
             
             if ifLevel:
                 if ifData[ifLevel].bool == False:
@@ -693,8 +704,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             k = line.split(" ",1)[0].strip().lower()
             
             if k!='' and (k=="-"*len(k) or k=="+"*len(k)):
-                if not [k,addr] in aLabels:
-                    aLabels.append([k, addr])
+#                if not [k,addr] in aLabels:
+#                    aLabels.append([k, addr])
+                if not [k,currentAddress] in aLabels:
+                    aLabels.append([k, currentAddress])
                     
                     # update so rest of line can be processed
                     line = (line.split(" ",1)+[''])[1].strip()
@@ -797,6 +810,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
             elif k == 'seed':
                 v = getValue(line.split(" ")[1].strip())
                 random.seed(v)
+            elif k == 'outputfile':
+                outputFilename = getValueAsString(line.split(" ",1)[1].strip())
+            elif k == 'listfile':
+                listFilename = getValueAsString(line.split(" ",1)[1].strip())
+                
+                if listFilename.lower() in ('false','0','none', ''):
+                    listFilename = False
             
             # hidden internally used directive used with include paths
             if k == "setincludefolder":
@@ -1048,31 +1068,25 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                         elif getOpWithMode(k, "Relative"):
                             op = getOpWithMode(k, "Relative")
                 if op:
-                    
-                    if op.mode == 'Relative':
-                        if addr>getValue(v):
-                            v = str(0x100 - ((addr+op.length) - getValue(v)))
+                    if op.mode == 'Relative' and passNum==2:
+                        if getValue(v) > currentAddress+op.length:
+                            v = getValue(v) - (currentAddress+op.length)
+                            v='${:02x}'.format(v)
                         else:
-                            v = str(getValue(v) - (addr+op.length))
-#                    if op.mode == 'Relative':
-#                        if currentAddress>getValue(v):
-#                            v = str(0x100 - ((currentAddress+op.length) - getValue(v)))
-#                        else:
-#                            v = str(getValue(v) - (currentAddress+op.length))
+                            v = (currentAddress+op.length) - getValue(v)
+                            v='${:02x}'.format(0x100 - v)
                     
                     v,l = getValueAndLength(v)
                     l = bytesForNumber(v)
+                    
                     if (op.length>1) and l>op.length-1:
                         b = [op.byte] + [0] * (op.length-1)
                         errorText= 'out of range: {} {} {}'.format(op.length, hex(v),l)
                     else:
                         b = [op.byte]
                         if op.length == 2:
-                            #b.append(getValue(v) % 0x100)
                             b.append(v % 0x100)
                         elif op.length == 3:
-#                            b.append(getValue(v) % 0x100)
-#                            b.append(math.floor(getValue(v)/0x100))
                             b.append(v % 0x100)
                             b.append(math.floor(v/0x100))
             
@@ -1093,7 +1107,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                 k = line[:line.lower().find(' equ ')]
                 v = line[line.lower().find(' equ ')+len(' equ '):]
                 equ[k] = v
-            #elif '=' in line:
             elif (line.split('=')+[''])[1]:
                 k = line.split("=",1)[0].strip()
                 v = line.split("=",1)[1].strip()
@@ -1168,9 +1181,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData):
                     errorText = False
             if k==".org": showAddress = True
     if passNum == 2:
-        with open(listFilename, 'w') as file:
-            print(outputText, file=file)
-            print('{} written.'.format(listFilename))
+        if listFilename:
+            with open(listFilename, 'w') as file:
+                print(outputText, file=file)
+                print('{} written.'.format(listFilename))
 
         with open(outputFilename, "wb") as file:
             file.write(bytes(out))

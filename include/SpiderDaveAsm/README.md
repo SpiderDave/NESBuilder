@@ -93,6 +93,13 @@ Comments:
     print {get:$9015} ; print the byte at $9015 in current bank.
 ```
     
+    format
+        format to a string
+    
+```
+    print {$04x:99} ; prints $0063.
+```
+    
 ## Special Symbols ##
     
     sdasm
@@ -312,6 +319,22 @@ incbin / bin
     
 ```
     include chr00.chr
+```
+    
+outputfile
+    
+    Set the output filename.
+    
+```
+    outputfile "game.nes"
+```
+    
+listfile
+    
+    Set the list filename.
+    
+```
+    outputfile "list.txt"
 ```
     
 print

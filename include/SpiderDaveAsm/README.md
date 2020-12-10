@@ -86,11 +86,18 @@ Comments:
     db {shuffle:$00, $01, $02, $03, $04} ; outputs 5 bytes in random order
 ```
     
-    get
+    getbyte
         Get a byte at given address.
     
 ```
-    print {get:$9015} ; print the byte at $9015 in current bank.
+    print {getbyte:$9015} ; print the byte at $9015 in current bank.
+```
+    
+    getword
+        Get a word at given address.
+    
+```
+    print {getword:$9015} ; print the word at $9015 in current bank.
 ```
     
     format

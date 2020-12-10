@@ -31,6 +31,60 @@ def inScriptFolder(f):
     return os.path.join(os.path.dirname(os.path.realpath(__file__)),f)
 
 
+class Assembler():
+    currentFolder = None
+    initialFolder = None
+    currentTextMap = 'default'
+    textMap = {}
+
+    def __init__(self):
+        pass
+    def dummy(self):
+        pass
+    def mapText(self, text):
+        #print("Mapping text:", text)
+        textMap = self.textMap.get(self.currentTextMap, {})
+        
+        return [textMap.get(x, ord(x)) for x in text]
+    def setTextMap(self, name):
+        self.currentTextMap = name
+    def getTextMap(self):
+        return self.currentTextMap
+    def clearTextMap(self, name=False):
+        if not name:
+            name = self.currentTextMap
+        if name in self.textMap:
+            self.textMap.pop(name)
+    def setTextMapData(self, chars, mapTo):
+        textMap = self.textMap.get(self.currentTextMap, {})
+        textMap.update(dict(zip(chars,bytearray.fromhex(mapTo))))
+        
+        self.textMap[self.currentTextMap] = textMap
+    def findFile(self, filename):
+        
+        # Search for files in this order:
+        #   Exact match
+        #   Relative to current script folder
+        #   Relative to initial script folder
+        #   Relative to current working folder
+        #   Relative to top level of initial script folder
+        #   Relative to executable folder
+        files = [
+            filename,
+            os.path.join(self.currentFolder,filename),
+            os.path.join(self.initialFolder,filename),
+            os.path.join(os.getcwd(),filename),
+            os.path.join(str(pathlib.Path(*pathlib.Path(self.initialFolder).parts[:1])),filename),
+            os.path.join(os.path.dirname(os.path.realpath(__file__)),filename),
+        ]
+        
+        for f in files:
+            if os.path.isfile(f): return f
+        
+        return False
+
+assembler = Assembler()
+
 
 operations = {
 #    '-':operator.sub,
@@ -94,7 +148,7 @@ directives = [
     'arch',
     'index','mem','bank','banksize','header','define',
     '_find',
-    'seed','outputfile','listfile',
+    'seed','outputfile','listfile','textmap','text',
 ]
 
 asm=[
@@ -259,7 +313,7 @@ implied = [x.opcode for x in asm if x.mode=='Implied']
 accumulator = [x.opcode for x in asm if x.mode=="Accumulator"]
 ifDirectives = ['if','endif','else','elseif','ifdef','ifndef','iffileexist','iffile']
 
-mergeList = lambda a,b: [(a[i], b[i]) for i in range(0, len(a))]
+mergeList = lambda a,b: [(a[i], b[i]) for i in range(min(len(a),len(b)))]
 makeHex = lambda x: '$'+x.to_bytes(((x.bit_length()|1  + 7) // 8),"big").hex()
 
 specialSymbols = ['sdasm','bank','randbyte','randword']
@@ -303,15 +357,18 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     def getValueAsString(s):
         return getString(getValue(s))
     
-    def getString(s):
+    def getString(s, strip=True):
         if type(s) is list:
             s = bytes(s).decode()
         
-        s=s.strip()
+        if strip:
+            s=s.strip()
         
         quotes = ['"""','"',"'"]
         for q in quotes:
-            if s.startswith(q) and s.endswith(q):
+            #if s.startswith(q) and s.endswith(q):
+            if s.strip().startswith(q) and s.strip().endswith(q):
+                s=s.strip()
                 s=s[len(q):-len(q)]
                 return s
         return s
@@ -336,27 +393,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         else:
             return v
     def findFile(filename):
-        
-        # Search for files in this order:
-        #   Exact match
-        #   Relative to current script folder
-        #   Relative to initial script folder
-        #   Relative to current working folder
-        #   Relative to top level of initial script folder
-        #   Relative to executable folder
-        files = [
-            filename,
-            os.path.join(currentFolder,filename),
-            os.path.join(initialFolder,filename),
-            os.path.join(os.getcwd(),filename),
-            os.path.join(str(pathlib.Path(*pathlib.Path(initialFolder).parts[:1])),filename),
-            os.path.join(os.path.dirname(os.path.realpath(__file__)),filename),
-        ]
-        
-        for f in files:
-            if os.path.isfile(f): return f
-        
-        return False
+        return assembler.findFile(filename)
     
     def makeList(item):
         if type(item)!=list:
@@ -489,20 +526,29 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         elif v.lower() in specialSymbols:
             v, l = getValueAndLength(getSpecial(v.lower()))
         else:
+            if passNum==2:
+                #errorText= 'invalid value: {}'.format(v)
+                #print('*** '+errorText)
+                pass
             v = 0
             l = -1
         
-        if mode == 'get':
+        if mode == 'getbyte':
             # this looks like the right result but i don't know why
             # i have to subtract the 0x4000
-            fileOffset = v - 0x8000 + (bank * bankSize) + headerSize - 0x4000
-#            print('*'*10)
-#            print('v=', hex(v))
-#            print('bank=', hex(bank))
-#            print('bankSize=', hex(bankSize))
-#            print('fileOffset=', hex(fileOffset))
+            if bank:
+                fileOffset = v - 0x8000 + (bank * bankSize) + headerSize - 0x4000
+            else:
+                fileOffset = v - 0x8000 + headerSize - 0x4000
             v = int(out[fileOffset])
             l = 1
+        if mode == 'getword':
+            if bank:
+                fileOffset = v - 0x8000 + (bank * bankSize) + headerSize - 0x4000
+            else:
+                fileOffset = v - 0x8000 + headerSize - 0x4000
+            v = int(out[fileOffset]) + int(out[fileOffset+1]) * 0x100
+            l = 2
         
         if mode == 'hexstring':
             v = "test"
@@ -546,8 +592,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     print('sdasm')
     print(filename)
     
-    initialFolder = os.path.split(filename)[0]
-    currentFolder = initialFolder
+    assembler.initialFolder = os.path.split(filename)[0]
+    assembler.currentFolder = assembler.initialFolder
+    print(assembler.findFile('list.txt'))
 
     # Doing it this way removes the line endings
     lines = file.read().splitlines()
@@ -596,9 +643,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         
         outputText = ''
         startAddress = False
-#        currentFolder = ''
-#        currentFolder = os.path.split(filename)[0]
-        currentFolder = initialFolder
+#        assembler.currentFolder = ''
+#        assembler.currentFolder = os.path.split(filename)[0]
+        assembler.currentFolder = assembler.initialFolder
         ifLevel = 0
         ifData = Map()
         arch = 'nes.cpu'
@@ -661,7 +708,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                             s = getSpecial(item)
                             line = line.replace(o+item+c, s)
                     
-                    for item in ['shuffle','get','choose','hexstring','format']:
+                    for item in ['shuffle','getbyte','getword','choose','hexstring','format']:
                         while o+item+":" in line:
                             start = line.find('{'+item+':')
                             end = line.find('}', start)
@@ -822,6 +869,26 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             elif k == 'seed':
                 v = getValue(line.split(" ")[1].strip())
                 random.seed(v)
+            elif k == 'textmap':
+                data = line.split(' ',1)[1]
+                
+                if data.lower() == 'clear':
+                    assembler.clearTextMap()
+                else:
+                    data = data.split()
+                    if data[0].lower() == 'space':
+                        data[0] = ' '
+                    elif '...' in data[0]:
+                        c1,c2 = data[0].split('...')
+                        data[0] = ''.join([chr(c) for c in range(ord(c1), ord(c2)+1)])
+                        
+                        n1 = int(data[1],16)
+                        data[1] = ''.join(['{:02x}'.format(x) for x in range(n1,n1+len(data[0]))])
+                    
+                    if data[0].lower() == 'set':
+                        assembler.setTextMap(data[1])
+                    else:
+                        assembler.setTextMapData(data[0], data[1])
             elif k == 'outputfile':
                 outputFilename = getValueAsString(line.split(" ",1)[1].strip())
             elif k == 'listfile':
@@ -832,7 +899,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             
             # hidden internally used directive used with include paths
             if k == "setincludefolder":
-                currentFolder = (line.split(" ",1)+[''])[1].strip()
+                assembler.currentFolder = (line.split(" ",1)+[''])[1].strip()
                 hide = True
             
             elif k == "incbin" or k == "bin":
@@ -848,7 +915,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     print("Could not open file.")
                 if b:
                     fileList.append(filename)
-                    lines = lines[:i]+['']+['setincludefolder '+currentFolder]+lines[i+1:]
+                    lines = lines[:i]+['']+['setincludefolder '+assembler.currentFolder]+lines[i+1:]
             elif k == "include" or k=="incsrc":
                 filename = line.split(" ",1)[1].strip()
                 filename = getString(filename)
@@ -865,8 +932,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     fileList.append(filename)
                     folder = os.path.split(filename)[0]
                     
-                    newLines = ['setincludefolder '+folder]+newLines+['setincludefolder '+currentFolder]
-                    currentFolder = folder
+                    newLines = ['setincludefolder '+folder]+newLines+['setincludefolder '+assembler.currentFolder]
+                    assembler.currentFolder = folder
                     
                     lines = lines[:i]+['']+newLines+lines[i+1:]
             elif k == 'includeall':
@@ -913,6 +980,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             
             if k in macros:
                 params = (line.split(" ",1)+[''])[1].replace(',',' ').split()
+                
+                for item in macros[k].params:
+                    if item.lower() in symbols:
+                        symbols.pop(item.lower())
                 
                 for item in mergeList(macros[k].params, params):
                     symbols[item[0].lower()] = item[1]
@@ -965,7 +1036,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 n = getValue(data.split(',')[0])
                 
                 b = b + ([fv] * n)
-            elif k == "align":
+            elif k == 'align':
                 data = line.split(' ',1)[1]
                 
                 fv = fillValue
@@ -975,7 +1046,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 
                 b = b + ([fv] * ((a-currentAddress%a)%a))
                 
-            elif k == "hex":
+            elif k == 'hex':
                 data = line.split(' ',1)[1]
                 b = b + list(bytes.fromhex(''.join(['0'*(len(x)%2) + x for x in data.split()])))
             
@@ -1005,6 +1076,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 for v in [getValue(x) >>8 for x in values]:
                     b = b + makeList(v)
             
+            elif k == 'text':
+                values = line.split(' ',1)[1]
+                values = getValue(values)
+                values = assembler.mapText(getString(values, strip=False))
+                #values = getValue(values)
+                b = b + makeList(values)
             elif k == 'db' or k=='byte' or k == 'byt' or k == 'dc.b':
                 values = line.split(' ',1)[1]
                 values = getValue(values)
@@ -1093,7 +1170,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     
                     if (op.length>1) and l>op.length-1:
                         b = [op.byte] + [0] * (op.length-1)
-                        errorText= 'out of range: {} {} {}'.format(op.length, hex(v),l)
+                        #errorText= 'out of range: {} {} {}'.format(op.length, hex(v),l)
+                        errorText= 'branch out of range: {}'.format(hex(v))
                     else:
                         b = [op.byte]
                         if op.length == 2:
@@ -1190,6 +1268,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     outputText+="{} {}\n".format(listBytes, originalLine)
                 if errorText:
                     outputText+='*** {}\n'.format(errorText)
+                    print(line)
+                    print('*** {}\n'.format(errorText))
                     errorText = False
             if k==".org": showAddress = True
     if passNum == 2:

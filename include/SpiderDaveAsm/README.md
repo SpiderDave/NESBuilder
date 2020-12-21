@@ -81,14 +81,41 @@ Comments:
     file = foobar
     include {file}.asm
 ```
+
+## Filters ##
     
-    There are a number of special formats using the format {name:data}
+    There are a number of special "filters" using the format {filter: data}
     
     shuffle
         Shuffle a list of bytes.
     
 ```
     db {shuffle:$00, $01, $02, $03, $04} ; outputs 5 bytes in random order
+```
+    
+    choose
+        Choose a random item from a list.
+    
+```
+    db {choose:$00, $01, $02} ; outputs either $01, $02 or $03
+```
+    
+    random
+        Generate a random number.
+    
+```
+    db {random:256} ; outputs a random number from 0 to 255.
+    db {random:5,10} ; outputs a random number from 5 to 9.
+```
+    
+    range
+        Generate a range of numbers.
+    
+```
+    db {range:3} ; outputs 0,1,2,3
+    db {range:5,10} ; outputs 5,6,7,8,9,10
+    db {range:0,10,2} ; outputs 0,2,4,6,8,10
+    db {range:5,0,-1} ; outputs 5,4,3,2,1,0
 ```
     
     getbyte
@@ -112,6 +139,13 @@ Comments:
     print {$04x:99} ; prints $0063.
 ```
     
+    textmap
+        apply textmap to a string
+    
+```
+    db {textmap:"HELLO"} ; Works the same as text "HELLO"
+```
+    
 ## Special Symbols ##
     
     sdasm
@@ -119,6 +153,24 @@ Comments:
     
     bank
         current bank
+    
+    lastbank
+        last prg bank
+    
+    lastchr
+        last chr bank
+    
+    banksize
+        current bank size
+    
+    prgbanks
+        number of prg banks
+    
+    chrbanks
+        number of chr banks
+    
+    fileoffset
+        current file offset
     
     year, month, day, hour, minute, second
         appropriate numerical time value
@@ -163,6 +215,26 @@ Comments:
 ## Directives ##
     Most directives may optionally be prefixed with a ".".
 
+header / noheader
+
+    Used to indicate the rom contains a 16-byte iNES header.  This is used
+    for calculating addresses.
+    
+```
+    header      ; rom contains a header
+    
+    noheader    ; rom does not contain a header
+```
+    
+stripheader
+
+    Used to indicate the rom contains a header, but it should be removed when
+    generating the final binary.
+    
+```
+    stripheader ; rom contains a header, but it should be removed after assembling.
+```
+    
 =
 define
 
@@ -219,6 +291,10 @@ banksize
     
     Set the size of each PRG bank.
     
+chrsize
+    
+    Set the size of each CHR bank.
+    
 bank
     
     Set the current bank.
@@ -234,6 +310,14 @@ bank
         lda #$08 ; start with 9 lives
 ```
 
+chr
+    
+    Set the current chr bank.  Internally, this will set the bank to the
+    chr area and adjust the address.
+
+```
+    chr 0   ; Start of chr area
+```
 
 fillvalue
 
@@ -336,6 +420,27 @@ incbin / bin
     
     ; include 32 bytes from file.dat starting at file offset 16.
     incbin "file.dat", $10, $20
+```
+    
+incchr
+    
+    Include an image file as chr data.  The palette used should be set with
+    setpalette as an index of the palette loaded with loadpalette (or the
+    default palette, which is identical to FCEUX.pal).
+    
+```
+    setpalette $22, $16, $27, $18
+    
+    chr 0
+    incchr "smbchr0.png"
+```
+    
+loadpalette
+    
+    Load a palette file (.pal).  Palette files should be 192 bytes--3 bytes per color, 64 colors.
+    
+```
+    loadpalette "FCEUX.pal"
 ```
     
 outputfile

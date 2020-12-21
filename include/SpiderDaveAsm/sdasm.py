@@ -1,7 +1,7 @@
 """
 Bugs/Broken:
     * anonymous labels are not working properly
-
+    
 ToDo:
     * allow strings in instructions:
         lda "A"-$4b
@@ -17,10 +17,15 @@ ToDo:
 
 
 import math, os, sys
-from . import include
+try:
+    from . import include
+except:
+    import include
 Cfg = include.Cfg
 import time
 from datetime import date
+
+import re
 
 import pathlib
 import operator
@@ -28,6 +33,14 @@ import operator
 import random
 
 from textwrap import dedent
+
+
+try:
+    from PIL import ImageTk, Image, ImageDraw, ImageOps, ImageGrab
+    PIL = True
+except:
+    PIL = False
+
 
 #try: import numpy as np
 #except: np = False
@@ -43,6 +56,62 @@ version = dict(
     url = 'https://github.com/SpiderDave/SpiderDaveAsm',
 )
 version.update(version = 'v{} {}'.format(version.get('buildDate'), version.get('stage')))
+
+defaultPalette=[
+    [116, 116, 116], [36, 24, 140], [0, 0, 168], [68, 0, 156],[140, 0, 116],
+    [168, 0, 16],[164, 0, 0],[124, 8, 0],[64, 44, 0],[0, 68, 0],[0, 80, 0],
+    [0, 60, 20],[24, 60, 92],[0, 0, 0],[0, 0, 0],[0, 0, 0],[188, 188, 188],
+    [0, 112, 236],[32, 56, 236],[128, 0, 240],[188, 0, 188],[228, 0, 88],
+    [216, 40, 0],[200, 76, 12],[136, 112, 0],[0, 148, 0],[0, 168, 0],
+    [0, 144, 56],[0, 128, 136],[0, 0, 0],[0, 0, 0],[0, 0, 0],[252, 252, 252],
+    [60, 188, 252],[92, 148, 252],[204, 136, 252],[244, 120, 252],
+    [252, 116, 180],[252, 116, 96],[252, 152, 56],[240, 188, 60],
+    [128, 208, 16],[76, 220, 72],[88, 248, 152],[0, 232, 216],[120, 120, 120],
+    [0, 0, 0],[0, 0, 0],[252, 252, 252],[168, 228, 252],[196, 212, 252],
+    [212, 200, 252],[252, 196, 252],[252, 196, 216],[252, 188, 176],
+    [252, 216, 168],[252, 228, 160],[224, 252, 160],[168, 240, 188],
+    [176, 252, 204],[156, 252, 240],[196, 196, 196],[0, 0, 0],[0, 0, 0],
+]
+
+def imageToCHRData(f, colors=False, x=0,y=0, rows=False, cols=False):
+    try:
+        with Image.open(f) as im:
+            px = im.load()
+    except:
+        print("error loading image")
+        return
+    
+    width, height = im.size
+    if rows:
+        height = rows*8
+    if cols:
+        width = cols*8
+    
+    (left, upper, right, lower) = (x, y, width, height)
+    im = im.crop((left, upper, right, lower))
+    
+    w = math.floor(width/8)*8
+    h = math.floor(height/8)*8
+    nTiles = int(w/8 * h/8)
+    
+    out = []
+    for t in range(nTiles):
+        tile = [[]]*16
+        for y in range(8):
+            tile[y] = 0
+            tile[y+8] = 0
+            for x in range(8):
+                for i in range(4):
+                    if list(px[x+(t*8) % w, y + math.floor(t/(w/8))*8]) == colors[i]:
+                        tile[y] += (2**(7-x)) * (i%2)
+                        tile[y+8] += (2**(7-x)) * (math.floor(i/2))
+        
+        for i in range(16):
+            out.append(tile[i])
+    
+    ret = out
+    
+    return ret
 
 def flattenList(k):
     result = list()
@@ -64,6 +133,10 @@ class Assembler():
     initialFolder = None
     currentTextMap = 'default'
     textMap = {}
+    errorLinePos = False
+    palette = defaultPalette[:]
+    currentPalette = [0x0f,0x01,0x11,0x30]
+    stripHeader = False
 
     def __init__(self):
         pass
@@ -88,6 +161,21 @@ class Assembler():
         textMap.update(dict(zip(chars,bytearray.fromhex(mapTo))))
         
         self.textMap[self.currentTextMap] = textMap
+    def loadPalette(self, filename):
+        try:
+            file = open(filename, "rb")
+        except:
+            print("Error: could not open file.")
+        p = list(file.read())
+        p = [p[i:i + 3] for i in range(0, len(p), 3)]
+        self.palette = p
+        
+        
+#        for item in p:
+#            print(item, end=',\n')
+        
+        
+        return p
     def findFile(self, filename):
         
         # Search for files in this order:
@@ -174,11 +262,18 @@ directives = [
     'macro','endm','endmacro',
     'if','ifdef','ifndef','else','elseif','endif','iffileexist','iffile',
     'arch',
-    'index','mem','bank','banksize','header','noheader','define',
-    '_find',
+    'index','mem','bank','banksize','chrsize','header','noheader','stripheader',
+    'define', '_find',
     'seed','outputfile','listfile','textmap','text','insert',
     'inesprg','ineschr','inesmir','inesmap','inesbattery','inesfourscreen',
-    'orgpad',
+    'inesworkram','inessaveram','ines2',
+    'orgpad','quit','incchr','chr','setpalette','loadpalette',
+]
+
+filters = [
+    'shuffle','getbyte','getword','choose',
+    'format','random','range','textmap',
+    'evalvar',
 ]
 
 asm=[
@@ -335,6 +430,23 @@ Map(opcode = 'txs', mode = 'Implied', byte = 154, length = 1),
 Map(opcode = 'tya', mode = 'Implied', byte = 152, length = 1),
 ]
 
+nesRegisters = Map(
+PPUCTRL = 0x2000, PPUMASK = 0x2001, PPUSTATUS = 0x2002,
+OAMADDR = 0x2003, OAMDATA = 0x2004, PPUSCROLL = 0x2005,
+PPUADDR = 0x2006, PPUDATA = 0x2007, OAMDMA = 0x4014,
+SQ1VOL = 0x4000, SQ1SWEEP = 0x4001, SQ1LO = 0x4002,
+SQ1HI = 0x4003, 
+SQ2VOL = 0x4004, SQ2SWEEP = 0x4005, SQ2LO = 0x4006,
+SQ2HI = 0x4007,
+TRILINEAR = 0x4008, TRILO = 0x400A, TRIHI = 0x400B,
+NOISEVOL = 0x400C, NOISELO = 0x400E, NOISEHI = 0x400F,
+DMCFREQ = 0x4010, DMCRAW = 0x4011, DMCSTART = 0x4012,
+DMCLEN = 0x4013,
+APUSTATUS = 0x4015, APUFRAME = 0x4017,
+JOY = 0x4016, JOY1 = 0x4016, JOY2 = 0x4017,
+)
+
+nesRegisters = Map({x.lower():y for x,y in nesRegisters.items()})
 
 # Converting to dictionary removes duplicates
 opcodes = list(dict.fromkeys([x.opcode for x in asm]))
@@ -346,10 +458,15 @@ ifDirectives = ['if','endif','else','elseif','ifdef','ifndef','iffileexist','iff
 mergeList = lambda a,b: [(a[i], b[i]) for i in range(min(len(a),len(b)))]
 makeHex = lambda x: '$'+x.to_bytes(((x.bit_length()|1  + 7) // 8),"big").hex()
 
-specialSymbols = ['sdasm','bank','banksize','randbyte','randword','fileoffset']
+specialSymbols = [
+    'sdasm','bank','banksize','chrsize','randbyte','randword','fileoffset',
+    'prgbanks','chrbanks','lastbank','lastchr',
+]
+
 timeSymbols = ['year','month','day','hour','minute','second']
 
 specialSymbols+= timeSymbols
+specialSymbols+= [x.lower() for x in nesRegisters.keys()]
 
 def assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False):
     if not configFile:
@@ -382,13 +499,23 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile)
 
 def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
-    def bytesForNumber(n):
-        return len(hex(n))-1 >>1
     
+    def bytesForNumber(n):
+        if type(n) is int:
+            l = len(hex(n))-1 >>1
+        elif type(n) is str:
+            l = len(n)
+        elif type(n) is list:
+            l = len(n)
+        
+        return l
     def getValueAsString(s):
         return getString(getValue(s))
     
     def getString(s, strip=True):
+        if type(s) is int:
+            return False
+        
         if type(s) is list:
             s = bytes(s).decode()
         
@@ -417,6 +544,14 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 return ''
             else:
                 return str(bankSize)
+        elif s == 'chrsize':
+            return str(chrSize)
+        elif s == 'prgbanks':
+            return str(out[4])
+        elif s == 'lastbank':
+            return str(out[4]-1)
+        elif s == 'chrbanks' or s == 'lastchr':
+            return str(out[5])
         elif s == 'fileoffset':
             if bank:
                 return str(addr + bank * bankSize + headerSize)
@@ -429,6 +564,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             return '${:04x}'.format(random.randrange(0x10000))
         elif s in timeSymbols:
             v = list(datetime.now().timetuple())[timeSymbols.index(s)]
+        elif s in nesRegisters:
+            v = nesRegisters[s]
+            return '${:04x}'.format(v)
+        else:
+            v = 0
+            l = 1
         if type(v) in (int,float):
             return makeHex(v)
         else:
@@ -452,8 +593,44 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         return all([x in "0123456789" for x in str(v)])
 
     def getValueAndLength(v, mode=False, param=False, hint=False):
+        assembler.errorHint = False
         if type(v) is int:
             l = 1 if v <=256 else 2
+            return v,l
+        
+        if mode == 'choose':
+            v = v.split(',')
+            random.shuffle(v)
+            v=v[0]
+            l=1
+            return v,l
+        
+        if mode == 'range':
+            v=v.split(',')
+            v = [getValue(x) for x in v]
+            if len(v) == 1:
+                v[0]+=1
+            elif len(v) == 2:
+                v[1]+=1
+            elif len(v) == 3:
+                v[1]+=v[2]
+            
+            v = list(range(*v))
+            l = len(v)
+            return v,l
+        if mode == 'evalvar':
+            print(v)
+            v,l = getValueAndLength(v)
+            return v,l
+        if mode == 'random':
+            v=v.split(',',1)
+            r1 = getValue(v[0])
+            if len(v) == 2:
+                r2 = getValue(v[1])
+            else:
+                r2 = None
+            v = random.randrange(r1,r2)
+            l = 1
             return v,l
         
         if v.startswith("[") and v.endswith("]"):
@@ -471,10 +648,22 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             v = v.split(",y")[0]
         if v.startswith("(") and v.endswith(")"):
             v = v[1:-1]
-        
+        if '(' in v and ')' in v:
+            result = re.findall('\(([^\(].*?)\)', v)
+            if result:
+                for item in result:
+                    item = '('+item+')'
+                    v = v.replace(item, str(getValue(item)))
         if v=='':
             return 0,0
         
+        if v.startswith('"') and v.endswith('"'):
+            if mode == 'textmap':
+                v = assembler.mapText(v[1:-1])
+            else:
+                v = list(bytes(v[1:-1], 'utf-8'))
+            l=len(v)
+            return v, l
         
         if ',' in v:
             v = [getValue(x) for x in v.split(',')]
@@ -489,11 +678,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             return v,l
         if v.startswith('-'):
             label = v.split(' ',1)[0]
+#            print(label)
+#            print(aLabels)
+#            print('cadr=',currentAddress)
+#            print([x[1] for x in aLabels if x[0]==label and x[1]<currentAddress])
             if len(aLabels) > 0:
-                return [x[1] for x in aLabels if x[0]==label and x[1]<currentAddress][-1], 2
-            else:
-                # negative number?
-                return -1, 0
+                foundAddresses = [x[1] for x in aLabels if x[0]==label and x[1]<currentAddress]
+                if len(foundAddresses) !=0:
+                    return foundAddresses[-1], 2
+            # negative number?
+            return int(v), 0
         if v.startswith('+'):
             label = v.split(' ',1)[0]
             try:
@@ -531,10 +725,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
 #                r = v[commaPos+1:]
                 
 
-        if v.startswith('"') and v.endswith('"'):
-            v = list(bytes(v[1:-1], 'utf-8'))
-            l=len(v)
-            return v, l
+#        if v.startswith('"') and v.endswith('"'):
+#            if mode == 'textmap':
+#                v = assembler.mapText(v[1:-1])
+#            else:
+#                v = list(bytes(v[1:-1], 'utf-8'))
+#            l=len(v)
+#            return v, l
         # ToDo: tokenize, allow (), implement proper order of operations.
         if '+' in v:
             v = v.split('+')
@@ -601,8 +798,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 #errorText= 'invalid value: {}'.format(v)
                 #print('*** '+errorText)
                 pass
+            assembler.errorHint = "invalid value"
             v = 0
             l = -1
+        
+        if mode == 'textmap':
+            v = assembler.mapText(bytearray(makeList(v)).decode('utf8'))
+            l = len(v)
         
         if mode == 'getbyte':
             # this looks like the right result but i don't know why
@@ -621,14 +823,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             v = int(out[fileOffset]) + int(out[fileOffset+1]) * 0x100
             l = 2
         
-        if mode == 'hexstring':
-            v = "test"
-            l=len(v)
-#        if mode == 'format':
-#            fmtString = '{:' + param + '}'
-#            print('v = ',v)
-#            v = fmtString.format(v)
-#            l=len(v)
         return v, l
 
     def getValue(v, mode=False, param=False, hint=False):
@@ -697,10 +891,17 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     blockComment = 0
     
     if binFile:
-        binFile = assembler.findFile(binFile)
-        with open(binFile,'rb') as file:
-            fileData = file.read()
-    
+        filename = assembler.findFile(binFile)
+        if filename:
+            try:
+                with open(filename,'rb') as file:
+                    fileData = file.read()
+            except:
+                print("Could not load file: {}".format(filename))
+                return
+        else:
+            print("Could not find file: {}".format(binFile))
+            return
     for passNum in (1,2):
         lines = originalLines
         addr = 0
@@ -737,6 +938,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         arch = 'nes.cpu'
         headerSize = 0
         bankSize = 0x10000
+        chrSize = 0x2000
         bank = None
         orgPad = int(cfg.getValue('main', 'orgPad'))
         
@@ -753,6 +955,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             #currentAddress = addr
             originalLine = line
             errorText = False
+            assembler.errorLinePos = False
             
             #print(originalLine)
             
@@ -795,7 +998,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                             s = getSpecial(item)
                             line = line.replace(o+item+c, s)
                     
-                    for item in ['shuffle','getbyte','getword','choose','hexstring','format']:
+                    for item in filters:
                         while o+item+":" in line:
                             start = line.find('{'+item+':')
                             end = line.find('}', start)
@@ -918,7 +1121,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 ifLevel+=1
                 ifData[ifLevel] = Map()
                 
+                invert = False
                 data = line.split(" ",1)[1].strip().replace('==','=')
+                if data.split(" ")[0].strip().lower() == 'not':
+                    data = data.split(' ',1)[1]
+                    invert = True
                 
                 if '=' in data:
                     l,r = data.split('=')
@@ -933,9 +1140,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         ifData[ifLevel].done = True
                     else:
                         ifData[ifLevel].bool = False
-#                if ifLevel>1 and ifData[ifLevel-1].done == True:
-#                    ifData[ifLevel].bool = False
-
+                if invert:
+                    ifData[ifLevel].bool = not ifData[ifLevel].done
             if k == 'else':
                 ifData[ifLevel].bool = not ifData[ifLevel].done
             elif k == 'endif':
@@ -946,16 +1152,42 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     print('  Architecture: {}'.format(arch))
             elif k == 'noheader':
                 headerSize = 0
+                assembler.stripHeader = False
             elif k == 'header':
                 headerSize = 16
+                assembler.stripHeader = False
+            elif k == 'stripheader':
+                headerSize = 16
+                assembler.stripHeader = True
             elif k == 'banksize':
                 bankSize = getValue(line.split(" ")[1].strip())
+            elif k == 'chrsize':
+                chrSize = getValue(line.split(" ")[1].strip())
             elif k == 'bank':
                 v = line.split(" ")[1].strip()
-                
                 bank = getValue(v)
+
+                # bank resets
+                currentAddress = 0x8000
+                addr = bank * bankSize
+            elif k == 'chr':
+                v = getValue(line.split(" ")[1].strip())
+                
+                bank = int((getValue('prgbanks') * 0x4000) / bankSize)
+                
+                # bank resets
+                currentAddress = chrSize*v
+                addr = chrSize*v
+            elif k == 'setpalette':
+                v = getValue(line.split(" ",1)[1].strip())
+                assembler.currentPalette = v
+            elif k == 'quit':
+                v = (line.split(" ",1)[1:]+[''])[0]
+                print('*** quit ***\n{}\n'.format(v))
+                return
             elif k == 'inesprg':
                 out[4] = getValue(line.split(" ")[1].strip())
+                print('setting prg to ',out[4])
             elif k == 'ineschr':
                 out[5] = getValue(line.split(" ")[1].strip())
             elif k == 'inesmir':
@@ -963,9 +1195,18 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 out[6] = (out[6] & 0xfe) | v
             elif k == 'inesbattery':
                 v = getValue(line.split(" ")[1].strip())
-                print(hex(out[6]))
+                #print(hex(out[6]))
                 out[6] = (out[6] & 0xfd) | v<<1
-                print(hex(out[6]))
+                #print(hex(out[6]))
+            elif k == 'ines2':
+                v = getValue(line.split(" ")[1].strip())
+                out[7] = (out[7] & 0xf3) | v<<3
+            elif k == 'inesworkram':
+                v = getValue(line.split(" ")[1].strip())
+                out[10] = (out[10] & 0xf0) | v
+            elif k == 'inessaveram':
+                v = getValue(line.split(" ")[1].strip())
+                out[10] = (out[10] & 0x0f) | v<<4
             elif k == 'inesfourscreen':
                 v = getValue(line.split(" ")[1].strip())
                 out[6] = (out[6] & 0xf7) | v<<3
@@ -973,12 +1214,14 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 v = getValue(line.split(" ")[1].strip())
                 out[6] = (out[6] & 0x0f) | (v & 0x0f)<<4
                 out[7] = (out[7] & 0x0f) | (v & 0xf0)
-                print(hex(v), hex(out[6]), hex(out[7]))
+                #print(hex(v), hex(out[6]), hex(out[7]))
             elif k == 'orgpad':
                 orgPad = getValue(line.split(" ")[1].strip())
             elif k == 'insert':
-                v = getValue(line.split(" ")[1].strip())
+                v = getValue(line.split(" ", 1)[1].strip())
                 fileOffset = addr + bank * bankSize + headerSize
+                
+                fv = fillValue
                 
                 out = out[:fileOffset]+([fv] * v)+out[fileOffset:]
                 
@@ -1019,6 +1262,41 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 assembler.currentFolder = (line.split(" ",1)+[''])[1].strip()
                 hide = True
             
+            elif k == 'loadpalette':
+                filename = line.split(" ",1)[1].strip()
+                filename = getString(filename)
+                filename = assembler.findFile(filename)
+                if filename:
+                    assembler.loadPalette(filename)
+                else:
+                    print("File not found.")
+            elif k == 'incchr':
+                if PIL:
+                    x, y, rows, cols = False, False, False, False
+                    filename = line.split(" ",1)[1].strip()
+                    if ',' in filename:
+                        arg = filename.split(',')[1:]
+                        arg = [getValue(x) for x in arg]
+                        if len(arg) == 4:
+                            x,y,cols,rows = arg
+                        if len(arg)==2:
+                            cols,rows = arg
+                        filename = filename.split(',')[0]
+                        
+                    filename = getString(filename)
+                    filename = assembler.findFile(filename)
+                    if filename:
+                        #22 16 27 18
+                        #colors = [[92, 148, 252], [216,40,0], [252,152,56], [136,112,0]]
+                        
+                        colors = [assembler.palette[x] for x in assembler.currentPalette]
+                        
+                        chrData = imageToCHRData(filename, colors=colors, x=x,y=y,rows=rows, cols=cols)
+                        b = b + chrData
+                    else:
+                        print("File not found.")
+                else:
+                    print('Error: PIL not available.')
             elif k == "incbin" or k == "bin":
                 l = line.split(" ",1)[1].strip()
                 
@@ -1134,11 +1412,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 currentAddress = addr
                 noOutput = False
             
-            elif k == '_base':
-                addr = getValue(line.split(' ',1)[1])
-                if startAddress == False:
-                    startAddress = addr
-                currentAddress = addr
+#            elif k == '_base':
+#                addr = getValue(line.split(' ',1)[1])
+#                if startAddress == False:
+#                    startAddress = addr
+#                currentAddress = addr
             elif k == 'base' or (k == 'org' and startAddress==False):
                 v = getValue(line.split(' ',1)[1])
                 if startAddress == False:
@@ -1153,6 +1431,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 else:
                     addr = addr + (v-currentAddress)
                     currentAddress += (v-currentAddress)
+                    
+#                    print('addr=',hex(addr))
+#                    print('currentAddress=',hex(currentAddress))
                     
                     if bank != None:
                         addr = addr % bankSize
@@ -1222,36 +1503,62 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             elif k == 'text':
                 values = line.split(' ',1)[1]
                 values = getValue(values)
-                values = assembler.mapText(getString(values, strip=False))
-                #values = getValue(values)
-                b = b + makeList(values)
+                values = getString(values, strip=False)
+                
+                if values == False:
+                    assembler.errorLinePos = len(line.split(' ',1)[0])+1
+                    errorText = "invalid value"
+                else:
+                    values = assembler.mapText(values)
+                    b = b + makeList(values)
             elif k == 'db' or k=='byte' or k == 'byt' or k == 'dc.b':
                 values = line.split(' ',1)[1]
-                values = getValue(values)
-                
-                b = b + makeList(values)
-                
-#                for v in [getValue(x) for x in values]:
-#                    b = b + makeList(v)
-                
-#                values = line.split(' ',1)[1].split(",")
-#                values = [x.strip() for x in values]
-                
-#                for v in [getValue(x) for x in values]:
-#                    b = b + makeList(v)
+                values, l = getValueAndLength(values)
+                assembler.errorLinePos = len(line.split(' ',1)[0])+1
+                if l==-1:
+                    errorText = assembler.errorHint or 'value out of range'
+                else:
+                    values = makeList(values)
+                    
+                    for value in values:
+                        if value>255:
+                            errorText = "value out of range"
+                            break
+                        if value < 0:
+                            value += 0x100
+                        b = b + [value]
                 
             elif k == "dw" or k=="word" or k=='dbyt' or k == 'dc.w':
-                values = line.split(' ',1)[1].split(",")
-                values = [x.strip() for x in values]
-                values = [getValue(x) for x in values]
+                values = line.split(' ',1)[1]
+                values, l = getValueAndLength(values)
+                if l==-1:
+                    errorText = assembler.errorHint or 'value out of range'
+                    assembler.errorLinePos = len(line.split(' ',1)[0])+1
+                else:
+                    values = makeList(values)
+                    
+                    for value in values:
+                        if value>65535:
+                            errorText = "value out of range"
+                            break
+                        if value < 0:
+                            value += 0x10000
+                        b = b + [value % 0x100, value>>8]
+
+
+#                values = line.split(' ',1)[1].split(",")
+#                values = [x.strip() for x in values]
+#                values = [getValue(x) for x in values]
                 
-                for value in values:
-                    b = b + [value % 0x100, value>>8]
+#                for value in values:
+#                    if value < 0:
+#                        value += 0x10000
+#                    b = b + [value % 0x100, value>>8]
                 
             elif k in opcodes:
                 # Special handling for pseudo opcode
                 # Example:
-                # nop $06 ; 6 nop instructions
+                # nop 6 ; 6 nop instructions
                 if k == 'nop':
                     v = (line.split(" ",1)+[''])[1].strip()
                     if v:
@@ -1270,6 +1577,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     ops = [x for x in asm if x.opcode==k]
                     
                     v = (line.split(" ",1)+[''])[1].strip()
+                    oldv = v
                     v=v.replace(', ',',').replace(' ,',',')
                     
                     if k == "jmp" and v.startswith("("):
@@ -1310,14 +1618,24 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         else:
                             v = (currentAddress+op.length) - getValue(v)
                             v='${:02x}'.format(0x100 - v)
-                    
                     v,l = getValueAndLength(v)
                     l = bytesForNumber(v)
                     
-                    if (op.length>1) and l>op.length-1:
+                    if type(v) is str:
+                        v = int.from_bytes(v.encode('utf8'),'little')
+                    elif type(v) is list:
+                        v = int.from_bytes(v,'little')
+                    
+                    if oldv == '#' or ((op.length>1) and l==0):
                         b = [op.byte] + [0] * (op.length-1)
-                        #errorText= 'out of range: {} {} {}'.format(op.length, hex(v),l)
-                        errorText= 'branch out of range: {}'.format(hex(v))
+                        assembler.errorLinePos = len(line)
+                        errorText= 'missing value'
+                    elif (op.length>1) and l>op.length-1:
+                        b = [op.byte] + [0] * (op.length-1)
+                        assembler.errorLinePos = line.find(oldv)
+                        if oldv.startswith('#'):
+                            assembler.errorLinePos += 1
+                        errorText= 'value out of range: {}'.format(hex(v))
                     else:
                         b = [op.byte]
                         if op.length == 2:
@@ -1431,20 +1749,38 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         listBytes = ' '.join(['{:02X}'.format(x) for x in b[:nBytes]]).ljust(3*nBytes-1) + ('..' if len(b)>nBytes else '  ')
                     outputText+="{} {}\n".format(listBytes, originalLine)
                 if errorText:
+                    if assembler.errorLinePos:
+                        outputText +=' '*38 + ' '*assembler.errorLinePos+'^\n'
                     outputText+='*** {}\n'.format(errorText)
+                    
                     print(line)
+                    if assembler.errorLinePos:
+                        print(' '*assembler.errorLinePos+'^')
                     print('*** {}\n'.format(errorText))
                     errorText = False
+                    assembler.errorLinePos = False
             if k==".org": showAddress = True
     if passNum == 2:
+        with open(outputFilename, "wb") as file:
+            invalidBytes = [(i,x) for (i,x) in enumerate(out) if x not in range(256)]
+            if len(invalidBytes)!=0:
+                outputText+='*** Invalid bytes:'
+                print('Invalid bytes:')
+                for a,b in invalidBytes:
+                    outputText += '{:05x}: {:02x}'.format(a,b)
+                    print('{:05x}: {:02x}'.format(a,b))
+                    out[a] = 0
+            
+            if assembler.stripHeader:
+                out = out[16:]
+            
+            file.write(bytes(out))
+            print('{} written.'.format(outputFilename))
+        
         if listFilename:
             with open(listFilename, 'w') as file:
                 print(outputText, file=file)
                 print('{} written.'.format(listFilename))
-
-        with open(outputFilename, "wb") as file:
-            file.write(bytes(out))
-            print('{} written.'.format(outputFilename))
 
         if debug:
             f = 'debug_symbols.txt'
@@ -1466,10 +1802,12 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='ASM 6502 Assembler made in Python')
     
-    parser.add_argument('-l', type=str, nargs=1, metavar="<file>",
+    parser.add_argument('-l', type=str, metavar="<file>",
                         help='Create a list file')
-    parser.add_argument('-bin', type=str, nargs=1, metavar="<file>",
+    parser.add_argument('-bin', type=str, metavar="<file>",
                         help='Include binary file')
+    parser.add_argument('-cfg', type=str, metavar="<file>",
+                        help='Specify config file')
 #    parser.add_argument('-q', action='store_true',
 #                        help='Quiet mode')
 
@@ -1483,12 +1821,15 @@ if __name__ == '__main__':
     filename = args.sourcefile
     outputFilename = args.outputfile
     listFilename = args.l
-    configFile = args.configfile
+    configFile = args.cfg
     binFile = args.bin # not implemented
     
     start = time.time()
     
-    exit()
+    print(args)
+    
+    
+    #exit()
     assemble(filename, outputFilename = outputFilename, listFilename = listFilename, configFile = configFile, binFile = binFile)
 
     end = time.time()-start

@@ -678,10 +678,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             return v,l
         if v.startswith('-'):
             label = v.split(' ',1)[0]
-#            print(label)
-#            print(aLabels)
-#            print('cadr=',currentAddress)
-#            print([x[1] for x in aLabels if x[0]==label and x[1]<currentAddress])
             if len(aLabels) > 0:
                 foundAddresses = [x[1] for x in aLabels if x[0]==label and x[1]<currentAddress]
                 if len(foundAddresses) !=0:
@@ -1048,8 +1044,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             k = line.split(" ",1)[0].strip().lower()
             
             if k!='' and (k=="-"*len(k) or k=="+"*len(k)):
-#                if not [k,addr] in aLabels:
-#                    aLabels.append([k, addr])
                 if not [k,currentAddress] in aLabels:
                     aLabels.append([k, currentAddress])
                     
@@ -1060,18 +1054,26 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             # This is really complicated but we have to check to see
             # if this is a label without a suffix somehow.
             if k!='' and not (k.startswith('.') and k[1:] in directives) and not k.endswith(tuple(labelSuffix)) and ' equ ' not in line.lower() and '=' not in line and k not in list(directives)+list(macros)+list(opcodes):
-                if debug: print('label without suffix: {}'.format(k))
-                k=k+labelSuffix[0]
+                if k.startswith('-') or k.startswith('+'):
+                    aLabels.append([k, currentAddress])
+                    line = ''
+                else:
+                    if debug: print('label without suffix: {}'.format(k))
+                    k=k+labelSuffix[0]
             if k.endswith(tuple(labelSuffix)):
-                symbols[k[:-1].lower()] = str(currentAddress)
-                
-                # remove all local labels
-                if not k.startswith(tuple(localPrefix)):
-                    symbols = {k:v for (k,v) in symbols.items() if not k.startswith(tuple(localPrefix))}
-                
-                # update so rest of line can be processed
-                line = (line.split(" ",1)+[''])[1].strip()
-                k = line.split(" ",1)[0].strip().lower()
+                if k.startswith('-') or k.startswith('+'):
+                    aLabels.append([k[:-1], currentAddress])
+                    line = ''
+                else:
+                    symbols[k[:-1].lower()] = str(currentAddress)
+                    
+                    # remove all local labels
+                    if not k.startswith(tuple(localPrefix)):
+                        symbols = {k:v for (k,v) in symbols.items() if not k.startswith(tuple(localPrefix))}
+                    
+                    # update so rest of line can be processed
+                    line = (line.split(" ",1)+[''])[1].strip()
+                    k = line.split(" ",1)[0].strip().lower()
             
             # prefix is optional for valid directives
             if k.startswith(".") and k[1:] in directives:
@@ -1121,27 +1123,28 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 ifLevel+=1
                 ifData[ifLevel] = Map()
                 
-                invert = False
+                inv = False
                 data = line.split(" ",1)[1].strip().replace('==','=')
                 if data.split(" ")[0].strip().lower() == 'not':
                     data = data.split(' ',1)[1]
-                    invert = True
+                    inv = True
                 
                 if '=' in data:
                     l,r = data.split('=')
-                    if getValue(l) == getValue(r):
+                    print(getValue(l),getValue(r))
+                    if ((getValue(l) == getValue(r)) and inv == False) or ((getValue(l) != getValue(r)) and inv == True):
                         ifData[ifLevel].bool = True
                         ifData[ifLevel].done = True
                     else:
                         ifData[ifLevel].bool = False
                 else:
-                    if getValue(data):
+                    if (getValue(data) and inv==False) or (not getValue(data) and inv==True):
                         ifData[ifLevel].bool = True
                         ifData[ifLevel].done = True
                     else:
                         ifData[ifLevel].bool = False
-                if invert:
-                    ifData[ifLevel].bool = not ifData[ifLevel].done
+#                if inv:
+#                    ifData[ifLevel].bool = not ifData[ifLevel].done
             if k == 'else':
                 ifData[ifLevel].bool = not ifData[ifLevel].done
             elif k == 'endif':
@@ -1328,26 +1331,29 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         lines = lines[:i]+['']+['setincludefolder '+assembler.currentFolder]+lines[i+1:]
                 else:
                     print("File not found.")
-            elif k == "include" or k=="incsrc":
+            elif k == 'include' or k=='incsrc':
                 filename = line.split(" ",1)[1].strip()
                 filename = getString(filename)
                 filename = assembler.findFile(filename)
+                if filename:
                 
-                newLines = False
-                try:
-                    with open(filename, 'r') as file:
-                        newLines = file.read().splitlines()
-                except:
-                    print("Could not open file.")
-                
-                if newLines:
-                    fileList.append(filename)
-                    folder = os.path.split(filename)[0]
+                    newLines = False
+                    try:
+                        with open(filename, 'r') as file:
+                            newLines = file.read().splitlines()
+                    except:
+                        print("Could not open file.")
                     
-                    newLines = ['setincludefolder '+folder]+newLines+['setincludefolder '+assembler.currentFolder]
-                    assembler.currentFolder = folder
-                    
-                    lines = lines[:i]+['']+newLines+lines[i+1:]
+                    if newLines:
+                        fileList.append(filename)
+                        folder = os.path.split(filename)[0]
+                        
+                        newLines = ['setincludefolder '+folder]+newLines+['setincludefolder '+assembler.currentFolder]
+                        assembler.currentFolder = folder
+                        
+                        lines = lines[:i]+['']+newLines+lines[i+1:]
+                else:
+                    print("File not found")
             elif k == 'includeall':
                 folder = line.split(" ",1)[1].strip()
                 files = [x for x in os.listdir(folder) if os.path.splitext(x.lower())[1] in ['.asm']]

@@ -11,7 +11,9 @@ ToDo:
     * option to automatically localize labels in macros
     * rept ... endr
     * get standalone command line switches working
-    * namespace directive
+    * namespaces
+        - namespace directive
+        - use namespaces when defining/specifying labels or symbols
     * segment and related directives
 """
 
@@ -137,6 +139,7 @@ class Assembler():
     palette = defaultPalette[:]
     currentPalette = [0x0f,0x01,0x11,0x30]
     stripHeader = False
+    namespace = ''
 
     def __init__(self):
         pass
@@ -151,7 +154,10 @@ class Assembler():
         self.currentTextMap = name
     def getTextMap(self):
         return self.currentTextMap
-    def clearTextMap(self, name=False):
+    def clearTextMap(self, name=False, all=False):
+        if all:
+            self.currentTextMap = 'default'
+            self.textMap = {}
         if not name:
             name = self.currentTextMap
         if name in self.textMap:
@@ -161,21 +167,58 @@ class Assembler():
         textMap.update(dict(zip(chars,bytearray.fromhex(mapTo))))
         
         self.textMap[self.currentTextMap] = textMap
-    def loadPalette(self, filename):
-        try:
-            file = open(filename, "rb")
-        except:
-            print("Error: could not open file.")
-        p = list(file.read())
-        p = [p[i:i + 3] for i in range(0, len(p), 3)]
-        self.palette = p
+    def loadTbl(self, filename=False):
+        filename = self.findFile(filename)
+        if filename:
+            try:
+                file = open(filename, "rb")
+            except:
+                self.errorHint = 'could not open file.'
+                return False
+            
+            tbl=['','']
+            for line in file.read().decode('utf8').splitlines():
+                l = line.split('=')
+                
+                if len(l[0])==1 and len(l[1])==2:
+                    l = list(reversed(l))
+                if len(l[0])==2 and len(l[1])==1:
+                    if l[1] == ' ':
+                        self.setTextMapData('space', l[0])
+                    else:
+                        tbl[1]+=l[0]
+                        tbl[0]+=l[1]
+                else:
+                    self.errorHint = 'Invalid tbl entry'
+                    return False
+            self.setTextMapData(tbl[0],tbl[1])
+            
+            return True
+        else:
+            self.errorHint = 'file not found'
+            return False
+    def loadPalette(self, filename=False):
+        if filename:
+            filename = self.findFile(filename)
+            if filename:
+                try:
+                    file = open(filename, "rb")
+                except:
+                    self.errorHint = 'could not open file.'
+                    return False
+                p = list(file.read())
+                if len(p) != 192:
+                    self.errorHint = 'palette file size must be 192 bytes'
+                    return False
+                p = [p[i:i + 3] for i in range(0, len(p), 3)]
+                self.palette = p
+            else:
+                self.errorHint = 'file not found'
+                return False
+        else:
+            self.palette = defaultPalette[:]
         
-        
-#        for item in p:
-#            print(item, end=',\n')
-        
-        
-        return p
+        return self.palette
     def findFile(self, filename):
         
         # Search for files in this order:
@@ -261,7 +304,7 @@ directives = [
     'setincludefolder',
     'macro','endm','endmacro',
     'if','ifdef','ifndef','else','elseif','endif','iffileexist','iffile',
-    'arch',
+    'arch','table','cleartable','mapdb',
     'index','mem','bank','banksize','chrsize','header','noheader','stripheader',
     'define', '_find',
     'seed','outputfile','listfile','textmap','text','insert',
@@ -492,6 +535,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     cfg.setDefault('main', 'varClose', '}')
     cfg.setDefault('main', 'labelSuffix', ':')
     cfg.setDefault('main', 'orgPad', 0)
+    cfg.setDefault('main', 'mapdb', 0)
 
     # save configuration so our defaults can be changed
     cfg.save()
@@ -833,20 +877,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         else:
             return False
 
-    commentSep = makeList(cfg.getValue('main', 'comment'))
-    commentBlockOpen = makeList(cfg.getValue('main', 'commentBlockOpen'))
-    commentBlockClose = makeList(cfg.getValue('main', 'commentBlockClose'))
-    fillValue = getValue(cfg.getValue('main', 'fillValue'))
-    localPrefix = makeList(cfg.getValue('main', 'localPrefix'))
-    debug = cfg.isTrue(cfg.getValue('main', 'debug'))
-    varOpen = makeList(cfg.getValue('main', 'varOpen'))
-    varClose = makeList(cfg.getValue('main', 'varClose'))
-    varOpenClose = mergeList(varOpen,varClose)
-    labelSuffix = makeList(cfg.getValue('main', 'labelSuffix'))
-    
-    ## set below instead
-    # orgPad = int(cfg.getValue('main', 'orgPad'))
-    
     try:
         file = open(filename, "r")
     except:
@@ -899,6 +929,19 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             print("Could not find file: {}".format(binFile))
             return
     for passNum in (1,2):
+        commentSep = makeList(cfg.getValue('main', 'comment'))
+        commentBlockOpen = makeList(cfg.getValue('main', 'commentBlockOpen'))
+        commentBlockClose = makeList(cfg.getValue('main', 'commentBlockClose'))
+        fillValue = getValue(cfg.getValue('main', 'fillValue'))
+        localPrefix = makeList(cfg.getValue('main', 'localPrefix'))
+        debug = cfg.isTrue(cfg.getValue('main', 'debug'))
+        varOpen = makeList(cfg.getValue('main', 'varOpen'))
+        varClose = makeList(cfg.getValue('main', 'varClose'))
+        varOpenClose = mergeList(varOpen,varClose)
+        labelSuffix = makeList(cfg.getValue('main', 'labelSuffix'))
+        orgPad = int(cfg.getValue('main', 'orgPad'))
+        mapdb = makeList(cfg.getValue('main', 'mapdb'))
+        
         lines = originalLines
         addr = 0
         oldAddr = 0
@@ -936,7 +979,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         bankSize = 0x10000
         chrSize = 0x2000
         bank = None
-        orgPad = int(cfg.getValue('main', 'orgPad'))
+        
+        assembler.clearTextMap(all=True)
         
         fileList = []
         print('pass {}...'.format(passNum))
@@ -952,6 +996,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             originalLine = line
             errorText = False
             assembler.errorLinePos = False
+            
+            
+            lineTime = time.time()
             
             #print(originalLine)
             
@@ -1056,16 +1103,14 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             if k!='' and not (k.startswith('.') and k[1:] in directives) and not k.endswith(tuple(labelSuffix)) and ' equ ' not in line.lower() and '=' not in line and k not in list(directives)+list(macros)+list(opcodes):
                 if k.startswith('-') or k.startswith('+'):
                     aLabels.append([k, currentAddress])
-                    line = ''
                 else:
                     if debug: print('label without suffix: {}'.format(k))
                     k=k+labelSuffix[0]
             if k.endswith(tuple(labelSuffix)):
                 if k.startswith('-') or k.startswith('+'):
                     aLabels.append([k[:-1], currentAddress])
-                    line = ''
                 else:
-                    symbols[k[:-1].lower()] = str(currentAddress)
+                    symbols[assembler.namespace + k[:-1].lower()] = str(currentAddress)
                     
                     # remove all local labels
                     if not k.startswith(tuple(localPrefix)):
@@ -1232,6 +1277,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             elif k == 'seed':
                 v = getValue(line.split(" ")[1].strip())
                 random.seed(v)
+            elif k == 'cleartable':
+                assembler.clearTextMap()
             elif k == 'textmap':
                 data = line.split(' ',1)[1]
                 
@@ -1265,14 +1312,30 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 assembler.currentFolder = (line.split(" ",1)+[''])[1].strip()
                 hide = True
             
+            elif k == 'table':
+                l = line.split(" ",1)[1].strip()
+                l = l.split(',',1)
+                if len(l)==2:
+                    print(l[1])
+                filename = getValueAsString(l[0]) or getString(l[0])
+                if not assembler.loadTbl(filename):
+                    errorText = assembler.errorHint or 'file not found'
+                    assembler.errorLinePos = len(line.split(' ',1)[0])+1
             elif k == 'loadpalette':
-                filename = line.split(" ",1)[1].strip()
-                filename = getString(filename)
-                filename = assembler.findFile(filename)
-                if filename:
-                    assembler.loadPalette(filename)
+                if len(line.split(" ",1))==1:
+                    # load default palette
+                    assembler.loadPalette()
                 else:
-                    print("File not found.")
+                    filename = line.split(" ",1)[1].strip()
+                    filename = getValueAsString(filename) or getString(filename)
+                    filename = assembler.findFile(filename)
+                    if filename:
+                        if not assembler.loadPalette(filename):
+                            errorText = assembler.errorHint or 'file not found'
+                            assembler.errorLinePos = len(line.split(' ',1)[0])+1
+                    else:
+                        errorText = 'file not found'
+                        assembler.errorLinePos = len(line.split(' ',1)[0])+1
             elif k == 'incchr':
                 if PIL:
                     x, y, rows, cols = False, False, False, False
@@ -1297,9 +1360,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         chrData = imageToCHRData(filename, colors=colors, x=x,y=y,rows=rows, cols=cols)
                         b = b + chrData
                     else:
-                        print("File not found.")
+                        assembler.errorLinePos = len(line.split(' ',1)[0])+1
+                        errorText = 'file not found'
                 else:
-                    print('Error: PIL not available.')
+                    errorText = 'PIL not available.'
             elif k == "incbin" or k == "bin":
                 l = line.split(" ",1)[1].strip()
                 
@@ -1330,7 +1394,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         fileList.append(filename)
                         lines = lines[:i]+['']+['setincludefolder '+assembler.currentFolder]+lines[i+1:]
                 else:
-                    print("File not found.")
+                    assembler.errorLinePos = len(line.split(' ',1)[0])+1
+                    errorText = 'file not found'
             elif k == 'include' or k=='incsrc':
                 filename = line.split(" ",1)[1].strip()
                 filename = getString(filename)
@@ -1353,7 +1418,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         
                         lines = lines[:i]+['']+newLines+lines[i+1:]
                 else:
-                    print("File not found")
+                    assembler.errorLinePos = len(line.split(' ',1)[0])+1
+                    errorText = 'file not found'
             elif k == 'includeall':
                 folder = line.split(" ",1)[1].strip()
                 files = [x for x in os.listdir(folder) if os.path.splitext(x.lower())[1] in ['.asm']]
@@ -1505,8 +1571,17 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 
                 for v in [getValue(x) >>8 for x in values]:
                     b = b + makeList(v)
-            
-            elif k == 'text':
+            elif k == 'mapdb':
+                v = line.split(' ',1)
+                if len(v) == 1:
+                    mapdb = 1
+                else:
+                    v = v[1].strip()
+                    if (v.lower() in ['on','true']) or (getValue(v) == 1):
+                        mapdb = 1
+                    else:
+                        mapdb = 0
+            elif k == 'text' or (k=='db' and mapdb==1):
                 values = line.split(' ',1)[1]
                 values = getValue(values)
                 values = getString(values, strip=False)
@@ -1653,16 +1728,20 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             if k == 'define':
                 k = line.split(" ")[1].strip()
                 v = line.split(" ",2)[-1].strip()
-                if k == '$':
-                    addr = getValue(v)
-                    if startAddress == False:
-                        startAddress = addr
-                    currentAddress = addr
+                if k.startswith(('"',"'")) and k.endswith(('"',"'")):
+                    k = k[1:-1]
+                    if k == ' ':
+                        k = 'space'
+                    assembler.setTextMapData(k, '{:02x}'.format(getValue(v)))
                 else:
-                    symbols[k.lower()] = v
+                    if k == '$':
+                        addr = getValue(v)
+                        if startAddress == False:
+                            startAddress = addr
+                        currentAddress = addr
+                    else:
+                        symbols[k.lower()] = v
                 k=''
-
-            
             if ' equ ' in line.lower():
                 k = line[:line.lower().find(' equ ')]
                 v = line[line.lower().find(' equ ')+len(' equ '):]
@@ -1766,6 +1845,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     errorText = False
                     assembler.errorLinePos = False
             if k==".org": showAddress = True
+            
+#            t = time.time() - lineTime
+#            if t > 0:
+#                print(originalLine)
+#                print(t)
     if passNum == 2:
         with open(outputFilename, "wb") as file:
             invalidBytes = [(i,x) for (i,x) in enumerate(out) if x not in range(256)]

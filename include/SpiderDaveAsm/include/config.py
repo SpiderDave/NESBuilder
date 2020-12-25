@@ -35,7 +35,7 @@ class Cfg(configparser.ConfigParser):
     def isnumber(self, s):
         s = str(s).strip()
         if len(s)==0:
-            return false
+            return False
         if s[0]=='-' or s[0] == '+':
             s = s[1:]
         if s.find('.') == s.rfind('.'):

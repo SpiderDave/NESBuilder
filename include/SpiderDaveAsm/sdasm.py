@@ -140,11 +140,38 @@ class Assembler():
     currentPalette = [0x0f,0x01,0x11,0x30]
     stripHeader = False
     namespace = ''
+    quotes = ('"""','"',"'")
 
     def __init__(self):
         pass
     def dummy(self):
         pass
+    def stripQuotes(self, text):
+        for q in self.quotes:
+            if text.startswith(q) and text.endswith(q):
+                return text[len(q):-len(q)]
+        return text
+    def tokenize(self, text='', tokens=[], splitter=','):
+        tokens = tokens or [text]
+        txt = tokens[-1]
+        q = False
+        for quote in self.quotes:
+            if txt.startswith(quote):
+                q = quote
+                break
+        n1=0
+        if q:
+            n1 = txt.find(q,len(q))+len(q)
+        n2 = txt.find(splitter,n1)
+        
+        if n2==-1:
+            return tokens
+        
+        left = txt[:n2].strip()
+        right = txt[n2+1:].strip()
+        
+        tokens = tokens[:-1] + [left, right]
+        return self.tokenize(text, tokens)
     def mapText(self, text):
         #print("Mapping text:", text)
         textMap = self.textMap.get(self.currentTextMap, {})
@@ -183,11 +210,13 @@ class Assembler():
                 if len(l[0])==1 and len(l[1])==2:
                     l = list(reversed(l))
                 if len(l[0])==2 and len(l[1])==1:
-                    if l[1] == ' ':
-                        self.setTextMapData('space', l[0])
-                    else:
-                        tbl[1]+=l[0]
-                        tbl[0]+=l[1]
+#                    if l[1] == ' ':
+#                        self.setTextMapData('space', l[0])
+#                    else:
+                    tbl[1]+=l[0]
+                    tbl[0]+=l[1]
+                elif l==['']:
+                    pass
                 else:
                     self.errorHint = 'Invalid tbl entry'
                     return False
@@ -295,7 +324,7 @@ class Map(dict):
         del self.__dict__[key]
 
 directives = [
-    'org','base','pad','align','fill', 'fillvalue',
+    'org','base','pad','fillto','align','fill', 'fillvalue',
     'include','incsrc','includeall','incbin','bin',
     'db','dw','byte','byt','word','hex','dc.b','dc.w',
     'dsb','dsw','ds.b','ds.w','dl','dh',
@@ -304,7 +333,7 @@ directives = [
     'setincludefolder',
     'macro','endm','endmacro',
     'if','ifdef','ifndef','else','elseif','endif','iffileexist','iffile',
-    'arch','table','cleartable','mapdb',
+    'arch','table','loadtable','cleartable','mapdb',
     'index','mem','bank','banksize','chrsize','header','noheader','stripheader',
     'define', '_find',
     'seed','outputfile','listfile','textmap','text','insert',
@@ -536,6 +565,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     cfg.setDefault('main', 'labelSuffix', ':')
     cfg.setDefault('main', 'orgPad', 0)
     cfg.setDefault('main', 'mapdb', 0)
+    cfg.setDefault('main', 'linesep', '')
 
     # save configuration so our defaults can be changed
     cfg.save()
@@ -554,7 +584,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         
         return l
     def getValueAsString(s):
-        return getString(getValue(s))
+        try:
+            return getString(getValue(s))
+        except:
+            return False
     
     def getString(s, strip=True):
         if type(s) is int:
@@ -566,8 +599,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         if strip:
             s=s.strip()
         
-        quotes = ['"""','"',"'"]
-        for q in quotes:
+        for q in assembler.quotes:
             #if s.startswith(q) and s.endswith(q):
             if s.strip().startswith(q) and s.strip().endswith(q):
                 s=s.strip()
@@ -597,10 +629,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         elif s == 'chrbanks' or s == 'lastchr':
             return str(out[5])
         elif s == 'fileoffset':
-            if bank:
+            if bank != None:
                 return str(addr + bank * bankSize + headerSize)
             else:
-                return str(addr + headerSize)
+                #return str(addr + headerSize)
+                return str(addr)
         elif s == 'randbyte':
             return makeHex(random.randrange(0x100))
         elif s == 'randword':
@@ -683,13 +716,20 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         v = v.strip()
         l = False
         
-        v=v.replace(", ",",").replace(" ,",",")
+        vToken = assembler.tokenize(v)
+        
+        #v = v.replace(", ",",").replace(" ,",",")
         if v.startswith("(") and v.endswith(")"):
             v = v[1:-1]
-        if v.endswith(",x"):
-            v = v.split(",x")[0]
-        if v.endswith(",y"):
-            v = v.split(",y")[0]
+        
+        if vToken[-1] in ('x','y','X','Y'):
+            vToken = vToken[:-1]
+            v = ', '.join(vToken)
+        
+#        if v.endswith(",x"):
+#            v = v.split(",x")[0]
+#        if v.endswith(",y"):
+#            v = v.split(",y")[0]
         if v.startswith("(") and v.endswith(")"):
             v = v[1:-1]
         if '(' in v and ')' in v:
@@ -701,16 +741,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         if v=='':
             return 0,0
         
-        if v.startswith('"') and v.endswith('"'):
-            if mode == 'textmap':
-                v = assembler.mapText(v[1:-1])
-            else:
-                v = list(bytes(v[1:-1], 'utf-8'))
-            l=len(v)
-            return v, l
-        
-        if ',' in v:
-            v = [getValue(x) for x in v.split(',')]
+        # this will handle comma separated lists
+        vToken = assembler.tokenize(v)
+        #if len(assembler.tokenize(v)) > 1:
+        if len(vToken) > 1:
+            v = [getValue(x) for x in vToken]
             l = len(v)
             if mode == 'shuffle':
                 random.shuffle(v)
@@ -718,8 +753,27 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 random.shuffle(v)
                 v=v[0]
                 l=1
-                
             return v,l
+        
+        if v.startswith(assembler.quotes) and v.endswith(assembler.quotes):
+            if mode == 'textmap':
+                v = assembler.mapText(assembler.stripQuotes(v))
+            else:
+                v = list(bytes(assembler.stripQuotes(v), 'utf-8'))
+            l=len(v)
+            return v, l
+        
+#        if ',' in v:
+#            v = [getValue(x) for x in v.split(',')]
+#            l = len(v)
+#            if mode == 'shuffle':
+#                random.shuffle(v)
+#            elif mode == 'choose':
+#                random.shuffle(v)
+#                v=v[0]
+#                l=1
+                
+#            return v,l
         if v.startswith('-'):
             label = v.split(' ',1)[0]
             if len(aLabels) > 0:
@@ -823,8 +877,18 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             for op in operations:
                 if op in v:
                     v = v.split(op)
-                    v = operations[op](getValue(v[0]), getValue(v[1]))
-                    l = 1 if v <=256 else 2
+                    
+                    v0 = getValue(v[0], mode)
+                    v1 = getValue(v[1])
+                    
+                    if type(v0) is list:
+                        v = [operations[op](x, v1) for x in v0]
+                        l = len(v)
+                    else:
+                        v = operations[op](v0, v1)
+                        l = 1 if v <=256 else 2
+                    #v = operations[op](getValue(v[0]), getValue(v[1]))
+                    #l = 1 if v <=256 else 2
                     return v,l
         elif isNumber(v):
             l = 1 if int(v,10) <=256 else 2
@@ -849,14 +913,14 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         if mode == 'getbyte':
             # this looks like the right result but i don't know why
             # i have to subtract the 0x4000
-            if bank:
+            if bank != None:
                 fileOffset = v - 0x8000 + (bank * bankSize) + headerSize - 0x4000
             else:
                 fileOffset = v - 0x8000 + headerSize - 0x4000
             v = int(out[fileOffset])
             l = 1
         if mode == 'getword':
-            if bank:
+            if bank != None:
                 fileOffset = v - 0x8000 + (bank * bankSize) + headerSize - 0x4000
             else:
                 fileOffset = v - 0x8000 + headerSize - 0x4000
@@ -941,8 +1005,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         labelSuffix = makeList(cfg.getValue('main', 'labelSuffix'))
         orgPad = int(cfg.getValue('main', 'orgPad'))
         mapdb = makeList(cfg.getValue('main', 'mapdb'))
+        lineSep = makeList(cfg.getValue('main', 'linesep'))
+        lineSep = [x for x in lineSep if x != '']
         
         lines = originalLines
+        
+        if lineSep:
+            for s in lineSep:
+                lines = [l.split(s) for l in lines]
+            lines = flattenList(lines)
+        
         addr = 0
         oldAddr = 0
         
@@ -1312,11 +1384,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 assembler.currentFolder = (line.split(" ",1)+[''])[1].strip()
                 hide = True
             
-            elif k == 'table':
+            elif k=='loadtable' or k == 'table':
                 l = line.split(" ",1)[1].strip()
                 l = l.split(',',1)
                 if len(l)==2:
-                    print(l[1])
+                    pass
                 filename = getValueAsString(l[0]) or getString(l[0])
                 if not assembler.loadTbl(filename):
                     errorText = assembler.errorHint or 'file not found'
@@ -1412,6 +1484,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     if newLines:
                         fileList.append(filename)
                         folder = os.path.split(filename)[0]
+                        
+                        
+                        if lineSep:
+                            for s in lineSep:
+                                newLines = [l.split(s) for l in newLines]
+                            newLines = flattenList(newLines)
                         
                         newLines = ['setincludefolder '+folder]+newLines+['setincludefolder '+assembler.currentFolder]
                         assembler.currentFolder = folder
@@ -1515,14 +1593,18 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         k = 'pad'
                         line = 'pad ${:04x}'.format(addr)
 
-            if k == 'pad':
+            if k == 'pad' or k == 'fillto':
                 data = line.split(' ',1)[1]
                 
                 fv = fillValue
                 if ',' in data:
                     fv = getValue(data.split(',')[1])
                 a = getValue(data.split(',')[0])
-                b = b + ([fv] * (a-currentAddress))
+                #print('fillto {:05x} {:05x} {:05x} {}'.format(a, currentAddress, addr, bank))
+                if currentAddress <= a:
+                    b = b + ([fv] * (a-currentAddress))
+                else:
+                    b = b + ([fv] * (a-(addr+bank*bankSize)))
             elif k == 'fill':
                 data = line.split(' ',1)[1]
                 
@@ -1582,16 +1664,28 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     else:
                         mapdb = 0
             elif k == 'text' or (k=='db' and mapdb==1):
-                values = line.split(' ',1)[1]
-                values = getValue(values)
-                values = getString(values, strip=False)
+                values = line.split(' ',1)[1].strip()
                 
-                if values == False:
-                    assembler.errorLinePos = len(line.split(' ',1)[0])+1
-                    errorText = "invalid value"
-                else:
-                    values = assembler.mapText(values)
-                    b = b + makeList(values)
+                values = assembler.tokenize(values)
+                
+                for i, v in enumerate(values):
+                    if v.startswith(assembler.quotes):
+                        values[i] = getValue(v, mode='textmap')
+                    else:
+                        values[i] = getValue(v)
+                
+                values = flattenList(values)
+                
+                #values = getValue(values)
+                #values = getString(values, strip=False)
+                
+#                if values == False:
+#                    assembler.errorLinePos = len(line.split(' ',1)[0])+1
+#                    errorText = "invalid value"
+#                else:
+#                    values = assembler.mapText(values)
+#                    b = b + makeList(values)
+                b = b + makeList(values)
             elif k == 'db' or k=='byte' or k == 'byt' or k == 'dc.b':
                 values = line.split(' ',1)[1]
                 values, l = getValueAndLength(values)
@@ -1728,10 +1822,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             if k == 'define':
                 k = line.split(" ")[1].strip()
                 v = line.split(" ",2)[-1].strip()
-                if k.startswith(('"',"'")) and k.endswith(('"',"'")):
-                    k = k[1:-1]
-                    if k == ' ':
-                        k = 'space'
+                if k.startswith(assembler.quotes) and k.endswith(assembler.quotes):
+                    k = assembler.stripQuotes(k)
                     assembler.setTextMapData(k, '{:02x}'.format(getValue(v)))
                 else:
                     if k == '$':

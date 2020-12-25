@@ -267,7 +267,7 @@ base
     base $8000
 ```
 
-pad
+pad / fillto
     
     Fill memory from the current address to a specified address.  A fill
     value may also be specified.
@@ -443,6 +443,24 @@ loadpalette
     loadpalette "FCEUX.pal"
 ```
     
+loadtable / table
+    
+    Load a table file (.tbl).
+    
+```
+    loadtable "text.tbl"
+    table text.tbl
+```
+    
+cleartable
+    
+    clear current text mapping.
+    
+```
+    cleartable
+    textmap clear   ; This does the same thing as above
+```
+    
 outputfile
     
     Set the output filename.
@@ -562,4 +580,18 @@ seed
 ```
     seed $42
     db {shuffle:$00, $01, $02, $03, $04, $05}
+```
+
+mapdb
+    
+    Allows db directive to map text like the text directive.
+    
+```
+    mapdb       ; turn on
+    mapdb on    ; turn on
+    mapdb true  ; turn on
+    mapdb 1     ; turn on
+    mapdb off   ; turn off
+    mapdb false ; turn off
+    mapdb 0     ; turn off
 ```

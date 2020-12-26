@@ -1,10 +1,10 @@
 """
-Bugs/Broken:
-    * anonymous labels are not working properly
-    
+Bugs/Issues:
+    * symbol recursion issue:
+        symbol = symbol + 1     ; does not work
+        symbol = {symbol} +1    ; works
+    * rept recursion
 ToDo:
-    * allow strings in instructions:
-        lda "A"-$4b
     * create large test .asm
     * text mapping
         - named textmaps, alternate formats
@@ -129,10 +129,44 @@ def flattenList(k):
 def inScriptFolder(f):
     return os.path.join(os.path.dirname(os.path.realpath(__file__)),f)
 
+class Map(dict):
+    """
+    Example:
+    m = Map({'first_name': 'Eduardo'}, last_name='Pool', age=24, sports=['Soccer'])
+    """
+    def __init__(self, *args, **kwargs):
+        super(Map, self).__init__(*args, **kwargs)
+        for arg in args:
+            if isinstance(arg, dict):
+                for k, v in arg.items():
+                    self[k] = v
+
+        if kwargs:
+            for k, v in kwargs.items():
+                self[k] = v
+
+    def __getattr__(self, attr):
+        return self.get(attr)
+
+    def __setattr__(self, key, value):
+        self.__setitem__(key, value)
+
+    def __setitem__(self, key, value):
+        super(Map, self).__setitem__(key, value)
+        self.__dict__.update({key: value})
+
+    def __delattr__(self, item):
+        self.__delitem__(item)
+
+    def __delitem__(self, key):
+        super(Map, self).__delitem__(key)
+        del self.__dict__[key]
 
 class Assembler():
+    cfg = False
     currentFolder = None
     initialFolder = None
+    hideOutputLine = False
     currentTextMap = 'default'
     textMap = {}
     errorLinePos = False
@@ -141,11 +175,33 @@ class Assembler():
     stripHeader = False
     namespace = ''
     quotes = ('"""','"',"'")
+    hidePrefix = '__hide__'
+    
+    nesRegisters = Map(
+        PPUCTRL = 0x2000, PPUMASK = 0x2001, PPUSTATUS = 0x2002,
+        OAMADDR = 0x2003, OAMDATA = 0x2004, PPUSCROLL = 0x2005,
+        PPUADDR = 0x2006, PPUDATA = 0x2007, OAMDMA = 0x4014,
+        SQ1VOL = 0x4000, SQ1SWEEP = 0x4001, SQ1LO = 0x4002,
+        SQ1HI = 0x4003, 
+        SQ2VOL = 0x4004, SQ2SWEEP = 0x4005, SQ2LO = 0x4006,
+        SQ2HI = 0x4007,
+        TRILINEAR = 0x4008, TRILO = 0x400A, TRIHI = 0x400B,
+        NOISEVOL = 0x400C, NOISELO = 0x400E, NOISEHI = 0x400F,
+        DMCFREQ = 0x4010, DMCRAW = 0x4011, DMCSTART = 0x4012,
+        DMCLEN = 0x4013,
+        APUSTATUS = 0x4015, APUFRAME = 0x4017,
+        JOY = 0x4016, JOY1 = 0x4016, JOY2 = 0x4017,
+    )
+    nesRegisters = Map({x.lower():y for x,y in nesRegisters.items()})
 
     def __init__(self):
         pass
     def dummy(self):
         pass
+    def lower(self, txt, caseSensitive=False):
+        if caseSensitive:
+            return txt
+        return txt.lower()
     def stripQuotes(self, text):
         for q in self.quotes:
             if text.startswith(q) and text.endswith(q):
@@ -204,18 +260,15 @@ class Assembler():
                 return False
             
             tbl=['','']
-            for line in file.read().decode('utf8').splitlines():
+            for line in file.read().decode('utf-8-sig').splitlines():
                 l = line.split('=')
                 
                 if len(l[0])==1 and len(l[1])==2:
                     l = list(reversed(l))
                 if len(l[0])==2 and len(l[1])==1:
-#                    if l[1] == ' ':
-#                        self.setTextMapData('space', l[0])
-#                    else:
                     tbl[1]+=l[0]
                     tbl[0]+=l[1]
-                elif l==['']:
+                elif line == '':
                     pass
                 else:
                     self.errorHint = 'Invalid tbl entry'
@@ -290,39 +343,6 @@ operations = {
 }
 
 
-class Map(dict):
-    """
-    Example:
-    m = Map({'first_name': 'Eduardo'}, last_name='Pool', age=24, sports=['Soccer'])
-    """
-    def __init__(self, *args, **kwargs):
-        super(Map, self).__init__(*args, **kwargs)
-        for arg in args:
-            if isinstance(arg, dict):
-                for k, v in arg.items():
-                    self[k] = v
-
-        if kwargs:
-            for k, v in kwargs.items():
-                self[k] = v
-
-    def __getattr__(self, attr):
-        return self.get(attr)
-
-    def __setattr__(self, key, value):
-        self.__setitem__(key, value)
-
-    def __setitem__(self, key, value):
-        super(Map, self).__setitem__(key, value)
-        self.__dict__.update({key: value})
-
-    def __delattr__(self, item):
-        self.__delitem__(item)
-
-    def __delitem__(self, key):
-        super(Map, self).__delitem__(key)
-        del self.__dict__[key]
-
 directives = [
     'org','base','pad','fillto','align','fill', 'fillvalue',
     'include','incsrc','includeall','incbin','bin',
@@ -333,13 +353,14 @@ directives = [
     'setincludefolder',
     'macro','endm','endmacro',
     'if','ifdef','ifndef','else','elseif','endif','iffileexist','iffile',
-    'arch','table','loadtable','cleartable','mapdb',
+    'arch','table','loadtable','cleartable','mapdb','clampdb',
     'index','mem','bank','banksize','chrsize','header','noheader','stripheader',
     'define', '_find',
     'seed','outputfile','listfile','textmap','text','insert',
     'inesprg','ineschr','inesmir','inesmap','inesbattery','inesfourscreen',
     'inesworkram','inessaveram','ines2',
     'orgpad','quit','incchr','chr','setpalette','loadpalette',
+    'rept','endr','endrept','nextrept',
 ]
 
 filters = [
@@ -502,26 +523,21 @@ Map(opcode = 'txs', mode = 'Implied', byte = 154, length = 1),
 Map(opcode = 'tya', mode = 'Implied', byte = 152, length = 1),
 ]
 
-nesRegisters = Map(
-PPUCTRL = 0x2000, PPUMASK = 0x2001, PPUSTATUS = 0x2002,
-OAMADDR = 0x2003, OAMDATA = 0x2004, PPUSCROLL = 0x2005,
-PPUADDR = 0x2006, PPUDATA = 0x2007, OAMDMA = 0x4014,
-SQ1VOL = 0x4000, SQ1SWEEP = 0x4001, SQ1LO = 0x4002,
-SQ1HI = 0x4003, 
-SQ2VOL = 0x4004, SQ2SWEEP = 0x4005, SQ2LO = 0x4006,
-SQ2HI = 0x4007,
-TRILINEAR = 0x4008, TRILO = 0x400A, TRIHI = 0x400B,
-NOISEVOL = 0x400C, NOISELO = 0x400E, NOISEHI = 0x400F,
-DMCFREQ = 0x4010, DMCRAW = 0x4011, DMCSTART = 0x4012,
-DMCLEN = 0x4013,
-APUSTATUS = 0x4015, APUFRAME = 0x4017,
-JOY = 0x4016, JOY1 = 0x4016, JOY2 = 0x4017,
-)
-
-nesRegisters = Map({x.lower():y for x,y in nesRegisters.items()})
+architectures = ['nes.cpu','6502']
 
 # Converting to dictionary removes duplicates
 opcodes = list(dict.fromkeys([x.opcode for x in asm]))
+
+opcodes2 = [
+    'lda','ldx','ldy',
+    'sta','stx','sty',
+    'and','asl','bit','eor','lsr','ora','rol','ror',
+    'adc','dec','dex','dey','inc','inx','iny','sbc',
+    'cmp','cpx','cpy',
+    'jmp',
+]
+opcodes2 = [x+'.b' for x in opcodes2]+[x+'.w' for x in opcodes2]
+
 
 implied = [x.opcode for x in asm if x.mode=='Implied']
 accumulator = [x.opcode for x in asm if x.mode=="Accumulator"]
@@ -532,13 +548,13 @@ makeHex = lambda x: '$'+x.to_bytes(((x.bit_length()|1  + 7) // 8),"big").hex()
 
 specialSymbols = [
     'sdasm','bank','banksize','chrsize','randbyte','randword','fileoffset',
-    'prgbanks','chrbanks','lastbank','lastchr',
+    'prgbanks','chrbanks','lastbank','lastchr','reptindex',
 ]
 
 timeSymbols = ['year','month','day','hour','minute','second']
 
 specialSymbols+= timeSymbols
-specialSymbols+= [x.lower() for x in nesRegisters.keys()]
+specialSymbols+= [x.lower() for x in assembler.nesRegisters.keys()]
 
 def assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False):
     if not configFile:
@@ -550,7 +566,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
 
     # read config file if it exists
     cfg.load()
-
+    
     # number of bytes to show when generating list
     cfg.setDefault('main', 'list_nBytes', 8)
     cfg.setDefault('main', 'comment', ';,//')
@@ -564,11 +580,15 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     cfg.setDefault('main', 'varClose', '}')
     cfg.setDefault('main', 'labelSuffix', ':')
     cfg.setDefault('main', 'orgPad', 0)
-    cfg.setDefault('main', 'mapdb', 0)
-    cfg.setDefault('main', 'linesep', '')
+    cfg.setDefault('main', 'mapdb', False)
+    cfg.setDefault('main', 'lineSep', '')
+    cfg.setDefault('main', 'clampdb', False)
+    cfg.setDefault('main', 'caseSensitive', False)
 
     # save configuration so our defaults can be changed
     cfg.save()
+    
+    assembler.cfg = cfg
 
     _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile)
 
@@ -639,10 +659,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         elif s == 'randword':
             #return makeHex(random.randrange(0x10000))
             return '${:04x}'.format(random.randrange(0x10000))
+        elif s == 'reptindex':
+            return str(rept.index)
         elif s in timeSymbols:
             v = list(datetime.now().timetuple())[timeSymbols.index(s)]
-        elif s in nesRegisters:
-            v = nesRegisters[s]
+        elif s in assembler.nesRegisters:
+            v = assembler.nesRegisters[s]
             return '${:04x}'.format(v)
         else:
             v = 0
@@ -668,6 +690,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
 
     def isNumber(v):
         return all([x in "0123456789" for x in str(v)])
+    
+    def splitNumber(v):
+        i = ([x in '0123456789' for x in v]+[False]).index(False)
+        if i == len(v):
+            return [v]
+        else:
+            return [v[:i], v[i:]]
 
     def getValueAndLength(v, mode=False, param=False, hint=False):
         assembler.errorHint = False
@@ -867,12 +896,18 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         elif v.lower() == 'randbyte':
             v = random.randrange(0,256)
             l=1
-        elif v.startswith("$"):
-            v = int(v[1:],16)
-            l = bytesForNumber(v)
-        elif v.startswith("%"):
+#        elif v.startswith('$'):
+#            v = int(v[1:],16)
+#            l = bytesForNumber(v)
+#        elif v.startswith('%'):
+#            l = 1
+#            v = int(v[1:],2)
+        elif v.startswith('%'):
+            # do this to avoid clogging things up with operations below
+            v = '_0b_'+v[1:]
+            v = getValue(v)
             l = 1
-            v = int(v[1:],2)
+            return v,l
         elif any(x in v for x in operations):
             for op in operations:
                 if op in v:
@@ -890,11 +925,20 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     #v = operations[op](getValue(v[0]), getValue(v[1]))
                     #l = 1 if v <=256 else 2
                     return v,l
+        elif v.startswith('$'):
+            v = int(v[1:],16)
+            l = bytesForNumber(v)
+        elif v.startswith('_0b_'):
+            l = 1
+            v = int(v[4:],2)
+        elif v.startswith('%'):
+            l = 1
+            v = int(v[1:],2)
         elif isNumber(v):
             l = 1 if int(v,10) <=256 else 2
             v = int(v,10)
-        elif v.lower() in symbols:
-            v, l = getValueAndLength(symbols[v.lower()])
+        elif assembler.lower(v) in symbols:
+            v, l = getValueAndLength(symbols[assembler.lower(v)])
         elif v.lower() in specialSymbols:
             v, l = getValueAndLength(getSpecial(v.lower()))
         else:
@@ -968,12 +1012,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     
     # Allow lda.b, lda.w, etc.
     # It wont set the byte size but this is better than nothing.
-    def alias(opcode):
-        equ[opcode+'.b']=opcode
-        equ[opcode+'.w']=opcode
+#    def alias(opcode):
+#        equ[opcode+'.b']=opcode
+#        equ[opcode+'.w']=opcode
     
-    for o in opcodes:
-        alias(o)
+#    for o in opcodes:
+#        alias(o)
     
     aLabels = []
     lLabels = []
@@ -1004,16 +1048,18 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         varOpenClose = mergeList(varOpen,varClose)
         labelSuffix = makeList(cfg.getValue('main', 'labelSuffix'))
         orgPad = int(cfg.getValue('main', 'orgPad'))
-        mapdb = makeList(cfg.getValue('main', 'mapdb'))
+        mapdb = cfg.isTrue(cfg.getValue('main', 'mapdb'))
+        clampdb = cfg.isTrue(cfg.getValue('main', 'clampdb'))
         lineSep = makeList(cfg.getValue('main', 'linesep'))
+        caseSensitive = cfg.isTrue(cfg.getValue('main', 'caseSensitive'))
         lineSep = [x for x in lineSep if x != '']
         
         lines = originalLines
         
-        if lineSep:
-            for s in lineSep:
-                lines = [l.split(s) for l in lines]
-            lines = flattenList(lines)
+#        if lineSep:
+#            for s in lineSep:
+#                lines = [l.split(s) for l in lines]
+#            lines = flattenList(lines)
         
         addr = 0
         oldAddr = 0
@@ -1051,6 +1097,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         bankSize = 0x10000
         chrSize = 0x2000
         bank = None
+        rept = Map()
+        rept.status = False
+        rept.block = []
+        rept.count = 0
+        rept.index = 0
+        rept.depth = 0
         
         assembler.clearTextMap(all=True)
         
@@ -1094,6 +1146,29 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         blockComment = 0
             if blockComment>0:
                 line = ''
+            
+            # used to help hide internal directive lines
+            if line.startswith(assembler.hidePrefix):
+                line = line.split(assembler.hidePrefix,1)[1]
+                assembler.hideOutputLine = True
+            
+            if rept.status == 'gather':
+                k = line.split(" ",1)[0].strip()
+                if k in ('endr','endrept'):
+                    pass
+                else:
+                    rept.block.append(line)
+                    line = ''
+                
+            if lineSep:
+                line = [line]
+                for s in lineSep:
+                    line = flattenList([l.split(s) for l in line])
+            
+                if len(line) > 1:
+                    #print(line)
+                    lines = lines[:i]+['']+line[1:]+lines[i+1:]
+                line = line[0]
             
             # "EQU" replacement
             for item in equ:
@@ -1160,7 +1235,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     line = ''
             
             b=[]
-            k = line.split(" ",1)[0].strip().lower()
+            k0 = line.split(" ",1)[0].strip()
+            k = k0.lower()
             
             if k!='' and (k=="-"*len(k) or k=="+"*len(k)):
                 if not [k,currentAddress] in aLabels:
@@ -1168,21 +1244,23 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     
                     # update so rest of line can be processed
                     line = (line.split(" ",1)+[''])[1].strip()
-                    k = line.split(" ",1)[0].strip().lower()
+                    k0 = line.split(" ",1)[0].strip()
+                    k = k0.lower()
             
             # This is really complicated but we have to check to see
             # if this is a label without a suffix somehow.
-            if k!='' and not (k.startswith('.') and k[1:] in directives) and not k.endswith(tuple(labelSuffix)) and ' equ ' not in line.lower() and '=' not in line and k not in list(directives)+list(macros)+list(opcodes):
+            if k!='' and not (k.startswith('.') and k[1:] in directives) and not k.endswith(tuple(labelSuffix)) and ' equ ' not in line.lower() and '=' not in line and k not in list(directives)+list(macros)+list(opcodes)+opcodes2:
                 if k.startswith('-') or k.startswith('+'):
-                    aLabels.append([k, currentAddress])
+                    aLabels.append([assembler.lower(k0), currentAddress])
                 else:
                     if debug: print('label without suffix: {}'.format(k))
-                    k=k+labelSuffix[0]
+                    k += labelSuffix[0]
+                    k0 += labelSuffix[0]
             if k.endswith(tuple(labelSuffix)):
                 if k.startswith('-') or k.startswith('+'):
-                    aLabels.append([k[:-1], currentAddress])
+                    aLabels.append([k0[:-1], currentAddress])
                 else:
-                    symbols[assembler.namespace + k[:-1].lower()] = str(currentAddress)
+                    symbols[assembler.namespace + assembler.lower(k0[:-1])] = str(currentAddress)
                     
                     # remove all local labels
                     if not k.startswith(tuple(localPrefix)):
@@ -1200,8 +1278,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 ifLevel+=1
                 ifData[ifLevel] = Map()
                 
-                data = line.split(" ",1)[1].strip().replace('==','=').lower()
-                if data in symbols:
+                data = line.split(" ",1)[1].strip().replace('==','=')
+                if assembler.lower(data) in symbols:
                     ifData[ifLevel].bool = True
                     ifData[ifLevel].done = True
                 else:
@@ -1210,9 +1288,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 ifLevel+=1
                 ifData[ifLevel] = Map()
                 
-                data = line.split(" ",1)[1].strip().replace('==','=').lower()
+                data = line.split(" ",1)[1].strip().replace('==','=')
                 
-                if data in symbols:
+                if assembler.lower(data) in symbols:
                     ifData[ifLevel].bool = False
                 else:
                     ifData[ifLevel].bool = True
@@ -1233,10 +1311,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     ifData[ifLevel].done = True
                 else:
                     ifData[ifLevel].bool = False
-                #print('ifLevel',ifLevel)
             if k == 'if':
-#                print(line)
-#                print('***ifLevel',ifLevel)
                 ifLevel+=1
                 ifData[ifLevel] = Map()
                 
@@ -1248,7 +1323,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 
                 if '=' in data:
                     l,r = data.split('=')
-                    print(getValue(l),getValue(r))
                     if ((getValue(l) == getValue(r)) and inv == False) or ((getValue(l) != getValue(r)) and inv == True):
                         ifData[ifLevel].bool = True
                         ifData[ifLevel].done = True
@@ -1267,9 +1341,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             elif k == 'endif':
                 ifLevel-=1
             elif k == 'arch':
-                arch = line.split(" ")[1].strip().lower()
-                if debug:
-                    print('  Architecture: {}'.format(arch))
+                arch = line.split(" ")[1].strip()
+                if arch.lower() not in architectures:
+                    errorText = 'invalid architecture'
+                    assembler.errorLinePos = len(line.split(' ',1)[0])+1
+#                if debug:
+#                    print('  Architecture: {}'.format(arch))
             elif k == 'noheader':
                 headerSize = 0
                 assembler.stripHeader = False
@@ -1315,9 +1392,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 out[6] = (out[6] & 0xfe) | v
             elif k == 'inesbattery':
                 v = getValue(line.split(" ")[1].strip())
-                #print(hex(out[6]))
                 out[6] = (out[6] & 0xfd) | v<<1
-                #print(hex(out[6]))
             elif k == 'ines2':
                 v = getValue(line.split(" ")[1].strip())
                 out[7] = (out[7] & 0xf3) | v<<3
@@ -1334,7 +1409,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 v = getValue(line.split(" ")[1].strip())
                 out[6] = (out[6] & 0x0f) | (v & 0x0f)<<4
                 out[7] = (out[7] & 0x0f) | (v & 0xf0)
-                #print(hex(v), hex(out[6]), hex(out[7]))
             elif k == 'orgpad':
                 orgPad = getValue(line.split(" ")[1].strip())
             elif k == 'insert':
@@ -1424,9 +1498,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     filename = getString(filename)
                     filename = assembler.findFile(filename)
                     if filename:
-                        #22 16 27 18
-                        #colors = [[92, 148, 252], [216,40,0], [252,152,56], [136,112,0]]
-                        
                         colors = [assembler.palette[x] for x in assembler.currentPalette]
                         
                         chrData = imageToCHRData(filename, colors=colors, x=x,y=y,rows=rows, cols=cols)
@@ -1468,12 +1539,27 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 else:
                     assembler.errorLinePos = len(line.split(' ',1)[0])+1
                     errorText = 'file not found'
+            elif k == 'rept':
+                rept.count = getValue(line.split(" ",1)[1].strip())
+                rept.index = 0
+                rept.block = []
+                rept.status = 'gather'
+                print('rept depth',rept.depth)
+            elif k == 'nextrept':
+                rept.index += 1
+            elif k == 'endr':
+                rept.block.append(assembler.hidePrefix + 'nextrept')
+                
+                lines = lines[:i]+['']+ rept.block * rept.count + lines[i+1:]
+                
+                rept.block = []
+                rept.status = False
             elif k == 'include' or k=='incsrc':
                 filename = line.split(" ",1)[1].strip()
                 filename = getString(filename)
                 filename = assembler.findFile(filename)
                 if filename:
-                
+                    #print(filename)
                     newLines = False
                     try:
                         with open(filename, 'r') as file:
@@ -1485,11 +1571,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         fileList.append(filename)
                         folder = os.path.split(filename)[0]
                         
-                        
-                        if lineSep:
-                            for s in lineSep:
-                                newLines = [l.split(s) for l in newLines]
-                            newLines = flattenList(newLines)
+#                        if lineSep:
+#                            for s in lineSep:
+#                                newLines = [l.split(s) for l in newLines]
+#                            newLines = flattenList(newLines)
                         
                         newLines = ['setincludefolder '+folder]+newLines+['setincludefolder '+assembler.currentFolder]
                         assembler.currentFolder = folder
@@ -1544,11 +1629,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 params = (line.split(" ",1)+[''])[1].replace(',',' ').split()
                 
                 for item in macros[k].params:
-                    if item.lower() in symbols:
-                        symbols.pop(item.lower())
+                    if assembler.lower(item) in symbols:
+                        symbols.pop(assembler.lower(item))
                 
                 for item in mergeList(macros[k].params, params):
-                    symbols[item[0].lower()] = item[1]
+                    symbols[assembler.lower(item[0])] = item[1]
                 
                 lines = lines[:i]+['']+macros[k].lines+lines[i+1:]
                 
@@ -1656,14 +1741,24 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             elif k == 'mapdb':
                 v = line.split(' ',1)
                 if len(v) == 1:
-                    mapdb = 1
+                    mapdb = True
                 else:
                     v = v[1].strip()
                     if (v.lower() in ['on','true']) or (getValue(v) == 1):
-                        mapdb = 1
+                        mapdb = True
                     else:
-                        mapdb = 0
-            elif k == 'text' or (k=='db' and mapdb==1):
+                        mapdb = False
+            elif k == 'clampdb':
+                v = line.split(' ',1)
+                if len(v) == 1:
+                    clampdb = True
+                else:
+                    v = v[1].strip()
+                    if (v.lower() in ['on','true']) or (getValue(v) == 1):
+                        clampdb = True
+                    else:
+                        clampdb = False
+            elif k == 'text' or (k in ('db','dl') and mapdb == True):
                 values = line.split(' ',1)[1].strip()
                 
                 values = assembler.tokenize(values)
@@ -1676,6 +1771,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 
                 values = flattenList(values)
                 
+                if any(x not in range(256) for x in values):
+                    if k != 'dl' and clampdb == False:
+                        assembler.errorLinePos = len(line.split(' ',1)[0])+1
+                        errorText = "invalid value"
+                    values = [max(0, x) % 256 for x in values]
+#                if 'YOU SHALL' in line:
+#                    print(line)
+#                    print(values)
+#                    print(len(values))
+                
                 #values = getValue(values)
                 #values = getString(values, strip=False)
                 
@@ -1686,9 +1791,21 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
 #                    values = assembler.mapText(values)
 #                    b = b + makeList(values)
                 b = b + makeList(values)
-            elif k == 'db' or k=='byte' or k == 'byt' or k == 'dc.b':
+            elif k == 'db' or k=='byte' or k == 'byt' or k == 'dc.b' or k == 'dl':
                 values = line.split(' ',1)[1]
-                values, l = getValueAndLength(values)
+                
+                values = assembler.tokenize(values)
+                values = [getValue(x) for x in values]
+                values = flattenList(values)
+                
+                if any(x not in range(256) for x in values):
+                    if k != 'dl' and clampdb == False:
+                        assembler.errorLinePos = len(line.split(' ',1)[0])+1
+                        errorText = "invalid value"
+                    values = [max(0, x) % 256 for x in values]
+                
+                l = len(values)
+                
                 assembler.errorLinePos = len(line.split(' ',1)[0])+1
                 if l==-1:
                     errorText = assembler.errorHint or 'value out of range'
@@ -1719,18 +1836,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         if value < 0:
                             value += 0x10000
                         b = b + [value % 0x100, value>>8]
-
-
-#                values = line.split(' ',1)[1].split(",")
-#                values = [x.strip() for x in values]
-#                values = [getValue(x) for x in values]
+            
+            elif (k in opcodes) or (k in opcodes2):
+                setLength = False
+                if k.endswith('.b'):
+                    setLength = 1
+                    k = k.rsplit('.b',1)[0]
+                elif k.endswith('.w'):
+                    setLength = 2
+                    k = k.rsplit('.w',1)[0]
                 
-#                for value in values:
-#                    if value < 0:
-#                        value += 0x10000
-#                    b = b + [value % 0x100, value>>8]
-                
-            elif k in opcodes:
                 # Special handling for pseudo opcode
                 # Example:
                 # nop 6 ; 6 nop instructions
@@ -1741,6 +1856,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         b=b+([op.byte] * getValue(v))
                     
                 v = "0"
+                oldv = v
+                
                 if k in implied and k.strip() == line.strip().lower():
                     op = getOpWithMode(k, "Implied")
                 elif k in accumulator and k.strip() == line.strip().lower():
@@ -1763,13 +1880,18 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         op = getOpWithMode(k, '(Indirect, X)')
                     elif v.endswith(',x'):
                         v = v.split(',x',1)[0]
-                        if getLength(v)==1 and getOpWithMode(k, 'Zero Page, X'):
+                        
+                        length = setLength or getLength(v)
+                        #if getLength(v)==1 and getOpWithMode(k, 'Zero Page, X'):
+                        if length == 1 and getOpWithMode(k, 'Zero Page, X'):
                             op = getOpWithMode(k, 'Zero Page, X')
                         elif getOpWithMode(k, 'Absolute, X'):
                             op = getOpWithMode(k, 'Absolute, X')
                     elif v.endswith(',y'):
                         v = v.split(',y',1)[0]
-                        if getLength(v)==1 and getOpWithMode(k, 'Zero Page, Y'):
+                        length = setLength or getLength(v)
+                        #if getLength(v)==1 and getOpWithMode(k, 'Zero Page, Y'):
+                        if length == 1 and getOpWithMode(k, 'Zero Page, Y'):
                             op = getOpWithMode(k, 'Zero Page, Y')
                         elif getOpWithMode(k, 'Absolute, Y'):
                             op = getOpWithMode(k, 'Absolute, Y')
@@ -1777,7 +1899,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         v = v[1:]
                         op = getOpWithMode(k, 'Immediate')
                     else:
-                        if getLength(v)==1 and getOpWithMode(k, 'Zero Page'):
+                        length = setLength or getLength(v)
+                        #if getLength(v)==1 and getOpWithMode(k, 'Zero Page'):
+                        if length == 1 and getOpWithMode(k, 'Zero Page'):
                             op = getOpWithMode(k, "Zero Page")
                         elif getOpWithMode(k, "Absolute"):
                             op = getOpWithMode(k, "Absolute")
@@ -1800,6 +1924,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         v = int.from_bytes(v.encode('utf8'),'little')
                     elif type(v) is list:
                         v = int.from_bytes(v,'little')
+                    
+                    # if lda.b is used with a larger number, 
+                    # silently clamp to a byte.
+                    if setLength == 1 and l>1:
+                        v = v % 0x100
+                        l = 1
                     
                     if oldv == '#' or ((op.length>1) and l==0):
                         b = [op.byte] + [0] * (op.length-1)
@@ -1832,7 +1962,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                             startAddress = addr
                         currentAddress = addr
                     else:
-                        symbols[k.lower()] = v
+                        symbols[assembler.lower(k)] = v
                 k=''
             if ' equ ' in line.lower():
                 k = line[:line.lower().find(' equ ')]
@@ -1847,24 +1977,19 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         startAddress = addr
                     currentAddress = addr
                 else:
-                    symbols[k.lower()] = v
+                    symbols[assembler.lower(k)] = v
                 k=''
             
             if len(b)>0:
+                invalidBytes = [(i,x) for (i,x) in enumerate(b) if x not in range(256)]
+                if len(invalidBytes)!=0:
+                    # If we're here it means error handling didn't catch it.
+                    errorText= 'invalid bytes: '+str(b)
+            
                 showAddress = True
                 if noOutput==False and passNum == 2:
                     
-#                    if True:
-#                         if any(x > 255 for x in b):
-#                            errorText = 'byte out of range:\n    '+line
-#                         if any(x < 0 for x in b):
-#                            errorText = 'byte out of range:\n    '+line
-                    
                     if bank == None:
-#                        if np:
-#                            out = np.append(out, np.array(b, dtype='B'))
-#                        else:
-#                            out = out + b
                         fileOffset = addr
                         if fileOffset == len(out):
                             # We're in the right spot, just append
@@ -1904,7 +2029,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 addr = addr + len(b)
                 currentAddress = currentAddress + len(b)
             
-            if passNum == 2 and not hide:
+            if assembler.hideOutputLine:
+                assembler.hideOutputLine = False
+            elif passNum == 2 and not hide:
                 nBytes = cfg.getValue('main', 'list_nBytes')
                 
                 fileOffset = getValue('fileoffset')-len(b)
@@ -1937,11 +2064,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     errorText = False
                     assembler.errorLinePos = False
             if k==".org": showAddress = True
-            
-#            t = time.time() - lineTime
-#            if t > 0:
-#                print(originalLine)
-#                print(t)
+    
     if passNum == 2:
         with open(outputFilename, "wb") as file:
             invalidBytes = [(i,x) for (i,x) in enumerate(out) if x not in range(256)]

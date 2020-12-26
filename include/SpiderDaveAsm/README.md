@@ -43,7 +43,8 @@ Comments:
 ## Labels ##
     Labels may end in a colon.  Code can be placed on the same line as labels.
     Anonymous labels are 1 or more "-" or "+" characters.  These labels will only
-    search backwards for "-" and forwards for "+".  Labels starting with '@' are
+    search backwards for "-" and forwards for "+".  Named directional labels can
+    also be made by prefixing with "-" or "+".  Labels starting with '@' are
     local labels.  They have limited scope, visible only between non-local labels.
     
     
@@ -54,6 +55,11 @@ Comments:
     
     - lda PPUSTATUS     ; wait another frame
     bpl -
+    
+    ldx #$05
+    -loopstart
+    dex
+    bne -loopstart
     
     label1:
     @tmp1:
@@ -181,6 +187,9 @@ Comments:
     randword
         random word
     
+    reptindex
+        loop index for a rept block
+
 ## Strings ##
     
     String values are partially supported.
@@ -188,7 +197,7 @@ Comments:
 ```
     foo = "bar"             ; works
     .db foo, "ABC", $00     ; works
-    lda "A"                 ; does not work
+    lda "A"                 ; works
     .db "ABC"+1             ; works (adds 1 to each character)
     .db "A"+"A"             ; does not work
 ```
@@ -238,7 +247,7 @@ stripheader
 =
 define
 
-    Used to define a symbol.  Symbol names are case-insensitive.
+    Used to define a symbol.  Symbol names are case-insensitive by default.
     
 ```
     foo = $42
@@ -433,6 +442,8 @@ incchr
     
     chr 0
     incchr "smbchr0.png"
+    incchr "smbchr0.png", 5, 2  ; include image starting at coordinates 5,2
+    incchr "smbchr0.png", 5, 2, 16, 1  ; include 16 columns and 1 row starting at coordinates 5,2
 ```
     
 loadpalette
@@ -587,11 +598,38 @@ mapdb
     Allows db directive to map text like the text directive.
     
 ```
-    mapdb       ; turn on
-    mapdb on    ; turn on
-    mapdb true  ; turn on
-    mapdb 1     ; turn on
-    mapdb off   ; turn off
-    mapdb false ; turn off
-    mapdb 0     ; turn off
+    mapdb           ; turn on
+    mapdb on        ; turn on
+    mapdb true      ; turn on
+    mapdb 1         ; turn on
+    mapdb off       ; turn off
+    mapdb false     ; turn off
+    mapdb 0         ; turn off
+```
+
+clampdb
+    
+    Allows db directive to use numbers outside of byte range, clamping them to fit.
+    
+```
+    clampdb         ; turn on
+    clampdb on      ; turn on
+    clampdb true    ; turn on
+    clampdb 1       ; turn on
+    clampdb off     ; turn off
+    clampdb false   ; turn off
+    clampdb 0       ; turn off
+```
+
+rept
+endr / endrept
+
+    Repeat block of code specified number of times.
+    The special symbol {reptindex} can be used to get the loop index.
+    Recursion is currently not supported.
+
+```
+    rept 5
+        print This is rept loop {reptindex}.
+    endr
 ```

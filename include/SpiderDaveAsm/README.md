@@ -402,12 +402,16 @@ hex
     hex 0 1 23 4567   ;equivalent to db $00,$01,$23,$45,$67
 ```
 
-include / incsrc
+include / incsrc / include? / require
     
     Assemble another source file as if it were part of the source.
+    Include? will not generate an error if the file does not exist.
+    Require will abort assembly if the file does not exist.
     
 ```
     include foobar.asm
+    include? optional.asm
+    require important.asm
 ```
 
 includeall

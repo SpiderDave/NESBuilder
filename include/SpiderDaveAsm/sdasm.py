@@ -9,12 +9,13 @@ ToDo:
     * text mapping
         - named textmaps, alternate formats
     * option to automatically localize labels in macros
-    * rept ... endr
     * get standalone command line switches working
     * namespaces
         - namespace directive
         - use namespaces when defining/specifying labels or symbols
     * segment and related directives
+    * line numbers in errors
+    * handle negative numbers differently?
 """
 
 
@@ -165,7 +166,9 @@ class Map(dict):
 class Assembler():
     cfg = False
     currentFolder = None
+    currentFilename = None
     initialFolder = None
+    initialFilename = None
     hideOutputLine = False
     currentTextMap = 'default'
     textMap = {}
@@ -176,6 +179,7 @@ class Assembler():
     namespace = ''
     quotes = ('"""','"',"'")
     hidePrefix = '__hide__'
+    caseSensitive = False
     
     nesRegisters = Map(
         PPUCTRL = 0x2000, PPUMASK = 0x2001, PPUSTATUS = 0x2002,
@@ -198,8 +202,15 @@ class Assembler():
         pass
     def dummy(self):
         pass
-    def lower(self, txt, caseSensitive=False):
-        if caseSensitive:
+    def printError(self, errorText = '', line = ''):
+        print(line)
+        if self.errorLinePos:
+            print(' '*self.errorLinePos+'^')
+        print('*** {}'.format(errorText))
+        print('    {}\n'.format(self.currentFilename))
+        self.errorLinePos = False
+    def lower(self, txt):
+        if self.caseSensitive:
             return txt
         return txt.lower()
     def stripQuotes(self, text):
@@ -344,13 +355,13 @@ operations = {
 
 
 directives = [
-    'org','base','pad','fillto','align','fill', 'fillvalue',
-    'include','incsrc','includeall','incbin','bin',
+    'org','base','pad','fillto','align','fill','fillvalue','fillbyte','padbyte',
+    'include','include?','incsrc','require','includeall','incbin','bin',
     'db','dw','byte','byt','word','hex','dc.b','dc.w',
     'dsb','dsw','ds.b','ds.w','dl','dh',
     'enum','ende','endenum',
     'print','warning','error',
-    'setincludefolder',
+    'setincludefolder','setcurrentfile',
     'macro','endm','endmacro',
     'if','ifdef','ifndef','else','elseif','endif','iffileexist','iffile',
     'arch','table','loadtable','cleartable','mapdb','clampdb',
@@ -925,6 +936,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     #v = operations[op](getValue(v[0]), getValue(v[1]))
                     #l = 1 if v <=256 else 2
                     return v,l
+        elif v.startswith('0x'):
+            v = int(v[2:],16)
+            l = bytesForNumber(v)
         elif v.startswith('$'):
             v = int(v[1:],16)
             l = bytesForNumber(v)
@@ -1002,6 +1016,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     
     assembler.initialFolder = os.path.split(filename)[0]
     assembler.currentFolder = assembler.initialFolder
+    assembler.initialFilename = filename
 
     # Doing it this way removes the line endings
     lines = file.read().splitlines()
@@ -1052,8 +1067,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         clampdb = cfg.isTrue(cfg.getValue('main', 'clampdb'))
         lineSep = makeList(cfg.getValue('main', 'linesep'))
         caseSensitive = cfg.isTrue(cfg.getValue('main', 'caseSensitive'))
+        
+        assembler.caseSensitive = caseSensitive
+        
         lineSep = [x for x in lineSep if x != '']
         
+        assembler.currentFilename = assembler.initialFilename
         lines = originalLines
         
 #        if lineSep:
@@ -1300,6 +1319,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     ifData[ifLevel].bool=False
                 else:
                     k = 'if'
+                    ifLevel-=1
             elif k == 'iffileexist' or k == 'iffile':
                 ifLevel+=1
                 ifData[ifLevel] = Map()
@@ -1457,6 +1477,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             if k == "setincludefolder":
                 assembler.currentFolder = (line.split(" ",1)+[''])[1].strip()
                 hide = True
+            if k == "setcurrentfile":
+                data = (line.split(" ",1)+[''])[1].strip()
+                filename = getValueAsString(data) or getString(data)
+                assembler.currentFilename = filename
             
             elif k=='loadtable' or k == 'table':
                 l = line.split(" ",1)[1].strip()
@@ -1554,7 +1578,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 
                 rept.block = []
                 rept.status = False
-            elif k == 'include' or k=='incsrc':
+            elif k == 'include' or k == 'include?' or k=='incsrc' or k == 'require':
                 filename = line.split(" ",1)[1].strip()
                 filename = getString(filename)
                 filename = assembler.findFile(filename)
@@ -1577,12 +1601,20 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
 #                            newLines = flattenList(newLines)
                         
                         newLines = ['setincludefolder '+folder]+newLines+['setincludefolder '+assembler.currentFolder]
+                        newLines.append(assembler.hidePrefix + 'setCurrentFile "{}"'.format(assembler.currentFilename))
                         assembler.currentFolder = folder
+                        assembler.currentFilename = filename
                         
                         lines = lines[:i]+['']+newLines+lines[i+1:]
                 else:
-                    assembler.errorLinePos = len(line.split(' ',1)[0])+1
-                    errorText = 'file not found'
+                    if k == 'include?':
+                        pass
+                    else:
+                        assembler.errorLinePos = len(line.split(' ',1)[0])+1
+                        errorText = 'file not found'
+                        if k == 'require':
+                            assembler.printError(errorText, line)
+                            break
             elif k == 'includeall':
                 folder = line.split(" ",1)[1].strip()
                 files = [x for x in os.listdir(folder) if os.path.splitext(x.lower())[1] in ['.asm']]
@@ -1708,7 +1740,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 a = getValue(data.split(',')[0])
                 
                 b = b + ([fv] * ((a-currentAddress%a)%a))
-                
+            elif k in ('fillvalue','fillbyte','padbyte'):
+                fillValue = getValue(line.split(' ',1)[1])
+            
             elif k == 'hex':
                 data = line.split(' ',1)[1]
                 b = b + list(bytes.fromhex(''.join(['0'*(len(x)%2) + x for x in data.split()])))
@@ -1776,20 +1810,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         assembler.errorLinePos = len(line.split(' ',1)[0])+1
                         errorText = "invalid value"
                     values = [max(0, x) % 256 for x in values]
-#                if 'YOU SHALL' in line:
-#                    print(line)
-#                    print(values)
-#                    print(len(values))
                 
-                #values = getValue(values)
-                #values = getString(values, strip=False)
-                
-#                if values == False:
-#                    assembler.errorLinePos = len(line.split(' ',1)[0])+1
-#                    errorText = "invalid value"
-#                else:
-#                    values = assembler.mapText(values)
-#                    b = b + makeList(values)
                 b = b + makeList(values)
             elif k == 'db' or k=='byte' or k == 'byt' or k == 'dc.b' or k == 'dl':
                 values = line.split(' ',1)[1]
@@ -1882,7 +1903,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         v = v.split(',x',1)[0]
                         
                         length = setLength or getLength(v)
-                        #if getLength(v)==1 and getOpWithMode(k, 'Zero Page, X'):
                         if length == 1 and getOpWithMode(k, 'Zero Page, X'):
                             op = getOpWithMode(k, 'Zero Page, X')
                         elif getOpWithMode(k, 'Absolute, X'):
@@ -1890,7 +1910,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     elif v.endswith(',y'):
                         v = v.split(',y',1)[0]
                         length = setLength or getLength(v)
-                        #if getLength(v)==1 and getOpWithMode(k, 'Zero Page, Y'):
                         if length == 1 and getOpWithMode(k, 'Zero Page, Y'):
                             op = getOpWithMode(k, 'Zero Page, Y')
                         elif getOpWithMode(k, 'Absolute, Y'):
@@ -1900,7 +1919,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         op = getOpWithMode(k, 'Immediate')
                     else:
                         length = setLength or getLength(v)
-                        #if getLength(v)==1 and getOpWithMode(k, 'Zero Page'):
                         if length == 1 and getOpWithMode(k, 'Zero Page'):
                             op = getOpWithMode(k, "Zero Page")
                         elif getOpWithMode(k, "Absolute"):
@@ -1931,7 +1949,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         v = v % 0x100
                         l = 1
                     
-                    if oldv == '#' or ((op.length>1) and l==0):
+                    if op.length>0 and v<0:
+                        b = [op.byte] + [0] * (op.length-1)
+                        errorText= 'value out of range: {}'.format(hex(v))
+                    elif oldv == '#' or ((op.length>1) and l==0):
                         b = [op.byte] + [0] * (op.length-1)
                         assembler.errorLinePos = len(line)
                         errorText= 'missing value'
@@ -2056,11 +2077,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     if assembler.errorLinePos:
                         outputText +=' '*38 + ' '*assembler.errorLinePos+'^\n'
                     outputText+='*** {}\n'.format(errorText)
+                    outputText+='    {}\n'.format(assembler.currentFilename)
                     
                     print(line)
                     if assembler.errorLinePos:
                         print(' '*assembler.errorLinePos+'^')
-                    print('*** {}\n'.format(errorText))
+                    print('*** {}'.format(errorText))
+                    print('    {}\n'.format(assembler.currentFilename))
                     errorText = False
                     assembler.errorLinePos = False
             if k==".org": showAddress = True
@@ -2133,8 +2156,6 @@ if __name__ == '__main__':
     
     print(args)
     
-    
-    #exit()
     assemble(filename, outputFilename = outputFilename, listFilename = listFilename, configFile = configFile, binFile = binFile)
 
     end = time.time()-start

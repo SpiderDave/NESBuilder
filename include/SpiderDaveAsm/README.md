@@ -419,7 +419,7 @@ includeall
     Include all .asm files in a folder.  Files starting with "_" will be ignored.
     
 ```
-    include code/macros
+    includeall code/macros
 ```
 
 incbin / bin

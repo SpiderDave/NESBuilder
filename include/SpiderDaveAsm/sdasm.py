@@ -1,9 +1,12 @@
 """
 Bugs/Issues:
     * symbol recursion issue:
+        **fixed? needs testing**
         symbol = symbol + 1     ; does not work
         symbol = {symbol} +1    ; works
     * rept recursion
+    * changing output on first pass affects second pass
+        for example, using inesprg
 ToDo:
     * create large test .asm
     * text mapping
@@ -33,6 +36,7 @@ import re
 import pathlib
 import operator
 
+from math import sqrt
 import random
 
 from textwrap import dedent
@@ -76,6 +80,16 @@ defaultPalette=[
     [176, 252, 204],[156, 252, 240],[196, 196, 196],[0, 0, 0],[0, 0, 0],
 ]
 
+
+def bestColorMatch(rgb, colors):
+    r, g, b = rgb[:3]
+    color_diffs = []
+    for color in colors:
+        cr, cg, cb = color
+        color_diff = sqrt(abs(r - cr)**2 + abs(g - cg)**2 + abs(b - cb)**2)
+        color_diffs.append((color_diff, color))
+    return colors.index(min(color_diffs)[1])
+
 def imageToCHRData(f, colors=False, x=0,y=0, rows=False, cols=False):
     try:
         with Image.open(f) as im:
@@ -104,11 +118,16 @@ def imageToCHRData(f, colors=False, x=0,y=0, rows=False, cols=False):
             tile[y] = 0
             tile[y+8] = 0
             for x in range(8):
-                for i in range(4):
-                    if list(px[x+(t*8) % w, y + math.floor(t/(w/8))*8]) == colors[i]:
-                        tile[y] += (2**(7-x)) * (i%2)
-                        tile[y+8] += (2**(7-x)) * (math.floor(i/2))
-        
+                
+                c = list(px[x+(t*8) % w, y + math.floor(t/(w/8))*8])
+                i = bestColorMatch(c, colors)
+                
+                tile[y] += (2**(7-x)) * (i%2)
+                tile[y+8] += (2**(7-x)) * (math.floor(i/2))
+#                for i in range(4):
+#                    if list(px[x+(t*8) % w, y + math.floor(t/(w/8))*8]) == colors[i]:
+#                        tile[y] += (2**(7-x)) * (i%2)
+#                        tile[y+8] += (2**(7-x)) * (math.floor(i/2))
         for i in range(16):
             out.append(tile[i])
     
@@ -180,6 +199,7 @@ class Assembler():
     quotes = ('"""','"',"'")
     hidePrefix = '__hide__'
     caseSensitive = False
+    Sprite8x16 = False
     
     nesRegisters = Map(
         PPUCTRL = 0x2000, PPUMASK = 0x2001, PPUSTATUS = 0x2002,
@@ -365,13 +385,13 @@ directives = [
     'macro','endm','endmacro',
     'if','ifdef','ifndef','else','elseif','endif','iffileexist','iffile',
     'arch','table','loadtable','cleartable','mapdb','clampdb',
-    'index','mem','bank','banksize','chrsize','header','noheader','stripheader',
+    'index','mem','bank','lastbank','banksize','chrsize','header','noheader','stripheader',
     'define', '_find',
     'seed','outputfile','listfile','textmap','text','insert',
     'inesprg','ineschr','inesmir','inesmap','inesbattery','inesfourscreen',
     'inesworkram','inessaveram','ines2',
     'orgpad','quit','incchr','chr','setpalette','loadpalette',
-    'rept','endr','endrept','nextrept',
+    'rept','endr','endrept','nextrept','sprite8x16',
 ]
 
 filters = [
@@ -749,6 +769,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             v = random.randrange(r1,r2)
             l = 1
             return v,l
+        
+        if type(v) is list:
+            return v,len(v)
         
         if v.startswith("[") and v.endswith("]"):
             v = v[1:-1]
@@ -1380,6 +1403,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 bankSize = getValue(line.split(" ")[1].strip())
             elif k == 'chrsize':
                 chrSize = getValue(line.split(" ")[1].strip())
+            elif k == 'lastbank':
+                bank = out[4]-1
+
+                # bank resets
+                currentAddress = 0x8000
+                addr = bank * bankSize
             elif k == 'bank':
                 v = line.split(" ")[1].strip()
                 bank = getValue(v)
@@ -1391,10 +1420,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 v = getValue(line.split(" ")[1].strip())
                 
                 bank = int((getValue('prgbanks') * 0x4000) / bankSize)
-                
+                bank = None
                 # bank resets
-                currentAddress = chrSize*v
+                #currentAddress = chrSize*v
+                currentAddress = 0
                 addr = chrSize*v
+                addr = getValue('prgbanks') * 0x4000 + chrSize*v + headerSize
             elif k == 'setpalette':
                 v = getValue(line.split(" ",1)[1].strip())
                 assembler.currentPalette = v
@@ -1523,9 +1554,17 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     filename = assembler.findFile(filename)
                     if filename:
                         colors = [assembler.palette[x] for x in assembler.currentPalette]
-                        
                         chrData = imageToCHRData(filename, colors=colors, x=x,y=y,rows=rows, cols=cols)
-                        b = b + chrData
+                        
+                        if assembler.Sprite8x16:
+                            for y in range(0,rows, 2):
+                                for x in range(0, cols):
+                                    for h in range(2):
+                                        #print((y+h)*16+x)
+                                        tileNum = ((y+h)*16+x)
+                                        b=b+chrData[tileNum*16:tileNum*16+16]
+                        else:
+                            b = b + chrData
                     else:
                         assembler.errorLinePos = len(line.split(' ',1)[0])+1
                         errorText = 'file not found'
@@ -1792,6 +1831,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         clampdb = True
                     else:
                         clampdb = False
+            elif k == 'sprite8x16':
+                v = line.split(' ',1)
+                if len(v) == 1:
+                    assembler.Sprite8x16 = True
+                else:
+                    v = v[1].strip()
+                    if (v.lower() in ['on','true']) or (getValue(v) == 1):
+                        assembler.Sprite8x16 = True
+                    else:
+                        assembler.Sprite8x16 = False
             elif k == 'text' or (k in ('db','dl') and mapdb == True):
                 values = line.split(' ',1)[1].strip()
                 
@@ -1998,7 +2047,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         startAddress = addr
                     currentAddress = addr
                 else:
-                    symbols[assembler.lower(k)] = v
+                    #symbols[assembler.lower(k)] = v
+                    symbols[assembler.lower(k)] = getValue(v)
+                    
                 k=''
             
             if len(b)>0:

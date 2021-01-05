@@ -424,8 +424,9 @@ includeall
 
 incbin / bin
     
-    Add a file to the assembly as raw data.  A start offset and size may also
-    be specified
+    Add a file to the assembly as raw data.  A start offset and size may be
+    specified, as well as a symbol to fill the data with instead of adding it
+    to the output.
     
 ```
     ; include whole file
@@ -433,6 +434,10 @@ incbin / bin
     
     ; include 32 bytes from file.dat starting at file offset 16.
     incbin "file.dat", $10, $20
+    
+    ; get 32 bytes from file.dat starting at file offset 16 and 
+    ; fill the symbol "foobar" with it.
+    incbin "file.dat", $10, $20, foobar
 ```
     
 incchr
@@ -490,6 +495,15 @@ listfile
     
 ```
     outputfile "list.txt"
+```
+    
+export
+    
+    Export a symbol to a file.
+    
+```
+    ; Write the contents of foobar to foobar.dat
+    export foobar, "foobar.dat"
 ```
     
 print

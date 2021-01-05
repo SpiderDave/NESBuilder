@@ -45,8 +45,9 @@ from textwrap import dedent
 try:
     from PIL import ImageTk, Image, ImageDraw, ImageOps, ImageGrab
     PIL = True
-except:
+except Exception as e:
     PIL = False
+    print('***', str(e))
 
 
 #try: import numpy as np
@@ -80,6 +81,12 @@ defaultPalette=[
     [176, 252, 204],[156, 252, 240],[196, 196, 196],[0, 0, 0],[0, 0, 0],
 ]
 
+def findAll(haystack, needle):
+    return [i for i in range(0, len(haystack)) if haystack[i:].startswith(needle)]
+
+def getIndent(haystack, start=0):
+    return start+(len(haystack[start:]) - len(haystack[start:].lstrip()))
+
 
 def bestColorMatch(rgb, colors):
     r, g, b = rgb[:3]
@@ -90,7 +97,7 @@ def bestColorMatch(rgb, colors):
         color_diffs.append((color_diff, color))
     return colors.index(min(color_diffs)[1])
 
-def imageToCHRData(f, colors=False, x=0,y=0, rows=False, cols=False):
+def imageToCHRData(f, colors=False, xOffset=0,yOffset=0, rows=False, cols=False):
     try:
         with Image.open(f) as im:
             px = im.load()
@@ -99,13 +106,10 @@ def imageToCHRData(f, colors=False, x=0,y=0, rows=False, cols=False):
         return
     
     width, height = im.size
-    if rows:
+    if rows!=False:
         height = rows*8
-    if cols:
+    if cols!=False:
         width = cols*8
-    
-    (left, upper, right, lower) = (x, y, width, height)
-    im = im.crop((left, upper, right, lower))
     
     w = math.floor(width/8)*8
     h = math.floor(height/8)*8
@@ -119,15 +123,11 @@ def imageToCHRData(f, colors=False, x=0,y=0, rows=False, cols=False):
             tile[y+8] = 0
             for x in range(8):
                 
-                c = list(px[x+(t*8) % w, y + math.floor(t/(w/8))*8])
+                c = list(px[xOffset+x+(t*8) % w,yOffset+ y + math.floor(t/(w/8))*8])
                 i = bestColorMatch(c, colors)
                 
                 tile[y] += (2**(7-x)) * (i%2)
                 tile[y+8] += (2**(7-x)) * (math.floor(i/2))
-#                for i in range(4):
-#                    if list(px[x+(t*8) % w, y + math.floor(t/(w/8))*8]) == colors[i]:
-#                        tile[y] += (2**(7-x)) * (i%2)
-#                        tile[y+8] += (2**(7-x)) * (math.floor(i/2))
         for i in range(16):
             out.append(tile[i])
     
@@ -391,7 +391,7 @@ directives = [
     'inesprg','ineschr','inesmir','inesmap','inesbattery','inesfourscreen',
     'inesworkram','inessaveram','ines2',
     'orgpad','quit','incchr','chr','setpalette','loadpalette',
-    'rept','endr','endrept','nextrept','sprite8x16',
+    'rept','endr','endrept','nextrept','sprite8x16','export',
 ]
 
 filters = [
@@ -735,6 +735,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             l = 1 if v <=256 else 2
             return v,l
         
+        if mode == 'getbyte':
+            a = getValue(v)
+
+            if bank != None:
+                a = (a-0x8000-0x4000) + bank * bankSize + headerSize
+            else:
+                #a = a + headerSize
+                pass
+            
+            return out[a],1
         if mode == 'choose':
             v = v.split(',')
             random.shuffle(v)
@@ -1539,13 +1549,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         assembler.errorLinePos = len(line.split(' ',1)[0])+1
             elif k == 'incchr':
                 if PIL:
-                    x, y, rows, cols = False, False, False, False
+                    imageX, imageY, rows, cols = False, False, False, False
                     filename = line.split(" ",1)[1].strip()
                     if ',' in filename:
                         arg = filename.split(',')[1:]
                         arg = [getValue(x) for x in arg]
                         if len(arg) == 4:
-                            x,y,cols,rows = arg
+                            imageX,imageY,cols,rows = arg
                         if len(arg)==2:
                             cols,rows = arg
                         filename = filename.split(',')[0]
@@ -1554,14 +1564,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     filename = assembler.findFile(filename)
                     if filename:
                         colors = [assembler.palette[x] for x in assembler.currentPalette]
-                        chrData = imageToCHRData(filename, colors=colors, x=x,y=y,rows=rows, cols=cols)
+                        chrData = imageToCHRData(filename, colors=colors, xOffset=imageX,yOffset=imageY,rows=rows, cols=cols)
                         
                         if assembler.Sprite8x16:
                             for y in range(0,rows, 2):
                                 for x in range(0, cols):
                                     for h in range(2):
                                         #print((y+h)*16+x)
-                                        tileNum = ((y+h)*16+x)
+                                        #tileNum = ((y+h)*16+x)
+                                        tileNum = ((y+h)*cols+x)
                                         b=b+chrData[tileNum*16:tileNum*16+16]
                         else:
                             b = b + chrData
@@ -1570,25 +1581,44 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         errorText = 'file not found'
                 else:
                     errorText = 'PIL not available.'
+            elif k == 'export':
+                if passNum==2:
+                    l = line.split(" ",1)[1].strip()
+                    l = l.split(',')
+                    exportSymbol = l[0].strip()
+                    filename = getString(l[1].strip())
+                    try:
+                        with open(filename, 'wb') as file:
+                            file.write(bytes(getValue(exportSymbol)))
+                            print('{} written.'.format(filename))
+                    except:
+                        print('export error')
             elif k == "incbin" or k == "bin":
                 l = line.split(" ",1)[1].strip()
                 
                 offset = 0
                 nBytes = -1
+                importSymbol = False
                 if ',' in l:
                     l = l.split(',')
                     filename = l[0].strip()
                     offset = getValue(l[1])
                     if len(l)>2:
                         nBytes = getValue(l[2])
-                    print("offset: ", offset)
+                        if nBytes<=0:
+                            assembler.errorLinePos = getIndent(line, findAll(line,',')[1]+1)
+                            errorText = 'length out of range'
+                    if len(l)>3:
+                        importSymbol = l[3].strip()
                 else:
                     filename = l
                 
                 filename = getString(filename)
                 filename = assembler.findFile(filename)
                 
-                if filename:
+                if errorText:
+                    pass
+                elif filename:
                     b=False
                     try:
                         with open(filename, 'rb') as file:
@@ -1596,9 +1626,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                             b = list(file.read(nBytes))
                     except:
                         print("Could not open file.")
+                    
                     if b:
                         fileList.append(filename)
                         lines = lines[:i]+['']+['setincludefolder '+assembler.currentFolder]+lines[i+1:]
+                        
+                        symbols[assembler.lower(importSymbol)] = b[:]
+                        b = []
+                    else:
+                        assembler.errorLinePos = getIndent(line, findAll(line,',')[0]+1)
+                        errorText = 'file offset out of range'
                 else:
                     assembler.errorLinePos = len(line.split(' ',1)[0])+1
                     errorText = 'file not found'

@@ -97,7 +97,7 @@ def bestColorMatch(rgb, colors):
         color_diffs.append((color_diff, color))
     return colors.index(min(color_diffs)[1])
 
-def imageToCHRData(f, colors=False, xOffset=0,yOffset=0, rows=False, cols=False):
+def imageToCHRData(f, colors=False, xOffset=0,yOffset=0, rows=False, cols=False, nTiles=False):
     try:
         with Image.open(f) as im:
             px = im.load()
@@ -113,7 +113,8 @@ def imageToCHRData(f, colors=False, xOffset=0,yOffset=0, rows=False, cols=False)
     
     w = math.floor(width/8)*8
     h = math.floor(height/8)*8
-    nTiles = int(w/8 * h/8)
+    if nTiles==False:
+        nTiles = int(w/8 * h/8)
     
     out = []
     for t in range(nTiles):
@@ -123,11 +124,16 @@ def imageToCHRData(f, colors=False, xOffset=0,yOffset=0, rows=False, cols=False)
             tile[y+8] = 0
             for x in range(8):
                 
-                c = list(px[xOffset+x+(t*8) % w,yOffset+ y + math.floor(t/(w/8))*8])
+                #c = list(px[xOffset+x+(t*8) % w,yOffset+ y + math.floor(t/(w/8))*8])
+                c = list(px[xOffset + x, yOffset + y + math.floor(t/(w/8))*8])
                 i = bestColorMatch(c, colors)
                 
                 tile[y] += (2**(7-x)) * (i%2)
                 tile[y+8] += (2**(7-x)) * (math.floor(i/2))
+        xOffset += 8
+        if xOffset >=w:
+            xOffset = 0
+            yOffset += 8
         for i in range(16):
             out.append(tile[i])
     
@@ -397,7 +403,7 @@ directives = [
 filters = [
     'shuffle','getbyte','getword','choose',
     'format','random','range','textmap',
-    'evalvar',
+    'evalvar','pop',
 ]
 
 asm=[
@@ -579,7 +585,7 @@ makeHex = lambda x: '$'+x.to_bytes(((x.bit_length()|1  + 7) // 8),"big").hex()
 
 specialSymbols = [
     'sdasm','bank','banksize','chrsize','randbyte','randword','fileoffset',
-    'prgbanks','chrbanks','lastbank','lastchr','reptindex',
+    'prgbanks','chrbanks','lastbank','lastchr','reptindex','mapper',
 ]
 
 timeSymbols = ['year','month','day','hour','minute','second']
@@ -679,6 +685,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             return str(out[4]-1)
         elif s == 'chrbanks' or s == 'lastchr':
             return str(out[5])
+        elif s == 'mapper':
+            return str((out[7] & 0xf0) + (out[6]>>4))
         elif s == 'fileoffset':
             if bank != None:
                 return str(addr + bank * bankSize + headerSize)
@@ -751,6 +759,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             v=v[0]
             l=1
             return v,l
+        if mode == 'pop':
+            if assembler.lower(v) in symbols:
+                v = symbols[assembler.lower(v)].pop()
+                l = 1
+                return v,l
+            return 0,0
         
         if mode == 'range':
             v=v.split(',')
@@ -1507,13 +1521,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     else:
                         assembler.setTextMapData(data[0], data[1])
             elif k == 'outputfile':
-                outputFilename = getValueAsString(line.split(" ",1)[1].strip())
+                filename = getString(line.split(" ",1)[1].strip())
+                if filename:
+                    outputFilename = filename
             elif k == 'listfile':
-                listFilename = getValueAsString(line.split(" ",1)[1].strip())
-                
-                if listFilename.lower() in ('false','0','none', ''):
+                filename = getString(line.split(" ",1)[1].strip())
+                if filename.lower() in ('false','0','none', ''):
                     listFilename = False
-            
+                else:
+                    listFilename = filename
             # hidden internally used directive used with include paths
             if k == "setincludefolder":
                 assembler.currentFolder = (line.split(" ",1)+[''])[1].strip()
@@ -1549,13 +1565,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         assembler.errorLinePos = len(line.split(' ',1)[0])+1
             elif k == 'incchr':
                 if PIL:
-                    imageX, imageY, rows, cols = False, False, False, False
+                    imageX, imageY, nTiles, rows, cols = [False]*5
                     filename = line.split(" ",1)[1].strip()
                     if ',' in filename:
                         arg = filename.split(',')[1:]
                         arg = [getValue(x) for x in arg]
                         if len(arg) == 4:
                             imageX,imageY,cols,rows = arg
+                        if len(arg) == 3:
+                            imageX,imageY, nTiles = arg
                         if len(arg)==2:
                             cols,rows = arg
                         filename = filename.split(',')[0]
@@ -1564,7 +1582,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     filename = assembler.findFile(filename)
                     if filename:
                         colors = [assembler.palette[x] for x in assembler.currentPalette]
-                        chrData = imageToCHRData(filename, colors=colors, xOffset=imageX,yOffset=imageY,rows=rows, cols=cols)
+                        chrData = imageToCHRData(filename, colors=colors, xOffset=imageX,yOffset=imageY,rows=rows, cols=cols, nTiles=nTiles)
                         
                         if assembler.Sprite8x16:
                             for y in range(0,rows, 2):
@@ -1593,7 +1611,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                             print('{} written.'.format(filename))
                     except:
                         print('export error')
-            elif k == "incbin" or k == "bin":
+            elif k == 'incbin' or k == 'bin':
                 l = line.split(" ",1)[1].strip()
                 
                 offset = 0
@@ -1631,8 +1649,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         fileList.append(filename)
                         lines = lines[:i]+['']+['setincludefolder '+assembler.currentFolder]+lines[i+1:]
                         
-                        symbols[assembler.lower(importSymbol)] = b[:]
-                        b = []
+                        if importSymbol:
+                            symbols[assembler.lower(importSymbol)] = b[:]
+                            b = []
                     else:
                         assembler.errorLinePos = getIndent(line, findAll(line,',')[0]+1)
                         errorText = 'file offset out of range'
@@ -1644,7 +1663,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 rept.index = 0
                 rept.block = []
                 rept.status = 'gather'
-                print('rept depth',rept.depth)
+                #print('rept depth',rept.depth)
             elif k == 'nextrept':
                 rept.index += 1
             elif k == 'endr':

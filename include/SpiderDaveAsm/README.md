@@ -455,6 +455,16 @@ incchr
     incchr "smbchr0.png", 5, 2, 16, 1  ; include 16 columns and 1 row starting at coordinates 5,2
 ```
     
+assemble
+    
+    Assemble a file.  This is useful to assemble things in multiple stages, or to create a base
+    binary and include it conditionally, etc.  The output file, etc can't be specified here, but
+    the directives to do so are available from the file to assemble.
+    
+```
+    assemble "test2.asm"
+```
+    
 loadpalette
     
     Load a palette file (.pal).  Palette files should be 192 bytes--3 bytes per color, 64 colors.

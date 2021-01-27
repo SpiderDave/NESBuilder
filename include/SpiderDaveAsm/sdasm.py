@@ -81,6 +81,14 @@ defaultPalette=[
     [176, 252, 204],[156, 252, 240],[196, 196, 196],[0, 0, 0],[0, 0, 0],
 ]
 
+def elapsed(start, end=False):
+    if not end:
+        end = time.time()
+    hours, rem = divmod(end-start, 3600)
+    minutes, seconds = divmod(rem, 60)
+    return "{:0>2}:{:0>2}:{:05.2f}".format(int(hours),int(minutes),seconds)
+
+
 def findAll(haystack, needle):
     return [i for i in range(0, len(haystack)) if haystack[i:].startswith(needle)]
 
@@ -247,6 +255,10 @@ class Assembler():
     def tokenize(self, text='', tokens=[], splitter=','):
         tokens = tokens or [text]
         txt = tokens[-1]
+        
+        if not any(q in txt for q in self.quotes):
+            return tokens[:-1] + [x.strip() for x in txt.split(splitter)]
+        
         q = False
         for quote in self.quotes:
             if txt.startswith(quote):
@@ -397,13 +409,14 @@ directives = [
     'inesprg','ineschr','inesmir','inesmap','inesbattery','inesfourscreen',
     'inesworkram','inessaveram','ines2',
     'orgpad','quit','incchr','chr','setpalette','loadpalette',
-    'rept','endr','endrept','nextrept','sprite8x16','export',
+    'rept','endr','endrept','nextrept','sprite8x16','export','diff',
+    'assemble',
 ]
 
 filters = [
     'shuffle','getbyte','getword','choose',
     'format','random','range','textmap',
-    'evalvar','pop',
+    'evalvar','pop','astext',
 ]
 
 asm=[
@@ -594,6 +607,7 @@ specialSymbols+= timeSymbols
 specialSymbols+= [x.lower() for x in assembler.nesRegisters.keys()]
 
 def assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False):
+    
     if not configFile:
         configFile = inScriptFolder('config.ini')
     
@@ -627,7 +641,18 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     
     assembler.cfg = cfg
 
+    startTime = time.time()
     _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile)
+    endTime = time.time()-startTime
+    if endTime >= 3:
+        elapsed = time.strftime(' %H hours, %M minutes, %S seconds.',time.gmtime(endTime))
+        elapsed = elapsed.replace(' 00 ',' 0 ')
+        elapsed = elapsed.replace(' 0 hours,','')
+        elapsed = elapsed.replace(' 0 minutes,','')
+        elapsed = elapsed.strip()
+        print(time.strftime('Finished in {}'.format(elapsed)))
+
+    #print(assembler.tokenize("$00,$42,5,10"))
 
 def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     
@@ -764,7 +789,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 v = symbols[assembler.lower(v)].pop()
                 l = 1
                 return v,l
-            return 0,0
+            else:
+                assembler.errorHint = "unknown symbol"
+                v = 0
+                l = -1
+                return v,l
         
         if mode == 'range':
             v=v.split(',')
@@ -795,6 +824,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             return v,l
         
         if type(v) is list:
+            if mode == 'shuffle':
+                random.shuffle(v)
             return v,len(v)
         
         if v.startswith("[") and v.endswith("]"):
@@ -999,9 +1030,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             l = 1 if int(v,10) <=256 else 2
             v = int(v,10)
         elif assembler.lower(v) in symbols:
-            v, l = getValueAndLength(symbols[assembler.lower(v)])
+            v, l = getValueAndLength(symbols[assembler.lower(v)], mode=mode)
         elif v.lower() in specialSymbols:
-            v, l = getValueAndLength(getSpecial(v.lower()))
+            v, l = getValueAndLength(getSpecial(v.lower()), mode=mode)
         else:
             if passNum==2:
                 #errorText= 'invalid value: {}'.format(v)
@@ -1011,6 +1042,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             v = 0
             l = -1
         
+        if mode == 'astext':
+            v = bytearray(makeList(v)).decode('utf8')
+            l = len(v)
+            return v, l
+
         if mode == 'textmap':
             v = assembler.mapText(bytearray(makeList(v)).decode('utf8'))
             l = len(v)
@@ -1072,15 +1108,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     symbols = Map()
     equ = Map()
     
-    # Allow lda.b, lda.w, etc.
-    # It wont set the byte size but this is better than nothing.
-#    def alias(opcode):
-#        equ[opcode+'.b']=opcode
-#        equ[opcode+'.w']=opcode
-    
-#    for o in opcodes:
-#        alias(o)
-    
     aLabels = []
     lLabels = []
     macros = Map()
@@ -1099,6 +1126,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             print("Could not find file: {}".format(binFile))
             return
     for passNum in (1,2):
+        passTime = time.time()
+        
         commentSep = makeList(cfg.getValue('main', 'comment'))
         commentBlockOpen = makeList(cfg.getValue('main', 'commentBlockOpen'))
         commentBlockClose = makeList(cfg.getValue('main', 'commentBlockClose'))
@@ -1122,11 +1151,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         assembler.currentFilename = assembler.initialFilename
         lines = originalLines
         
-#        if lineSep:
-#            for s in lineSep:
-#                lines = [l.split(s) for l in lines]
-#            lines = flattenList(lines)
-        
         addr = 0
         oldAddr = 0
         
@@ -1146,15 +1170,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         
         outputText = ''
 
-        outputText+= 'Assembled with sdasm\n'
-        outputText+= '{1}{0}{1}{0}{2}{0}{3}\n'.format(' ', '_'*5, '_'*25, '_'*40)
-        outputText+= '{1:5}{0}{2:5}{0}{3:25}{0}{4}\n'.format('|','file','prg',' bytes',' asm code')
-        outputText+= '{1:5}{0}{2:5}{0}{3:25}{0}{4}\n'.format('|','offst','addr','','')
-        outputText+= '{1}{0}{1}{0}{2}{0}{3}\n'.format('|', '-'*5, '-'*25, '-'*40)
-
         startAddress = False
-#        assembler.currentFolder = ''
-#        assembler.currentFolder = os.path.split(filename)[0]
         assembler.currentFolder = assembler.initialFolder
         ifLevel = 0
         ifData = Map()
@@ -1174,6 +1190,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         
         fileList = []
         print('pass {}...'.format(passNum))
+        
+        totalTime = time.time()
         
         for i in range(10000000):
             if i>len(lines)-1:
@@ -1611,6 +1629,36 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                             print('{} written.'.format(filename))
                     except:
                         print('export error')
+            elif k == 'diff':
+                if passNum==2:
+                    filename = line.split(" ",1)[1].strip()
+                    filename = getString(filename)
+                    filename = assembler.findFile(filename)
+                    if filename:
+                        with open(filename, 'rb') as file:
+                            diffData = file.read()
+                        diffOut='; {}\n'.format(filename)
+                        n=0
+                        for i,b1 in enumerate(out):
+                            b2 = diffData[i]
+                            if b1!=b2:
+                                if n==0:
+                                    #print('{:04x} {:02x} {:02x}\n'.format(i, b,b2))
+                                    #print('org ${:04x}\n    db ${:02x}\n'.format(i-0x10+0x8000, b2))
+                                    diffOut += 'org ${:04x} ; ${:04x}\n    db ${:02x}'.format(i-0x10+0x8000, i, b2)
+                                else:
+                                    if n % 4 == 0:
+                                        diffOut += '\n    db ${:02x}'.format(b2)
+                                    else:
+                                        diffOut += ', ${:02x}'.format(b2)
+                                n += 1
+                            else:
+                                if n>0:
+                                    diffOut += '\n'
+                                n = 0
+                        print(diffOut)
+                    else:
+                        print('Could not open file')
             elif k == 'incbin' or k == 'bin':
                 l = line.split(" ",1)[1].strip()
                 
@@ -1673,6 +1721,17 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 
                 rept.block = []
                 rept.status = False
+            elif k == 'assemble':
+                arg = line.split(' ',1)[1].strip()
+                arg = assembler.tokenize(arg)
+                print(arg)
+                filename = line.split(" ",1)[1].strip()
+                filename = getString(filename)
+                filename = assembler.findFile(filename)
+                if filename:
+                    assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False)
+                else:
+                    errorText = 'file not found'
             elif k == 'include' or k == 'include?' or k=='incsrc' or k == 'require':
                 filename = line.split(" ",1)[1].strip()
                 filename = getString(filename)
@@ -2194,41 +2253,71 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     errorText = False
                     assembler.errorLinePos = False
             if k==".org": showAddress = True
+            if passNum == 2 and (time.time() - lineTime>2):
+                print(originalLine)
+                print('Line time: ' + elapsed(lineTime))
+        #print('pass {} time: {}'.format(passNum, elapsed(passTime)))
     
-    if passNum == 2:
+    # output:
+    
+    invalidBytes = [(i,x) for (i,x) in enumerate(out) if x not in range(256)]
+    if len(invalidBytes)!=0:
+        outputText+='*** Invalid bytes:'
+        print('Invalid bytes:')
+        for a,b in invalidBytes:
+            outputText += '{:05x}: {:02x}'.format(a,b)
+            print('{:05x}: {:02x}'.format(a,b))
+            out[a] = 0
+
+    if outputFilename:
         with open(outputFilename, "wb") as file:
-            invalidBytes = [(i,x) for (i,x) in enumerate(out) if x not in range(256)]
-            if len(invalidBytes)!=0:
-                outputText+='*** Invalid bytes:'
-                print('Invalid bytes:')
-                for a,b in invalidBytes:
-                    outputText += '{:05x}: {:02x}'.format(a,b)
-                    print('{:05x}: {:02x}'.format(a,b))
-                    out[a] = 0
-            
             if assembler.stripHeader:
                 out = out[16:]
             
             file.write(bytes(out))
             print('{} written.'.format(outputFilename))
-        
-        if listFilename:
-            with open(listFilename, 'w') as file:
-                print(outputText, file=file)
-                print('{} written.'.format(listFilename))
-
-        if debug:
-            f = 'debug_symbols.txt'
-            with open(f, "w") as file:
-                for k,v in symbols.items():
-                    print('{} = {}'.format(k,v), file=file)
-            print('{} written.'.format(f))
-        if debug:
-            f = 'debug_files.txt'
-            with open(f, "w") as file:
-                file.writelines(fileList)
-            print('{} written.'.format(f))
-        print()
+    else:
+        print("No output file")
+    
+    
+    outputTopper = ''
+    outputTopper+= 'Assembled with sdasm\n\n'
+    if headerSize > 0:
+        outputTopper+= 'PRG Banks:{}\nCHR Banks:{}\nMapper: {}\n'.format(
+            getSpecial('prgbanks'),
+            getSpecial('chrbanks'),
+            getSpecial('mapper'),
+        )
+    else:
+        outputTopper+= "No header\n"
+    outputTopper+= '{1}{0}{1}{0}{2}{0}{3}\n'.format(' ', '_'*5, '_'*25, '_'*40)
+    outputTopper+= '{1:5}{0}{2:5}{0}{3:25}{0}{4}\n'.format('|','file','prg',' bytes',' asm code')
+    outputTopper+= '{1:5}{0}{2:5}{0}{3:25}{0}{4}\n'.format('|','offst','addr','','')
+    outputTopper+= '{1}{0}{1}{0}{2}{0}{3}\n'.format('|', '-'*5, '-'*25, '-'*40)
+    outputText = outputTopper + outputText
+    
+    if listFilename:
+        with open(listFilename, 'w') as file:
+            print(outputText, file=file)
+            print('{} written.'.format(listFilename))
+    else:
+        print('No list file')
+    
+    if debug:
+        f = 'debug_symbols.txt'
+        with open(f, "w") as file:
+            for k,v in symbols.items():
+                print('{} = {}'.format(k,v), file=file)
+        print('{} written.'.format(f))
+    if debug:
+        f = 'debug_files.txt'
+        with open(f, "w") as file:
+            file.writelines(fileList)
+        print('{} written.'.format(f))
+    print()
+    
+    return True
+    
 if __name__ == '__main__':
     # This stuff doesn't work because I need to get the relative
     # imports more organized.
@@ -2259,12 +2348,7 @@ if __name__ == '__main__':
     configFile = args.cfg
     binFile = args.bin # not implemented
     
-    start = time.time()
-    
-    print(args)
-    
+    #print(args)
     assemble(filename, outputFilename = outputFilename, listFilename = listFilename, configFile = configFile, binFile = binFile)
+    
 
-    end = time.time()-start
-    if end>=3:
-        print(time.strftime('Finished in %Hh %Mm %Ss.',time.gmtime(end)))

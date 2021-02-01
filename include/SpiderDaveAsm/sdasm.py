@@ -1376,7 +1376,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             # optionally allow "then" at the end of some if directives
             if k in ifDirectives and k not in ('else', 'endif'):
                 data = line.split(" ",1)[1]
-                if data.lower().rfind('then'):
+                if data.lower().rfind('then') != -1:
                     line = line[:line.lower().rfind('then')]
             
             if k == 'ifdef':
@@ -1423,31 +1423,45 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 
                 inv = False
                 data = line.split(" ",1)[1].strip().replace('==','=')
+                
                 if data.split(" ")[0].strip().lower() == 'not':
                     data = data.split(' ',1)[1]
                     inv = True
-                if '!=' in data:
-                    l,r = data.split('!=')
-                    if ((getValue(l) == getValue(r)) and inv == False) or ((getValue(l) != getValue(r)) and inv == True):
+
+                if inv:
+                    if getValue(data):
                         ifData[ifLevel].bool = False
                     else:
                         ifData[ifLevel].bool = True
                         ifData[ifLevel].done = True
-                elif '=' in data:
-                    l,r = data.split('=')
-                    if ((getValue(l) == getValue(r)) and inv == False) or ((getValue(l) != getValue(r)) and inv == True):
-                        ifData[ifLevel].bool = True
-                        ifData[ifLevel].done = True
-                    else:
-                        ifData[ifLevel].bool = False
                 else:
-                    if (getValue(data) and inv==False) or (not getValue(data) and inv==True):
+                    if getValue(data):
                         ifData[ifLevel].bool = True
                         ifData[ifLevel].done = True
                     else:
                         ifData[ifLevel].bool = False
-#                if inv:
-#                    ifData[ifLevel].bool = not ifData[ifLevel].done
+
+
+#                if '!=' in data:
+#                    l,r = data.split('!=')
+#                    if ((getValue(l) == getValue(r)) and inv == False) or ((getValue(l) != getValue(r)) and inv == True):
+#                        ifData[ifLevel].bool = False
+#                    else:
+#                        ifData[ifLevel].bool = True
+#                        ifData[ifLevel].done = True
+#                elif '=' in data:
+#                    l,r = data.split('=')
+#                    if ((getValue(l) == getValue(r)) and inv == False) or ((getValue(l) != getValue(r)) and inv == True):
+#                        ifData[ifLevel].bool = True
+#                        ifData[ifLevel].done = True
+#                    else:
+#                        ifData[ifLevel].bool = False
+#                else:
+#                    if (getValue(data) and inv==False) or (not getValue(data) and inv==True):
+#                        ifData[ifLevel].bool = True
+#                        ifData[ifLevel].done = True
+#                    else:
+#                        ifData[ifLevel].bool = False
             if k == 'else':
                 ifData[ifLevel].bool = not ifData[ifLevel].done
             elif k == 'endif':

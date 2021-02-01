@@ -873,6 +873,19 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 l=1
             return v,l
         
+        if '=' in v:
+            v = v.replace('==', '=')
+            if '!=' in v:
+                l,r = v.split('!=')
+                inv = True
+            else:
+                l,r = v.split('=')
+                inv = False
+            if ((getValue(l) == getValue(r)) and inv == False) or ((getValue(l) != getValue(r)) and inv == True):
+                return 1, 1
+            else:
+                return 0, 1
+        
         if v.startswith(assembler.quotes) and v.endswith(assembler.quotes):
             if mode == 'textmap':
                 v = assembler.mapText(assembler.stripQuotes(v))
@@ -1034,7 +1047,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         elif v.lower() in specialSymbols:
             v, l = getValueAndLength(getSpecial(v.lower()), mode=mode)
         else:
-            if passNum==2:
+            if passNum == lastPass:
                 #errorText= 'invalid value: {}'.format(v)
                 #print('*** '+errorText)
                 pass
@@ -1125,7 +1138,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         else:
             print("Could not find file: {}".format(binFile))
             return
-    for passNum in (1,2):
+    lastPass = 3
+    for passNum in range(1,lastPass+1):
         passTime = time.time()
         
         commentSep = makeList(cfg.getValue('main', 'comment'))
@@ -1358,6 +1372,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             if k.startswith(".") and k[1:] in directives:
                 k=k[1:]
             
+            
+            # optionally allow "then" at the end of some if directives
+            if k in ifDirectives and k not in ('else', 'endif'):
+                data = line.split(" ",1)[1]
+                if data.lower().rfind('then'):
+                    line = line[:line.lower().rfind('then')]
+            
             if k == 'ifdef':
                 ifLevel+=1
                 ifData[ifLevel] = Map()
@@ -1405,8 +1426,14 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 if data.split(" ")[0].strip().lower() == 'not':
                     data = data.split(' ',1)[1]
                     inv = True
-                
-                if '=' in data:
+                if '!=' in data:
+                    l,r = data.split('!=')
+                    if ((getValue(l) == getValue(r)) and inv == False) or ((getValue(l) != getValue(r)) and inv == True):
+                        ifData[ifLevel].bool = False
+                    else:
+                        ifData[ifLevel].bool = True
+                        ifData[ifLevel].done = True
+                elif '=' in data:
                     l,r = data.split('=')
                     if ((getValue(l) == getValue(r)) and inv == False) or ((getValue(l) != getValue(r)) and inv == True):
                         ifData[ifLevel].bool = True
@@ -1477,7 +1504,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 return
             elif k == 'inesprg':
                 out[4] = getValue(line.split(" ")[1].strip())
-                print('setting prg to ',out[4])
+                if debug:
+                    print('setting prg to ',out[4])
             elif k == 'ineschr':
                 out[5] = getValue(line.split(" ")[1].strip())
             elif k == 'inesmir':
@@ -1507,12 +1535,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             elif k == 'insert':
                 v = getValue(line.split(" ", 1)[1].strip())
                 fileOffset = addr + bank * bankSize + headerSize
-                
                 fv = fillValue
-                
                 out = out[:fileOffset]+([fv] * v)+out[fileOffset:]
-                
-                print('insert', v, 'bytes.')
+                if debug:
+                    print('insert', v, 'bytes.')
             elif k == 'seed':
                 v = getValue(line.split(" ")[1].strip())
                 random.seed(v)
@@ -1618,7 +1644,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 else:
                     errorText = 'PIL not available.'
             elif k == 'export':
-                if passNum==2:
+                if passNum == lastPass:
                     l = line.split(" ",1)[1].strip()
                     l = l.split(',')
                     exportSymbol = l[0].strip()
@@ -1630,7 +1656,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     except:
                         print('export error')
             elif k == 'diff':
-                if passNum==2:
+                if passNum == lastPass:
                     filename = line.split(" ",1)[1].strip()
                     filename = getString(filename)
                     filename = assembler.findFile(filename)
@@ -1775,13 +1801,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 files = [x for x in files if not x.startswith('_')]
                 lines = lines[:i]+['']+['include {}/{}'.format(folder, x) for x in files]+lines[i+1:]
             
-            elif k == 'print' and passNum==2:
+            elif k == 'print' and passNum == lastPass:
                 v = line.split(" ",1)[1].strip()
                 print(getString(v))
-            elif k == 'warning' and passNum==2:
+            elif k == 'warning' and passNum == lastPass:
                 v = line.split(" ",1)[1].strip()
                 print('warning: ' + v)
-            elif k == 'error' and passNum==2:
+            elif k == 'error' and passNum == lastPass:
                 v = line.split(" ",1)[1].strip()
                 print('Error: ' + v)
                 exit()
@@ -2017,6 +2043,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     for value in values:
                         if value>65535:
                             errorText = "value out of range"
+                            b = b + [0, 0]
                             break
                         if value < 0:
                             value += 0x10000
@@ -2090,7 +2117,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         elif getOpWithMode(k, "Relative"):
                             op = getOpWithMode(k, "Relative")
                 if op:
-                    if op.mode == 'Relative' and passNum==2:
+                    if op.mode == 'Relative' and passNum == lastPass:
                         if getValue(v) == currentAddress+op.length:
                             v = 0
                         elif getValue(v) > currentAddress+op.length:
@@ -2174,7 +2201,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     errorText= 'invalid bytes: '+str(b)
             
                 showAddress = True
-                if noOutput==False and passNum == 2:
+                if noOutput==False and passNum == lastPass:
                     
                     if bank == None:
                         fileOffset = addr
@@ -2218,7 +2245,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             
             if assembler.hideOutputLine:
                 assembler.hideOutputLine = False
-            elif passNum == 2 and not hide:
+            elif passNum == lastPass and not hide:
                 nBytes = cfg.getValue('main', 'list_nBytes')
                 
                 fileOffset = getValue('fileoffset')-len(b)
@@ -2253,7 +2280,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     errorText = False
                     assembler.errorLinePos = False
             if k==".org": showAddress = True
-            if passNum == 2 and (time.time() - lineTime>2):
+            if passNum == lastPass and (time.time() - lineTime>2):
                 print(originalLine)
                 print('Line time: ' + elapsed(lineTime))
         #print('pass {} time: {}'.format(passNum, elapsed(passTime)))

@@ -4,7 +4,6 @@ Bugs/Issues:
         **fixed? needs testing**
         symbol = symbol + 1     ; does not work
         symbol = {symbol} +1    ; works
-    * rept recursion
     * changing output on first pass affects second pass
         for example, using inesprg
 ToDo:
@@ -409,8 +408,8 @@ directives = [
     'inesprg','ineschr','inesmir','inesmap','inesbattery','inesfourscreen',
     'inesworkram','inessaveram','ines2',
     'orgpad','quit','incchr','chr','setpalette','loadpalette',
-    'rept','endr','endrept','nextrept','sprite8x16','export','diff',
-    'assemble',
+    'rept','endr','endrept','sprite8x16','export','diff',
+    'assemble'
 ]
 
 filters = [
@@ -598,7 +597,7 @@ makeHex = lambda x: '$'+x.to_bytes(((x.bit_length()|1  + 7) // 8),"big").hex()
 
 specialSymbols = [
     'sdasm','bank','banksize','chrsize','randbyte','randword','fileoffset',
-    'prgbanks','chrbanks','lastbank','lastchr','reptindex','mapper',
+    'prgbanks','chrbanks','lastbank','lastchr','mapper',
 ]
 
 timeSymbols = ['year','month','day','hour','minute','second']
@@ -723,8 +722,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         elif s == 'randword':
             #return makeHex(random.randrange(0x10000))
             return '${:04x}'.format(random.randrange(0x10000))
-        elif s == 'reptindex':
-            return str(rept.index)
+#        elif s == 'reptindex':
+#            return str(rept.index)
         elif s in timeSymbols:
             v = list(datetime.now().timetuple())[timeSymbols.index(s)]
         elif s in assembler.nesRegisters:
@@ -1194,12 +1193,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         chrSize = 0x2000
         bank = None
         rept = Map()
-        rept.status = False
-        rept.block = []
-        rept.count = 0
         rept.index = 0
-        rept.depth = 0
-        
+                
         assembler.clearTextMap(all=True)
         
         fileList = []
@@ -1250,14 +1245,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 line = line.split(assembler.hidePrefix,1)[1]
                 assembler.hideOutputLine = True
             
-            if rept.status == 'gather':
-                k = line.split(" ",1)[0].strip()
-                if k in ('endr','endrept'):
-                    pass
-                else:
-                    rept.block.append(line)
-                    line = ''
-                
             if lineSep:
                 line = [line]
                 for s in lineSep:
@@ -1747,20 +1734,26 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     assembler.errorLinePos = len(line.split(' ',1)[0])+1
                     errorText = 'file not found'
             elif k == 'rept':
-                rept.count = getValue(line.split(" ",1)[1].strip())
-                rept.index = 0
-                rept.block = []
-                rept.status = 'gather'
-                #print('rept depth',rept.depth)
-            elif k == 'nextrept':
-                rept.index += 1
-            elif k == 'endr':
-                rept.block.append(assembler.hidePrefix + 'nextrept')
-                
-                lines = lines[:i]+['']+ rept.block * rept.count + lines[i+1:]
-                
-                rept.block = []
-                rept.status = False
+                reptCount = getValue(line.split(" ",1)[1].strip())
+                startIndex = i
+                depth = 1
+                for j in range(i+1, len(lines)):
+                    l = lines[j]
+                    #print('***',l)
+                    k = l.strip().split(" ",1)[0].strip().lower()
+                    if k == 'rept':
+                        depth += 1
+                    if k in ('endr','endrept'):
+                        depth -= 1
+                    if depth == 0:
+                        endIndex = j
+                        break
+                newLines = []
+                for c in range(reptCount):
+                    newLines.append('reptindex = {}'.format(c))
+                    for j in range(startIndex+1, endIndex):
+                        newLines.append(lines[j])
+                lines = lines[:startIndex+1] + newLines+ lines[endIndex+1:]
             elif k == 'assemble':
                 arg = line.split(' ',1)[1].strip()
                 arg = assembler.tokenize(arg)
@@ -1816,7 +1809,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 lines = lines[:i]+['']+['include {}/{}'.format(folder, x) for x in files]+lines[i+1:]
             
             elif k == 'print' and passNum == lastPass:
-                v = line.split(" ",1)[1].strip()
+                v = (line+' ').split(" ",1)[1].strip()
                 print(getString(v))
             elif k == 'warning' and passNum == lastPass:
                 v = line.split(" ",1)[1].strip()

@@ -409,7 +409,7 @@ directives = [
     'arch','table','loadtable','cleartable','mapdb','clampdb',
     'index','mem','bank','lastbank','banksize','chrsize','header','noheader','stripheader',
     'define', '_find',
-    'seed','outputfile','listfile','textmap','text','insert',
+    'seed','outputfile','listfile','textmap','text','insert','delete','truncate',
     'inesprg','ineschr','inesmir','inesmap','inesbattery','inesfourscreen',
     'inesworkram','inessaveram','ines2',
     'orgpad','quit','incchr','chr','setpalette','loadpalette',
@@ -1555,11 +1555,23 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 orgPad = getValue(line.split(" ")[1].strip())
             elif k == 'insert':
                 v = getValue(line.split(" ", 1)[1].strip())
-                fileOffset = addr + bank * bankSize + headerSize
                 fv = fillValue
+                if type(v) == list:
+                    fv = v[1]
+                    v = v[0]
+                fileOffset = addr + bank * bankSize + headerSize
                 out = out[:fileOffset]+([fv] * v)+out[fileOffset:]
                 if debug:
                     print('insert', v, 'bytes.')
+            elif k == 'truncate':
+                fileOffset = addr + bank * bankSize + headerSize
+                del out[fileOffset:]
+            elif k == 'delete':
+                v = getValue(line.split(" ", 1)[1].strip())
+                fileOffset = addr + bank * bankSize + headerSize
+                del out[fileOffset:fileOffset+v]
+                if debug:
+                    print('delete', v, 'bytes.')
             elif k == 'seed':
                 v = getValue(line.split(" ")[1].strip())
                 random.seed(v)

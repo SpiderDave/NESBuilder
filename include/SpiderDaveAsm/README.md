@@ -40,6 +40,12 @@ Comments:
     */
 ```
 
+Line Continuation:
+    A \ at the end of a line may be used as a line continuation.  Whitespace
+    after the character will be ignored.
+    
+    A , may also be used, but will preserve the , character.
+
 ## Labels ##
     Labels may end in a colon.  Code can be placed on the same line as labels.
     Anonymous labels are 1 or more "-" or "+" characters.  These labels will only
@@ -334,6 +340,31 @@ fillvalue
     
 ```
     fillvalue $ff
+```
+
+insert
+
+    Insert bytes at the current position.  A fill value may also be specified.
+    
+```
+    insert $10          ; Insert $10 bytes using current fill value
+    insert $10, $ff     ; Insert $10 bytes using $ff
+```
+
+delete
+
+    Delete bytes at the current position.
+    
+```
+    delete $10          ; Delete $10 bytes
+```
+
+truncate
+
+    Delete everything at or beyond current position.
+    
+```
+    truncate        ; The file ends here now.
 ```
 
 enum

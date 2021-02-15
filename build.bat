@@ -55,10 +55,6 @@ pyinstaller --onefile -%parameter% -i icon.ico -n NESBuilder%suffix%.exe ^
             NESBuilder.py
 if %errorlevel% NEQ 0 goto error
 
-set sdasmupdate="J:\svn\NESBuilder\include\SpiderDaveAsm\update and commit.bat"
-call "%sdasmupdate%"
-if %errorlevel% NEQ 0 set errormessage=Could not find %sdasmupdate%.& goto error
-
 echo start time: %starttime%
 echo end time: %TIME%
 

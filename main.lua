@@ -1659,7 +1659,8 @@ function ExportCHR_cmd()
     if fmt then
         surface.save(f, fmt)
     elseif ext == ".chr" then
-        util.writeToFile(f, 0, currentChr(), true)
+        --util.writeToFile(f, 0, currentChr(), true)
+        NESBuilder:saveArrayToFile(f, currentChr())
     else
         print("unknown extension "..ext)
     end

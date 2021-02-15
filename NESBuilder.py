@@ -766,6 +766,9 @@ class ForLua:
         file.close()
         return True
     def writeToFile(self, f, fileData):
+#        if type(fileData) == np.ndarray:
+#            fileData = list(fileData)
+        
         f = fixPath2(f)
         file=open(f,"w")
         file.write(fileData)

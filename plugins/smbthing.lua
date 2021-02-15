@@ -1,7 +1,5 @@
 -- NESBuilder plugin
 -- smbthing.lua
---
--- To enable this plugin, remove the "_" from the start of the filename.
 
 local plugin = {
     author = "SpiderDave",
@@ -89,19 +87,19 @@ function plugin.onInit()
     
     push(y)
     
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingLoadRom",text="Load rom"}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingReload",text="Reload"}
     y = y + control.height + pad
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingImport",text="Import"}
     
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingSaveRom",text="Save rom"}
-    y = y + control.height + pad
+    x = x + control.width + pad
+    y = pop()
     
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingSaveRomAs",text="Save rom as..."}
-    y = y + control.height + pad
+    control=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbthingPalette", palette=nespalette}
+    control.helpText = "Click to select a color"
+    y = y + control.height + pad*2
     
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingTest",text="Test rom"}
-    y = y + control.height + pad
     
-    push(x + control.width+pad*2)
+    push(x + control.width+pad * 2)
     
     local p = {[0]=0x0f,0x0f,0x0f,0x0f}
     
@@ -149,89 +147,80 @@ function plugin.onInit()
     end
     pop() -- consume the pop and discard
     
-    x,y = pop(2)
-    
-    control=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbthingPalette", palette=nespalette}
-    control.helpText = "Click to select a color"
-    y = y + control.height + pad*2
-    
     plugin.selectedColor=0x0f
 end
 
-function smbthingTest_cmd()
-    -- make sure file is loaded
-    if not plugin.fileData then return end
-
-    NESBuilder:setWorkingFolder()
-    local f = "temp.nes"
-    local workingFolder = f
-    
-    print(f..' '..workingFolder)
-    NESBuilder:saveArrayToFile(f, plugin.fileData)
-    NESBuilder:shellOpen(workingFolder, f)
+function plugin.onLoadProject()
+    data.project.smbPaletteData = data.project.smbPaletteData or {}
+    smbthingRefreshPalettes()
 end
 
-function smbthingLoadRom_cmd()
+function plugin.onBuild()
+    smbthingExport()
+end
+
+function smbthingReload_cmd()
+    -- make sure file is loaded
+    if not data.project.rom.data then return end
+
+    data.project.smbPaletteData = {}
+    smbthingRefreshPalettes()
+end
+
+function smbthingImport_cmd()
     local f = NESBuilder:openFile{filetypes={{"NES rom", ".nes"}}}
     if f == "" then
         print("Open cancelled.")
         return
     end
-    plugin.fileData = NESBuilder:getFileAsArray(f)
-    plugin.inputFile = f
-    plugin.outputFile = plugin.inputFile
+    local fileData = NESBuilder:getFileAsArray(f)
     
-    smbthingRefreshPalettes()
-end
-
-function smbthingSaveRom_cmd()
-    if not plugin.fileData then return end
-    plugin.outputFile = plugin.inputFile
+    data.project.smbPaletteData = {}
+    for _, item in ipairs(smbPaletteData) do
+        p={}
+        for i=0,item.nColors-1 do
+            data.project.smbPaletteData[item.offset + i] = int(fileData[0x10 + item.offset + i])
+            table.insert(p, data.project.smbPaletteData[item.offset + i])
+        end
     
---    if NESBuilder:getControl('smbRotateMod').get() == 1 then
-        -- replace the last two entries in "BlankPalette" with the last two from Ground4
---        plugin.fileData[0x10+0x9ce]= plugin.fileData[0x10 + smbPaletteData.Ground4.offset+2]
---        plugin.fileData[0x10+0x9cf]= plugin.fileData[0x10 + smbPaletteData.Ground4.offset+3]
-        
-        -- Modify a counter so the last two colors of area type aren't used for palette 3
-        -- It will instead fall back to the entries in BlankPalette above.
---        plugin.fileData[0x10+0x9ff]=0x01
---    else
---        plugin.fileData[0x10+0x9ce]= 0xff
---        plugin.fileData[0x10+0x9cf]= 0xff
---        plugin.fileData[0x10+0x9ff]= 0x03
---    end
-    
-    
-    NESBuilder:saveArrayToFile(plugin.fileData, plugin.inputFile)
-end
-
-function smbthingSaveRomAs_cmd()
-    if not plugin.fileData then return end
-    
-    local f = NESBuilder:saveFileAs{filetypes={{"NES rom", ".nes"}}, initial='output.nes'}
-    if f == "" then
-        print("Save cancelled.")
-    else
-        print("file: "..f)
-        NESBuilder:saveArrayToFile(plugin.fileData, f)
-        plugin.outputFile = f
-        plugin.inputFile = plugin.outputFile
+        c = NESBuilder:getControl('smbPalette'..item.name)
+        c.setAll(p)
     end
 end
 
+function smbthingExport()
+    local out
+    
+    out = "bank 0\n\n"
+    for _, item in ipairs(smbPaletteData) do
+        out = out .. string.format("; %s\norg $%04x\n", item.name, 0x8000 + item.offset)
+        out = out .. string.format("    db ")
+        for i = 0, item.nColors - 1 do
+            if i > 0 then
+                out = out .. ', '
+            end
+            out = out .. string.format("$%02x", data.project.smbPaletteData[item.offset + i] or 0)
+        end
+        out = out .. "\n\n"
+    end
+    
+    filename = data.folders.projects..projectFolder.."code/smbPalettes.asm"
+    util.writeToFile(filename,0, out, true)
+end
 
 function smbthingRefreshPalettes()
-    local offset
+    local c
     
-    if not plugin.fileData then return end
+    if not data.project.rom.data then return end
     
     for _, item in ipairs(smbPaletteData) do
-        offset = 0x10+item.offset
-    
         p={}
         for i=0,item.nColors-1 do
-            table.insert(p,plugin.fileData[offset+i])
+            if not data.project.smbPaletteData[item.offset + i] then
+                -- Make sure it's not a <class 'numpy.uint8'>
+                data.project.smbPaletteData[item.offset + i] = int(data.project.rom.data[0x10 + item.offset + i])
+            end
+            table.insert(p, data.project.smbPaletteData[item.offset + i])
         end
     
         c = NESBuilder:getControl('smbPalette'..item.name)
@@ -249,23 +238,19 @@ end
 
 function smbPaletteCmd(t)
     local event = t.cell.event
-    local offset
     local p, control
     
     -- make sure file is loaded
-    if not plugin.fileData then return end
+    if not data.project.rom.data then return end
     
     local paletteData = smbPaletteData[t.control.data.index]
     
-    offset = 0x10+paletteData.offset
-    
-    if not plugin.fileData then return end
-    
     if event.button == 2 then
-        -- left click
-        plugin.selectedColor = plugin.fileData[offset+t.cellNum]
+        -- right click
+        plugin.selectedColor = data.project.smbPaletteData[paletteData.offset + t.cellNum]
     elseif event.button == 1 then
-        plugin.fileData[offset+t.cellNum]=plugin.selectedColor
+        -- left click
+        data.project.smbPaletteData[paletteData.offset + t.cellNum] = int(plugin.selectedColor)
         
         smbthingRefreshPalettes()
     end

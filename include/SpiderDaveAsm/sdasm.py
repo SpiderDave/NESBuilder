@@ -2274,7 +2274,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                                 out = out + ([fv] * (fileOffset-len(out))) + b
                         elif fileOffset<len(out):
                             #out = out[:fileOffset]+b+out[fileOffset+len(b):]
-                            out[fileOffset:fileOffset+len(b)+1] = b
+                            out[fileOffset:fileOffset+len(b)] = b
                     else:
                         #fileOffset = addr % bankSize + bank*bankSize+headerSize
                         fileOffset = addr + bank * bankSize + headerSize
@@ -2296,7 +2296,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                                 out = out + ([fv] * (fileOffset-len(out))) + b
                         elif fileOffset<len(out):
                             #out = out[:fileOffset]+b+out[fileOffset+len(b):]
-                            out[fileOffset:fileOffset+len(b)+1] = b
+                            out[fileOffset:fileOffset+len(b)] = b
                 addr = addr + len(b)
                 currentAddress = currentAddress + len(b)
             

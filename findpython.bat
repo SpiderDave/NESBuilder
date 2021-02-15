@@ -1,3 +1,21 @@
+rem ----------------------------------------
+rem findpython.bat by SpiderDave
+rem ----------------------------------------
+rem usage:
+rem use from another .bat file like this:
+rem
+rem     call findpython.bat 1
+rem     if %errorlevel% NEQ 0 goto error
+rem     goto success
+rem
+rem     :error
+rem     echo "Error!"
+rem     goto theend
+rem
+rem     :success
+rem     %pycmd% myScript.py
+rem
+rem     :theend
 @echo off
 
 set dopause=0
@@ -40,15 +58,16 @@ goto error
 echo Found.
 rem -----------------------------------
 
-
-goto theend
+goto success
 
 :error
 echo.
 echo.ERROR: %errormessage%
 echo.
 pause
-exit
+goto theend
+
+:success
+if %dopause% NEQ 0 pause
 
 :theend
-if %dopause% NEQ 0 pause

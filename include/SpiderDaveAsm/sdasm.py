@@ -130,7 +130,11 @@ def imageToCHRData(f, colors=False, xOffset=0,yOffset=0, rows=False, cols=False,
             for x in range(8):
                 
                 #c = list(px[xOffset+x+(t*8) % w,yOffset+ y + math.floor(t/(w/8))*8])
-                c = list(px[xOffset + x, yOffset + y + math.floor(t/(w/8))*8])
+                #print(xOffset,x,yOffset,y)
+                try:
+                    c = list(px[xOffset + x, yOffset + y + math.floor(t/(w/8))*8])
+                except:
+                    c = [0,0,0]
                 i = bestColorMatch(c, colors)
                 
                 tile[y] += (2**(7-x)) * (i%2)
@@ -156,9 +160,7 @@ def flattenList(k):
     result = list()
     for i in k:
         if isinstance(i,list):
-            #The isinstance() function checks if the object (first argument) is an 
-            #instance or subclass of classinfo class (second argument)
-            result.extend(flattenList(i)) #Recursive call
+            result.extend(flattenList(i))
         else:
             result.append(i)
     return result
@@ -1448,7 +1450,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     else:
                         ifData[ifLevel].bool = False
 
-
 #                if '!=' in data:
 #                    l,r = data.split('!=')
 #                    if ((getValue(l) == getValue(r)) and inv == False) or ((getValue(l) != getValue(r)) and inv == True):
@@ -1560,7 +1561,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     fv = v[1]
                     v = v[0]
                 fileOffset = addr + bank * bankSize + headerSize
-                out = out[:fileOffset]+([fv] * v)+out[fileOffset:]
+                #out = out[:fileOffset]+([fv] * v)+out[fileOffset:]
+                
+                out[fileOffset:fileOffset] = [fv] * v
+                
                 if debug:
                     print('insert', v, 'bytes.')
             elif k == 'truncate':
@@ -1598,11 +1602,19 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     else:
                         assembler.setTextMapData(data[0], data[1])
             elif k == 'outputfile':
-                filename = getString(line.split(" ",1)[1].strip())
+                #filename = getString(line.split(" ",1)[1].strip())
+                
+                data = (line.split(" ",1)+[''])[1].strip()
+                filename = getValueAsString(data) or getString(data)
+                
                 if filename:
                     outputFilename = filename
             elif k == 'listfile':
-                filename = getString(line.split(" ",1)[1].strip())
+                #filename = getString(line.split(" ",1)[1].strip())
+
+                data = (line.split(" ",1)+[''])[1].strip()
+                filename = getValueAsString(data) or getString(data)
+
                 if filename.lower() in ('false','0','none', ''):
                     listFilename = False
                 else:
@@ -1937,9 +1949,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 a = getValue(data.split(',')[0])
                 #print('fillto {:05x} {:05x} {:05x} {}'.format(a, currentAddress, addr, bank))
                 if currentAddress <= a:
-                    b = b + ([fv] * (a-currentAddress))
+                    #b = b + ([fv] * (a-currentAddress))
+                    b.extend([fv] * (a-currentAddress))
                 else:
-                    b = b + ([fv] * (a-(addr+bank*bankSize)))
+                    #b = b + ([fv] * (a-(addr+bank*bankSize)))
+                    b.extend(([fv] * (a-(addr+bank*bankSize))))
             elif k == 'fill':
                 data = line.split(' ',1)[1]
                 

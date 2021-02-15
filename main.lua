@@ -355,7 +355,15 @@ function init()
     control = NESBuilder:makeLabelQt{x=x,y=y,w=buttonWidth, name="launcherRecentTitle",text="NESBuilder"}
     control.setFont("Verdana", 28)
     
-    y = y + control.height + pad
+    push(y+control.height+pad, x)
+    
+    x = x + control.width+pad
+    y = y + pad*2
+    control = NESBuilder:makeLabelQt{x=x,y=y,w=buttonWidth, name="launcherProjectName", text="test"}
+    control.setFont("Verdana", 14)
+    x,y=pop(2)
+    
+    --y = y + control.height + pad
     push(y)
     
     control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonRecent",text="Recent Projects", image="icons/clock32.png", iconMod=true}
@@ -751,6 +759,8 @@ function updateTitle()
     changed = data.project.changed and "*" or ""
     
     NESBuilder:setTitle(string.format("%s - %s%s", config.title, data.projectID, changed))
+    local control = NESBuilder:getControl('launcherProjectName')
+    control.setText(data.projectID)
 end
 
 function NewProject_cmd()

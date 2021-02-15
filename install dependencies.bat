@@ -30,7 +30,7 @@ echo Attempting to install QScintilla...
 %pycmd% -m pip install QScintilla
 if %errorlevel% NEQ 0 set errormessage=Could not install QScintilla&goto error
 
-goto theend
+goto success
 
 :error
 echo.
@@ -42,9 +42,9 @@ echo                      No longer do the dance of joy Numfar.
 echo.
 echo.
 pause
-exit
+goto theend
 
-:theend
+:success
 echo.
 echo Done.
 echo.
@@ -53,3 +53,5 @@ echo                           Numfar, do the dance of joy!
 echo.
 echo.
 pause
+
+:theend

@@ -88,8 +88,13 @@ function plugin.onInit()
     push(y)
     
     control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingReload",text="Reload"}
+    control.helpText = "Load palette from current project rom."
     y = y + control.height + pad
     control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingImport",text="Import"}
+    control.helpText = "Import palette from another file."
+    y = y + control.height + pad
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingMtiles",text="Generate MTiles"}
+    control.helpText = "Generate Metatiles for use in the Metatiles tab."
     
     x = x + control.width + pad
     y = pop()
@@ -165,6 +170,24 @@ function smbthingReload_cmd()
 
     data.project.smbPaletteData = {}
     smbthingRefreshPalettes()
+end
+
+function smbthingMtiles_cmd()
+    local offset = 0x8B10 - 0x8000 + 0x10
+    local mTilesPerPalette = {[0]=39,46,10,6}
+    local tileNum = 0
+    data.project.metatiles = {index=0}
+    
+    for p = 0,3 do
+        for m = 0,mTilesPerPalette[p]-1 do
+            data.project.metatiles[tileNum] = {}
+            for i = 0, 4 do
+                data.project.metatiles[tileNum][i] = int(data.project.rom.data[offset + tileNum*4 + i])
+            end
+            data.project.metatiles[tileNum].palette = p
+            tileNum = tileNum + 1
+        end
+    end
 end
 
 function smbthingImport_cmd()

@@ -15,6 +15,8 @@ ToDo:
     * line numbers in errors
     * handle negative numbers differently?
     * implement Asar's stddefines.txt
+    * handle relative unlabeled jumps
+        ex: bcc $79
 """
 
 from array import array

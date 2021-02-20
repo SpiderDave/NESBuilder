@@ -296,6 +296,9 @@ class ForLua:
                     # getNESColors: excluded because it may have a table as its first parameter
                     # makeControl: excluded because it's a decorator
                     pass
+                elif method_name in ['cfgNew']:
+                    pass
+                
                 else:
                     #print(method_name, m.__class__)
                     if method_name.startswith('make') and method_name not in ['makeDir', 'makeIps', 'makeData']:
@@ -303,12 +306,11 @@ class ForLua:
                     attr = getattr(self, method_name)
                     wrapped = decorator(attr)
                     setattr(self, method_name, wrapped)
-    
     # can't figure out item access from lua with cfg,
     # so we'll define some methods here too.
     def cfgLoad(self, filename = "config.ini"):
         return cfg.load(filename)
-    def cfgSoad(self):
+    def cfgSave(self):
         return cfg.save()
     def cfgMakeSections(self, *sections):
         return cfg.makeSections(*sections)

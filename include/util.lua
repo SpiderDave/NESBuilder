@@ -139,4 +139,27 @@ function util.tableToHex(t)
 end
 
 
+function util.ipairs_sparse(t)
+    local tmpIndex = {}
+    local index, _ = next(t)
+    while index do
+        if type(index) == 'number' then
+            -- skip non-numerical indexes
+            tmpIndex[#tmpIndex+1] = index
+        end
+        index, _ = next(t, index)
+    end
+
+    table.sort(tmpIndex)
+    local j = 1
+
+    return function()
+        local i = tmpIndex[j]
+        j = j + 1
+        if i then return i, t[i] end
+    end
+end
+
+
+
 return util

@@ -146,6 +146,8 @@ function init()
     NESBuilder:incLua("Tserial")
     util = NESBuilder:incLua("util")
     
+    ipairs_sparse = util.ipairs_sparse
+    
     -- make sure projects folder exists
     NESBuilder:makeDir(data.folders.projects)
     
@@ -817,6 +819,7 @@ function NewProject_cmd()
     end
 end
 
+function ppLoadRom_cmd() loadRom() end
 
 function notImplemented()
     NESBuilder:showError("Error", "Not yet implemented.")
@@ -861,8 +864,20 @@ function projectProperties_cmd()
     NESBuilder:makeTabQt{name="tabProjectProperties",text="Project Properties"}
     NESBuilder:setTabQt("tabProjectProperties")
     
-    control = NESBuilder:makeCheckbox{x=x,y=y,name="pptest1", text="Test", value=cfgGet('test')}
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight, name="ppLoadRom",text="Load ROM"}
+    x = x + control.width + pad
+    push(y + control.height + pad)
+    control = NESBuilder:makeLabelQt{x=x,y=y, name = "ppRomFile", clear=true, text=data.project.rom.filename}
+    control.setFont("Verdana", 10)
+    
+    x=left
+    y=pop()
+    
+    control = NESBuilder:makeCheckbox{x=x,y=y,name="ppRomDataInc", text="Save ROM data with project", value=bool(data.project.incRomData)}
     y = y + control.height + pad
+    
+--    control = NESBuilder:makeCheckbox{x=x,y=y,name="pptest1", text="Test", value=cfgGet('test')}
+--    y = y + control.height + pad
     
     control = NESBuilder:makeTable{x=x,y=y,w=buttonWidth*4,h=buttonHeight*8, name="patchesTable",rows=100, columns=1}
     control.setHorizontalHeaderLabels("IPS patches")
@@ -876,11 +891,14 @@ function projectProperties_cmd()
     
     y = y + control.height + pad
     
-    
     y = y + pad*7
     b=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="ppClose",text="close"}
     
     NESBuilder:switchTab("tabProjectProperties")
+end
+
+function ppRomDataInc_cmd(t)
+    data.project.incRomData = t.isChecked()
 end
 
 function launcherButtonPreferences_cmd()
@@ -1044,6 +1062,7 @@ function build_sdasm()
     --NESBuilder:makeDir(data.folders.projects..data.project.folder.."chr")
     NESBuilder:makeDir(data.folders.projects..data.project.folder.."code")
     
+    saveChr()
     
     -- create default code
     if not NESBuilder:fileExists(folder.."project.asm") then
@@ -1079,32 +1098,51 @@ function build_sdasm()
     
     NESBuilder:setWorkingFolder(folder)
     local sdasm = python.eval('sdasm')
-    
-    -- Start assembling with sdasm
-    print("Assembling with sdasm...")
-    
     local fixPath = python.eval('fixPath2')
-    
     local romData = data.project.rom.data
     
---    data.project.patches = {
---        'WW2v101.IPS',
---        'Wai_Wai_World_2_021915.ips',
---    }
-    
     -- Apply IPS patches.
-    for i,f in ipairs(data.project.patches) do
-        f = NESBuilder:findFile(f, list(folder))
+    for i, patchFile in ipairs_sparse(data.project.patches) do
+        f = NESBuilder:findFile(patchFile, list(folder))
         if f then
             print('Applying IPS patch: '..f)
             ipsData = NESBuilder:getFileAsArray(f)
             romData = NESBuilder:applyIps(ipsData, romData)
+        elseif patchFile ~='' then
+            print('*** Invalid IPS patch: '..patchFile)
         end
     end
+    
+    -- Start assembling with sdasm
+    print("Assembling with sdasm...")
     
     sdasm.assemble('project.asm', 'game.nes', 'output.txt', fixPath(data.folders.projects..projectFolder..'config.ini'), romData)
     
     print("done.")
+end
+
+
+function saveChr()
+    if #data.project.chr == 0 then return end
+    
+    -- make sure folders exist for this project
+    NESBuilder:makeDir(data.folders.projects..data.project.folder)
+    NESBuilder:makeDir(data.folders.projects..data.project.folder.."chr")
+    --NESBuilder:makeDir(data.folders.projects..data.project.folder.."code")
+
+    -- save CHR
+    local filename = data.folders.projects..projectFolder.."chr/chr.asm"
+    local out = 'chr 0\n'
+    for i in ipairs_sparse(data.project.chr) do
+        if data.project.chr[i] then
+            local f = data.folders.projects..data.project.folder..string.format("chr/chr%02x.chr",i)
+            print("File created "..f)
+            print(data.project.chr[i][0])
+            NESBuilder:saveArrayToFile(f, data.project.chr[i])
+            out = out..string.format('    incbin "chr%02x.chr"  ; %s\n',i, data.project.chrNames[i])
+        end
+    end
+    util.writeToFile(filename,0, out, true)
 end
 
 function BuildProject_cmd()
@@ -1135,16 +1173,17 @@ function BuildProject_cmd()
     
     local out = ''
     
+    saveChr()
     -- save CHR
-    for i=0,#data.project.chr do
-        if data.project.chr[i] then
-            local f = data.folders.projects..data.project.folder..string.format("chr/chr%02x.chr",i)
-            print("File created "..f)
-            print(data.project.chr[i][0])
-            NESBuilder:saveArrayToFile(f, data.project.chr[i])
-            out = out..string.format("    .incbin chr/chr%02x.chr\n",i)
-        end
-    end
+--    for i=0,#data.project.chr do
+--        if data.project.chr[i] then
+--            local f = data.folders.projects..data.project.folder..string.format("chr/chr%02x.chr",i)
+--            print("File created "..f)
+--            print(data.project.chr[i][0])
+--            NESBuilder:saveArrayToFile(f, data.project.chr[i])
+--            out = out..string.format("    .incbin chr/chr%02x.chr\n",i)
+--        end
+--    end
     
     if #data.project.chr == 1 then
         -- add 3 more
@@ -1296,6 +1335,7 @@ function LoadProject()
     print("loading project "..data.projectID)
     
     projectFolder = data.projectID.."/"
+    
     local projectID = data.projectID
     
     local filename = data.folders.projects..projectFolder.."project.dat"
@@ -1329,7 +1369,8 @@ function LoadProject()
     
     local converted = false
     local makeNp = python.eval("lambda x: np.array(x)")
-    for i=0,#data.project.chr do
+    --for i=0,#data.project.chr do
+    for i in ipairs_sparse(data.project.chr) do
         if type(data.project.chr[i]) == "table" then
             data.project.chr[i] = NESBuilder:tableToList(data.project.chr[i], 0)
             data.project.chr[i] = makeNp(data.project.chr[i])
@@ -1340,7 +1381,8 @@ function LoadProject()
     
     local control = NESBuilder:getControl('CHRList')
     control.clear()
-    for i=0,#data.project.chr do
+    
+    for i in ipairs_sparse(data.project.chr) do
         data.project.chrNames[i] = data.project.chrNames[i] or string.format("CHR %02x", i)
         control.addItem(data.project.chrNames[i])
     end
@@ -1374,6 +1416,12 @@ function LoadProject()
 --        data.project.rom.data = NESBuilder:listToTable(NESBuilder:getFileAsArray(data.project.rom.filename))
 --    end
 --    NESBuilder:setWorkingFolder()
+    
+    if data.project.rom and not data.project.rom.data then
+        loadRom(data.project.rom.filename)
+        print('loading rom data')
+    end
+    
     
     handlePluginCallback("onLoadProject")
     
@@ -1429,6 +1477,14 @@ function SaveProject()
     end
     data.project.constants = t
     
+    local romData = nil
+    if data.project.rom then
+        if (data.project.rom.data) and (not data.project.incRomData) then
+            romData = data.project.rom.data
+            data.project.rom.data = nil
+        end
+    end
+    
 --    local romData
 --    if data.project.rom then
 --        romData = data.project.rom.data
@@ -1461,9 +1517,9 @@ function SaveProject()
 --    NESBuilder:writeToFile(filename2, util.serialize(data.rom))
 --    util.writeToFile(filename2,0, util.serialize(data.rom), true)
     
---    if data.project.rom then
---        data.project.rom.data = romData
---    end
+    if data.project.rom then
+        data.project.rom.data = romData
+    end
     
     dataChanged(false)
     
@@ -2185,6 +2241,10 @@ function ppUpdate()
     for i, row in python.enumerate(d) do
         data.project.patches[i] = row[0]
     end
+    
+    local control = NESBuilder:getControl('ppRomFile')
+    control.text=data.project.rom.filename
+    
 end
 
 -- Convenience functions
@@ -2207,6 +2267,7 @@ reverseByte = python.eval("lambda x:int(('{:08b}'.format(x))[::-1],2)")
 replace = python.eval("lambda x,y,z:x.replace(y,z)")
 list = python.eval("lambda *x:[item for item in x]")
 set = python.eval("lambda *x:set([item for item in x])")
+bool = python.eval("bool")
 
 function cfgGet(section, key)
     key, section = key or section, (key and section) or "main"
@@ -2277,32 +2338,45 @@ function addCHR_cmd()
     control.addItem(data.project.chrNames[n])
 end
 
-function loadRom()
-    local f = NESBuilder:openFile{filetypes={{"NES Rom", ".nes"}}}
-    if f == "" then
-        print("Open cancelled.")
-        return
+function loadRom(filename)
+    local f
+    
+    if not filename then
+        f = NESBuilder:openFile{filetypes={{"NES Rom", ".nes"}}}
+        if f == "" then
+            print("Open cancelled.")
+            return
+        end
+        filename = f
     end
     
-    pathSplit = python.eval("lambda x:list(os.path.split(x))")
-    local baseFileName = pathSplit(f)[1]
+    if (not NESBuilder:fileExists(filename)) and ((not data.project.incRomData) or (not data.project.rom.data)) then
+        print('File "'..filename..'" not found.\nSearching...')
+        
+        pathSplit = python.eval("lambda x:list(os.path.split(x))")
+        local baseFileName = pathSplit(filename)[1]
+        
+        local folders = list(data.folders.projects..data.project.folder)
+        
+        f = NESBuilder:findFile(baseFileName, folders)
+        if f then
+            filename = f
+            print('Found: "'..filename..'".')
+        else
+            print('*** Error: Coould not find file "'..baseFileName..'".')
+            return
+        end
+    end
     
     -- make sure projects folder exists
     NESBuilder:makeDir(data.folders.projects)
     -- make sure folders exist for this project
     NESBuilder:makeDir(data.folders.projects..data.project.folder)
     
---    NESBuilder:setWorkingFolder(data.folders.projects..data.project.folder)
---    NESBuilder:copyFile(f, baseFileName)
+    local fileData = data.project.rom.data or NESBuilder:getFileAsArray(filename)
+    --print(fileData)
     
-    --f = baseFileName
-    
-    --local fileData = NESBuilder:listToTable(NESBuilder:getFileAsArray(f))
-    local fileData = NESBuilder:getFileAsArray(f)
-    print(fileData)
-    
-    
-    print(NESBuilder:getLen(fileData))
+    --print(NESBuilder:getLen(fileData))
     
 --    data.rom = {
 --        filename = f,
@@ -2314,9 +2388,10 @@ function loadRom()
 --    }
     
     data.project.rom = {
-        filename = f,
+        filename = filename,
         data = fileData,
     }
+    ppUpdate()
 end
 
 function importMultiChr_cmd()

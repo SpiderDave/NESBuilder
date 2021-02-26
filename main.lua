@@ -137,7 +137,8 @@ function init()
     print("init")
     
     -- Tab close buttons aren't done yet.
-    if not devMode() then
+    --if not devMode() then
+    if true then
         local main = NESBuilder:getWindowQt()
         main.tabParent.self.setTabsClosable(false)
         main.update()
@@ -494,11 +495,20 @@ function init()
     x= x + control.width+pad
     
     control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidNext",text=">"}
-    x = pop()
-    y = y + control.height + pad
+    --x = pop()
+    --y = y + control.height + pad
+    
+    x = x + control.width + pad
+    y = top
+    push(y)
+    
+    control = NESBuilder:makeList{x=x,y=y,w=buttonWidth,h=buttonHeight*12, name="mTileList", list = l}
+    x = x + control.width + pad
+    y = pop()
+    
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=30,name="addMTile",text="+"}
     
     --control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth, name="tsaTest",text="Update"}
-
     
     data.launchFrames.set('recent')
     
@@ -1054,6 +1064,8 @@ function BuildProject()
 end
 
 function build_sdasm()
+    local n
+    
     local folder = data.folders.projects..data.project.folder
     
     NESBuilder:setWorkingFolder()
@@ -1086,15 +1098,34 @@ function build_sdasm()
     end
     util.writeToFile(filename,0, out, true)
     
-    filename = data.folders.projects..projectFolder.."code/tiles.asm"
-    out = "Metatiles:\n"
-    for i=0, #data.project.metatiles do
-        local tile = data.project.metatiles[i]
-        if tile then
-            out=out..string.format('    .db $%02x, $%02x, $%02x, $%02x\n',tile[0], tile[1], tile[2], tile[3])
+    -- Make metatilesXX.asm
+    for tileSet=0, #data.project.mTileSets do
+        if #data.project.mTileSets[tileSet] > 0 then
+            filename = data.folders.projects..projectFolder..string.format("code/metatiles%02x.asm",tileSet)
+            
+            n = data.project.mTileSets[tileSet].name or string.format("Metatiles%02x",tileSet)
+            out = string.format("    ; %s\n",n)
+            for i=0, #data.project.mTileSets[tileSet] do
+                local tile = data.project.mTileSets[tileSet][i]
+                if tile then
+                    out=out..string.format('    .db $%02x, $%02x, $%02x, $%02x\n',tile[0], tile[1], tile[2], tile[3])
+                end
+            end
+            util.writeToFile(filename,0, out, true)
         end
     end
-    util.writeToFile(filename,0, out, true)
+    
+    -- Make metatiles.asm
+    out = ''
+    filename = data.folders.projects..projectFolder.."code/metatiles.asm"
+    for tileSet=0, #data.project.mTileSets do
+        if #data.project.mTileSets[tileSet] > 0 then
+            n = data.project.mTileSets[tileSet].name or string.format("Metatiles%02x",tileSet)            
+            out = out .. string.format("%s:\n",n)
+            out = out .. string.format('include "code/metatiles%02x.asm"\n\n',tileSet)
+        end
+    end
+    if out ~= '' then util.writeToFile(filename,0, out, true) end
     
     NESBuilder:setWorkingFolder(folder)
     local sdasm = python.eval('sdasm')
@@ -1255,8 +1286,8 @@ function BuildProject_cmd()
     
     out = "Metatiles:\n"
     filename = data.folders.projects..projectFolder.."code/tiles.asm"
-    for i=0, #data.project.metatiles do
-        local tile = data.project.metatiles[i]
+    for i=0, #data.project.mTileSets[data.project.mTileSets.index] do
+        local tile = data.project.mTileSets[data.project.mTileSets.index][i]
         if tile then
             out=out..string.format('    .db $%02x, $%02x, $%02x, $%02x\n',tile[0], tile[1], tile[2], tile[3])
         end
@@ -1362,7 +1393,14 @@ function LoadProject()
     -- use default palettes if not found
     data.project.palettes = data.project.palettes or util.deepCopy(data.palettes)
     
-    data.project.metatiles = data.project.metatiles or {index=0}
+    if not data.project.mTileSets then
+        data.project.mTileSets = {index=0}
+        
+        -- convert old metatile format or make blank
+        data.project.mTileSets[data.project.mTileSets.index] = data.project.metatiles or {index=0}
+    end
+    
+    updateMTileList()
     
     data.project.chr = data.project.chr or {index=0}
     data.project.chrNames = data.project.chrNames or {}
@@ -1775,7 +1813,51 @@ function onExit(cancel)
     handlePluginCallback("onExit")
     
     saveSettings()
+end
+
+
+
+
+function updateMTileList()
+    local control = NESBuilder:getControl('mTileList')
+    control.clear()
+    for i,v in ipairs_sparse(data.project.mTileSets) do
+        v.name = v.name or string.format("MTile Set %02x", i)
+        if (i==0) or (iLength(v) > 0) then
+            control.addItem(v.name)
+        else
+            data.project.mTileSets[i] = nil
+        end
+    end
+end
+
+function mTileList_cmd(t)
+    local index = t.getIndex()
+    data.project.mTileSets.index = index
+    data.project.mTileSets[data.project.mTileSets.index] = data.project.mTileSets[data.project.mTileSets.index] or {index=0}
+    updateSquareoid()
     
+    --print(data.project.mTileSets[data.project.mTileSets.index])
+end
+
+function addMTile_cmd()
+    local tileIndex = 0
+    local control = NESBuilder:getControl('mTileList')
+    
+    for i,v in ipairs_sparse(data.project.mTileSets) do
+        if iKeys(v) then
+            tileIndex = i +1
+        end
+    end
+    
+    data.project.mTileSets[tileIndex] = {index=0}
+    
+    local i = 99
+    local n = string.format("MTile Set %02x", i)
+    
+    data.project.mTileSets[len(data.project.mTileSets)+1] = {index=0, name=n}
+    
+    control.addItem(n)
 end
 
 function CHRList_keyPress_cmd(t,test)
@@ -1874,7 +1956,7 @@ function tsaCanvas2_cmd(t)
             local mtileOffsets = {[0]=0,2,1,2+1}
             
             -- this is the tile index as in the main image
-            local tileNum = data.project.metatiles[data.project.metatiles.index][mtileOffsets[tileNum]]
+            local tileNum = data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index][mtileOffsets[tileNum]]
             
             NESBuilder:setCanvas("tsaTileCanvas")
             local TileData = {}
@@ -1897,12 +1979,12 @@ function tsaCanvas2_cmd(t)
                     t.chrData[tileOffset+i+1] = data.project.tileData[i+1]
                 end
 
-                data.project.metatiles[data.project.metatiles.index] = data.project.metatiles[data.project.metatiles.index] or {[0]=0,0,0,0}
+                data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] = data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] or {[0]=0,0,0,0}
                 if tileX<=1 and tileY<=1 then
                     -- 02
                     -- 13
-                    data.project.metatiles[data.project.metatiles.index][tileX*2+tileY] = data.project.tileNum
-                    data.project.metatiles[data.project.metatiles.index].palette = data.project.palettes.index
+                    data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index][tileX*2+tileY] = data.project.tileNum
+                    data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].palette = data.project.palettes.index
                 end
                 NESBuilder:getControlNew(t.name).loadCHRData{t.chrData, p, rows=2, columns=2}
             else
@@ -1915,17 +1997,17 @@ end
 
 
 function tsaSquareoidPrev_cmd()
-    data.project.metatiles.index = math.max(0, data.project.metatiles.index - 1)
+    data.project.mTileSets[data.project.mTileSets.index].index = math.max(0, data.project.mTileSets[data.project.mTileSets.index].index - 1)
     updateSquareoid()
 end
 function tsaSquareoidNext_cmd()
-    data.project.metatiles.index = math.min(255, data.project.metatiles.index + 1)
+    data.project.mTileSets[data.project.mTileSets.index].index = math.min(255, data.project.mTileSets[data.project.mTileSets.index].index + 1)
     updateSquareoid()
 end
 
 function tsaSquareoidNumber_cmd(t)
     if t.event and t.event.type == "KeyPress" and t.event.event.keycode==13 then
-        data.project.metatiles.index = tonumber(NESBuilder:getControl("tsaSquareoidNumber").getText())
+        data.project.mTileSets[data.project.mTileSets.index].index = tonumber(NESBuilder:getControl("tsaSquareoidNumber").getText())
     end
 end
 
@@ -1936,10 +2018,25 @@ function updateSquareoid()
     local controlFrom = NESBuilder:getControlNew("tsaCanvasQt")
     local controlTo = NESBuilder:getControlNew("tsaCanvas2Qt")
     
-    data.project.metatiles[data.project.metatiles.index] = data.project.metatiles[data.project.metatiles.index] or {[0]=0,0,0,0}
+    
+    local control = NESBuilder:getControl("tsaSquareoidNumber")
+    control.setText(string.format('%s',data.project.mTileSets[data.project.mTileSets.index].index))
+    
+    if not data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] then
+        local m = currentMetatile()
+        local mtileOffsets = {[0]=0,2,1,3}
+        for i = 0,3 do
+            controlTo.drawTile(i%2 *8,math.floor(i/2) *8, m[mtileOffsets[i]], currentChr(), p, controlTo.columns, controlTo.rows)
+            controlTo.update()
+        end
+
+        return
+    end
+    
+    data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] = data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] or {[0]=0,0,0,0}
     
     --local p = data.project.metatiles[data.project.metatiles.index].palette or data.project.palettes[data.project.palettes.index]
-    local p = data.project.palettes[data.project.metatiles[data.project.metatiles.index].palette or 0]
+    local p = data.project.palettes[data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].palette or 0]
     
     
 --    local mtileOffsets = {[0]=0,2,1,2+1}
@@ -1969,11 +2066,6 @@ function updateSquareoid()
 --        m[tileX*2+tileY] = data.selectedTile
 --        setMetatileData(m)
     --print(data.project.metatiles)
-    
-    
-    
-    local control = NESBuilder:getControl("tsaSquareoidNumber")
-    control.setText(string.format('%s',data.project.metatiles.index))
 end
 
 
@@ -2219,7 +2311,16 @@ function tsaCanvas2Qt_cmd(t)
         m[tileX*2+tileY] = data.selectedTile
         m.palette = data.project.palettes.index
         setMetatileData(m)
-        print(data.project.metatiles)
+        print(data.project.mTileSets[data.project.mTileSets.index])
+    elseif event.button == 2 then
+        local m = currentMetatile()
+        local mtileOffsets = {[0]=0,2,1,3}
+        data.selectedTile = m[tileX*2+tileY]
+        data.project.palettes.index = m.palette
+
+        local control = NESBuilder:getControlNew('tsaTileCanvasQt')
+        control.drawTile(0,0, data.selectedTile, currentChr(), currentPalette(), control.columns, control.rows)
+        control.update()
     end
 end
 --tsaTileCanvasQt_cmd = canvasQt_cmd
@@ -2257,8 +2358,8 @@ function setChrData(chrData, n) data.project.chr[n or data.project.chr.index]=ch
 function boolNumber(v) if v then return 1 else return 0 end end
 function devMode() return (cfgGet('dev')==1) end
 function type(item) return NESBuilder:type(item) end
-function currentMetatile() return data.project.metatiles[n or data.project.metatiles.index] or {[0]=0,0,0,0} end
-function setMetatileData(mTileData, n) data.project.metatiles[n or data.project.metatiles.index]=mTileData end
+function currentMetatile() return data.project.mTileSets[data.project.mTileSets.index][n or data.project.mTileSets[data.project.mTileSets.index].index] or {[0]=0,0,0,0} end
+function setMetatileData(mTileData, n) data.project.mTileSets[data.project.mTileSets.index][n or data.project.mTileSets[data.project.mTileSets.index].index]=mTileData end
 
 int = python.eval("lambda x:int(x)")
 sliceList = python.eval("lambda x,y,z:x[y:z]")
@@ -2268,6 +2369,21 @@ replace = python.eval("lambda x,y,z:x.replace(y,z)")
 list = python.eval("lambda *x:[item for item in x]")
 set = python.eval("lambda *x:set([item for item in x])")
 bool = python.eval("bool")
+
+-- Get integer keys from a list (including 0, sparse arrays)
+iKeys = python.eval("lambda l:sorted([x for x in l if type(x)==int]) or False")
+max = python.eval("lambda x:max(x)")
+min = python.eval("lambda x:min(x)")
+
+-- Number of items in a list with integer keys (including 0, sparse arrays)
+iLength = function(t)
+    local keys = iKeys(t)
+    if keys then
+        return len(keys)
+    else
+        return 0
+    end
+end
 
 function cfgGet(section, key)
     key, section = key or section, (key and section) or "main"

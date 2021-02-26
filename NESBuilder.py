@@ -37,6 +37,7 @@ from random import randrange
 
 from io import BytesIO
 
+import string
 import textwrap
 
 try: import numpy as np
@@ -1660,10 +1661,13 @@ if frozen:
 
 app.setStyleSheet(s)
 
-if not frozen:
-    main.setIcon(fixPath2('icon.ico'))
-
-#controlsNew.update({main.name:main})
+try:
+    folder = os.path.dirname(sys.modules['icons'].__file__)
+    file = os.path.join(folder, 'icon.ico')
+    main.setIcon(fixPath2(file))
+except:
+    # let's not break this over an icon
+    pass
 
 def onResize(width,height,oldWidth,oldHeight):
     for tab in main.tabs.values():

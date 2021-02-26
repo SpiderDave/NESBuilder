@@ -55,6 +55,8 @@ local smbPaletteData = {
     {name = 'Palette3Data4', offset = 0x9dd, nColors = 4},
 }
 
+
+
 -- create index
 for k,v in ipairs(smbPaletteData) do
     smbPaletteData[v.name]=v
@@ -153,11 +155,35 @@ function plugin.onInit()
     pop() -- consume the pop and discard
     
     plugin.selectedColor=0x0f
+
+    if not devMode() then return end
+    
+    NESBuilder:makeTabQt{name="smbthing2", text="SMB Thing"}
+    NESBuilder:setTabQt("smbthing2")
+    
+    x,y=left,top
+    
+    push(y)
+    control = NESBuilder:makeLabelQt{x=x,y=y,w=buttonWidth, text="Walking/Swimming Speed"}
+    control.setFont("Verdana", 10)
+    x = x + buttonWidth * 1.5 + pad
+    y = pop()
+    control = NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="smbWalkSpeed"}
+    control.min = 0
+    control.max = 0xff
 end
 
 function plugin.onLoadProject()
+    local control
+    local offset
+    
     data.project.smbPaletteData = data.project.smbPaletteData or {}
     smbthingRefreshPalettes()
+    
+    
+    control = NESBuilder:getControl("smbWalkSpeed")
+    offset = 0xB444 - 0x8000 + 0x10
+    control.value = int(data.project.rom.data[offset])
 end
 
 function plugin.onBuild()
@@ -176,18 +202,38 @@ function smbthingMtiles_cmd()
     local offset = 0x8B10 - 0x8000 + 0x10
     local mTilesPerPalette = {[0]=39,46,10,6}
     local tileNum = 0
-    data.project.metatiles = {index=0}
+    local tileSet = 0
     
-    for p = 0,3 do
-        for m = 0,mTilesPerPalette[p]-1 do
-            data.project.metatiles[tileNum] = {}
-            for i = 0, 4 do
-                data.project.metatiles[tileNum][i] = int(data.project.rom.data[offset + tileNum*4 + i])
-            end
-            data.project.metatiles[tileNum].palette = p
-            tileNum = tileNum + 1
+    -- Remove entries already named the same
+--    for i,v in ipairs_sparse(data.project.mTileSets) do
+--        for p = 0,3 do
+--            if v.name == string.format("Palette%x_MTiles",p) then
+--                data.project.mTileSets[i] = nil
+--            end
+--        end
+--    end
+    
+    -- Get index to place new items at
+    for i,v in ipairs_sparse(data.project.mTileSets) do
+        if iLength(v) > 0 then
+            tileSet = i + 1
         end
     end
+    
+    for p = 0,3 do
+        data.project.mTileSets[tileSet] = {index=0, name=string.format("Palette%x_MTiles",p)}
+        for m = 0,mTilesPerPalette[p]-1 do
+            data.project.mTileSets[tileSet][m] = {}
+            for i = 0, 4 do
+                data.project.mTileSets[tileSet][m][i] = int(data.project.rom.data[offset + tileNum*4 + i])
+            end
+            data.project.mTileSets[tileSet][m].palette = p
+            tileNum = tileNum + 1
+        end
+        tileSet = tileSet + 1
+    end
+    
+    updateMTileList()
 end
 
 function smbthingImport_cmd()
@@ -229,6 +275,30 @@ function smbthingExport()
     
     filename = data.folders.projects..projectFolder.."code/smbPalettes.asm"
     util.writeToFile(filename,0, out, true)
+    
+    
+    if not devMode() then return end
+    
+    filename = data.folders.projects..projectFolder.."code/smbTest.asm"
+    out = ""
+    
+    control = NESBuilder:getControl("smbWalkSpeed")
+    
+    out = out .. "bank 0\n"
+    
+    offset = 0xB441
+    out = out .. string.format("org $%04x\n", offset)
+    out = out .. string.format("    db $%02x\n", 0x100-control.value)
+    out = out .. "\n"
+    
+    offset = 0xB444
+    out = out .. string.format("org $%04x\n", offset)
+    out = out .. string.format("    db $%02x\n", control.value)
+    out = out .. "\n"
+    
+    util.writeToFile(filename,0, out, true)
+
+
 end
 
 function smbthingRefreshPalettes()

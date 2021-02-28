@@ -220,6 +220,12 @@ function init()
 
     end
     
+--    local items = {
+--        {name="screenTool", text="Screen Tool"},
+--    }
+    local items = {}
+    control = NESBuilder:makeMenuQt{name="menuView",text="View", menuItems=items}
+    
     NESBuilder:setTabQt("Image")
     x,y=8,8
     control=NESBuilder:makeCanvasQt{x=x,y=y,w=128,h=128,name="canvasQt", scale=3}
@@ -545,6 +551,15 @@ function onReady()
     }
     control = NESBuilder:makeMenuQt{name="menuHelp", text="Help", menuItems=items}
     
+    local items = {}
+    local control = NESBuilder:getWindowQt()
+    local i = 0
+    for k, v in iterItems(control.tabs) do
+        table.insert(items, {name='view_'..k, text=v.title, action = function() toggleTab(k, i) end, checked = true})
+        i=i+1
+    end
+    control = NESBuilder:makeMenuQt{name="menuView",text="View", menuItems=items}
+    
     LoadProject()
     
     if cfgGet('autosave')==1 then
@@ -555,6 +570,17 @@ function onReady()
     
     -- Just remove Metatiles tab since it's broken.
     --if not devMode() then closeTab('Metatiles') end
+end
+
+function toggleTab(n, i)
+    local control = NESBuilder:getWindowQt()
+    local tab = control.getTab(n)
+    if control.tabParent.isTabVisible(control.tabParent.indexOf(tab)) then
+        control.tabParent.removeTab(control.tabParent.indexOf(tab))
+    else
+        --control.tabParent.insertTab(len(control.tabs), tab, tab.title)
+        control.tabParent.insertTab(tab.index, tab, tab.title)
+    end
 end
 
 function handlePluginCallback(f, arg)
@@ -2374,6 +2400,12 @@ bool = python.eval("bool")
 iKeys = python.eval("lambda l:sorted([x for x in l if type(x)==int]) or False")
 max = python.eval("lambda x:max(x)")
 min = python.eval("lambda x:min(x)")
+
+
+pyItems = python.eval("lambda x: x.items()")
+function iterItems(x)
+    return python.iter(pyItems(x))
+end
 
 -- Number of items in a list with integer keys (including 0, sparse arrays)
 iLength = function(t)

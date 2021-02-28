@@ -561,12 +561,16 @@ class MainWindow(Base, QMainWindow):
         for i, item in enumerate(menuItems):
             name = item.get('name', str(i))
             txt = item.get('text', "?")
+            checked = item.get('checked', None)
             
             # check if text is any number of -
             if txt.startswith('-') and txt == txt[0]*len(txt):
                 m.addSeparator()
             else:
                 action = QAction(item.get('text'), self)
+                if checked is not None:
+                    action.setCheckable(True)
+                    action.setChecked(checked)
                 if item.get('action', False):
                     action.triggered.connect(item.get('action'))
                 m.addAction(action)
@@ -602,7 +606,8 @@ class MainWindow(Base, QMainWindow):
             self.timer.start(t)
         else:
             self.timer.singleShot(t, f)
-
+    def getTab(self, name):
+        return self.tabs.get(name, False)
 
 
 class Dialog():

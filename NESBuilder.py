@@ -336,7 +336,7 @@ class ForLua:
     def calc(self, s):
         calc = Calculator()
         return calc(s)
-    def print(self, item, *args, indent=0,limit=5):
+    def print(self, item='', *args, indent=0,limit=5):
         def getPrintable(item, indent=0):
             if type(item) == np.ndarray:
                 return('{}{}'.format(" "*indent, item))
@@ -1035,7 +1035,11 @@ class ForLua:
             return self.getControlNew(self, t.name)
         
         ctrl = QtDave.Widget()
+        ctrl.title = t.text
         window.tabParent.addTab(ctrl, t.text)
+        
+        ctrl.index = window.tabParent.indexOf(ctrl)
+        
         window.repaint()
         ctrl.init(t)
         

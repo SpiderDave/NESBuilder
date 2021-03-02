@@ -68,7 +68,7 @@ for i,item in ipairs(smbPaletteData) do
 end
 
 function plugin.onInit()
-    NESBuilder:makeTabQt{name="smbthing", text="SMB Thing"}
+    makeTab{name="smbthing", text="SMB Thing"}
     NESBuilder:setTabQt("smbthing")
     
     local stack, push, pop = NESBuilder:newStack()
@@ -158,7 +158,7 @@ function plugin.onInit()
 
     if not devMode() then return end
     
-    NESBuilder:makeTabQt{name="smbthing2", text="SMB Thing"}
+    makeTab{name="smbthing2", text="SMB Thing"}
     NESBuilder:setTabQt("smbthing2")
     
     x,y=left,top
@@ -181,6 +181,8 @@ function plugin.onLoadProject()
     smbthingRefreshPalettes()
     
     
+    if not getRomData() then return end
+    
     control = NESBuilder:getControl("smbWalkSpeed")
     offset = 0xB444 - 0x8000 + 0x10
     control.value = int(data.project.rom.data[offset])
@@ -192,7 +194,7 @@ end
 
 function smbthingReload_cmd()
     -- make sure file is loaded
-    if not data.project.rom.data then return end
+    if not getRomData() then return end
 
     data.project.smbPaletteData = {}
     smbthingRefreshPalettes()
@@ -304,7 +306,7 @@ end
 function smbthingRefreshPalettes()
     local c
     
-    if not data.project.rom.data then return end
+    if not getRomData() then return end
     
     for _, item in ipairs(smbPaletteData) do
         p={}
@@ -334,7 +336,7 @@ function smbPaletteCmd(t)
     local p, control
     
     -- make sure file is loaded
-    if not data.project.rom.data then return end
+    if not getRomData() then return end
     
     local paletteData = smbPaletteData[t.control.data.index]
     
@@ -348,5 +350,7 @@ function smbPaletteCmd(t)
         smbthingRefreshPalettes()
     end
 end
+
+
 
 return plugin

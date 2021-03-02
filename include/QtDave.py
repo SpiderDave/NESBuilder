@@ -360,6 +360,15 @@ class Base():
             screenshot.save('shot.jpg', 'jpg')
         except: pass
 
+class ComboBox(Base, QComboBox):
+    def __getattribute__(self, key):
+        if key == 'value':
+            return super().currentText()
+        elif key == 'index':
+            return super().currentIndex()
+        else:
+            return super().__getattribute__(key)
+
 class LineEdit(Base, QLineEdit):
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
@@ -375,6 +384,8 @@ class LineEdit(Base, QLineEdit):
             super().__setattr__(key,v)
 
 class TextEdit(Base, QPlainTextEdit):
+    def print(self, txt=''):
+        self.appendPlainText(str(txt))
     def save(self, filename):
         try:
             with open(filename, "w") as file:
@@ -554,7 +565,11 @@ class MainWindow(Base, QMainWindow):
         self.loaded = True
     def addMenu(self, menuName, menuText, menuItems):
         if not self.menus.get(menuName, False):
-            self.menus.update({menuName:self.menuBar().addMenu(menuText)})
+            menu = Menu(menuText)
+            self.menuBar().addMenu(menu)
+            self.menus.update({menuName:menu})
+            
+            #self.menus.update({menuName:self.menuBar().addMenu(Menu(menuText))})
         
         m = self.menus.get(menuName)
         
@@ -562,12 +577,12 @@ class MainWindow(Base, QMainWindow):
             name = item.get('name', str(i))
             txt = item.get('text', "?")
             checked = item.get('checked', None)
-            
             # check if text is any number of -
             if txt.startswith('-') and txt == txt[0]*len(txt):
                 m.addSeparator()
             else:
                 action = QAction(item.get('text'), self)
+                m.actions.update({name:action})
                 if checked is not None:
                     action.setCheckable(True)
                     action.setChecked(checked)
@@ -1261,3 +1276,9 @@ class MyLexer(QsciLexerCustom):
             return "myStyle_{}".format(style)
         else:
             return ""
+
+
+class Menu(QMenu):
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
+        self.actions = dict()

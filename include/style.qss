@@ -256,3 +256,7 @@ QTabBar::close-button:hover {
     border-color:_borderLight_;
 }
 
+QComboBox {
+    padding:2px;
+    font-size:12pt;
+}

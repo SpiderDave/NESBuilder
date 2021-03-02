@@ -156,14 +156,14 @@ function init()
     statusBar.setFont("Verdana", 10)
     
     if cfgGet('alphawarning')==1 then
-        control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Warning",text="Warning"}
+        control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Warning",text="Warning"}
     end
     
-    control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Launcher",text="Launcher"}
+    control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Launcher",text="Launcher"}
     launchTab = control
-    control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Palette",text="Palette"}
-    control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Image",text="CHR"}
-    control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="Symbols",text="Symbols"}
+    control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Palette",text="Palette"}
+    control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Image",text="CHR"}
+    control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Symbols",text="Symbols"}
     
     local items
     -- The separator and Quit items will be added
@@ -220,9 +220,6 @@ function init()
 
     end
     
---    local items = {
---        {name="screenTool", text="Screen Tool"},
---    }
     local items = {}
     control = NESBuilder:makeMenuQt{name="menuView",text="View", menuItems=items}
     
@@ -451,7 +448,7 @@ function init()
 
     end
     
-    NESBuilder:makeTabQt{name="Metatiles", text="Metatiles"}
+    NESBuilder:makeTab{name="Metatiles", text="Metatiles"}
     NESBuilder:setTabQt("Metatiles")
     
     x,y=left,top
@@ -553,13 +550,12 @@ function onReady()
     
     local items = {}
     local control = NESBuilder:getWindowQt()
-    local i = 0
     for k, v in iterItems(control.tabs) do
-        table.insert(items, {name='view_'..k, text=v.title, action = function() toggleTab(k, i) end, checked = true})
-        i=i+1
+        table.insert(items, {name=k, text=v.title, action = function() toggleTab(k) end, checked = true})
     end
     control = NESBuilder:makeMenuQt{name="menuView",text="View", menuItems=items}
     
+    handlePluginCallback("onReady")
     LoadProject()
     
     if cfgGet('autosave')==1 then
@@ -570,17 +566,29 @@ function onReady()
     
     -- Just remove Metatiles tab since it's broken.
     --if not devMode() then closeTab('Metatiles') end
+
+    NESBuilder:switchTab("Launcher")
 end
 
-function toggleTab(n, i)
+function toggleTab(n, visible)
     local control = NESBuilder:getWindowQt()
     local tab = control.getTab(n)
-    if control.tabParent.isTabVisible(control.tabParent.indexOf(tab)) then
+    
+    if not tab then return end
+    
+    if visible~=true and visible~=false then
+        visible = control.tabParent.isTabVisible(control.tabParent.indexOf(tab))
+    else
+        visible = not visible
+    end
+    if visible then
+        control.menus['menuView'].actions[n].setChecked(false)
         control.tabParent.removeTab(control.tabParent.indexOf(tab))
     else
-        --control.tabParent.insertTab(len(control.tabs), tab, tab.title)
+        control.menus['menuView'].actions[n].setChecked(true)
         control.tabParent.insertTab(tab.index, tab, tab.title)
     end
+    
 end
 
 function handlePluginCallback(f, arg)
@@ -897,7 +905,7 @@ function projectProperties_cmd()
 --    NESBuilder:makeWindow{x=0,y=0,w=760,h=600, name="prefWindow",title="Preferences"}
 --    NESBuilder:setWindow("prefWindow")
     
-    NESBuilder:makeTabQt{name="tabProjectProperties",text="Project Properties"}
+    NESBuilder:makeTab{name="tabProjectProperties",text="Project Properties"}
     NESBuilder:setTabQt("tabProjectProperties")
     
     control = NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight, name="ppLoadRom",text="Load ROM"}
@@ -911,6 +919,16 @@ function projectProperties_cmd()
     
     control = NESBuilder:makeCheckbox{x=x,y=y,name="ppRomDataInc", text="Save ROM data with project", value=bool(data.project.incRomData)}
     y = y + control.height + pad
+    
+    if devMode() then
+        control = NESBuilder:makeLabelQt{x=x,y=y, clear=true, text="Assembler"}
+        control.setFont("Verdana", 10)
+        push(x)
+        x = x + control.width + pad
+        control = NESBuilder:makeComboBox{x=x,y=y,w=buttonWidth, name="combo1", text="Test", itemList = {'sdasm','asm6','xkasplus'}}
+        y = y + control.height + pad
+        x=pop()
+    end
     
 --    control = NESBuilder:makeCheckbox{x=x,y=y,name="pptest1", text="Test", value=cfgGet('test')}
 --    y = y + control.height + pad
@@ -948,7 +966,7 @@ function launcherButtonPreferences_cmd()
 --    NESBuilder:makeWindow{x=0,y=0,w=760,h=600, name="prefWindow",title="Preferences"}
 --    NESBuilder:setWindow("prefWindow")
     
-    NESBuilder:makeTabQt{name="tabPreferences",text="Preferences"}
+    NESBuilder:makeTab{name="tabPreferences",text="Preferences"}
     
     NESBuilder:setTabQt("tabPreferences")
     
@@ -1004,7 +1022,7 @@ function launcherButtonInfo_cmd()
     top = pad*2
     x,y = left,top
 
-    NESBuilder:makeTabQt{name="infoTab", text="Info"}
+    NESBuilder:makeTab{name="infoTab", text="Info"}
     NESBuilder:setTabQt("infoTab")
 
 --    NESBuilder:makeWindow{x=0,y=0,w=760,h=600, name="infoWindow",title="Info"}
@@ -1387,7 +1405,20 @@ function LoadProject_cmd()
     LoadProject()
 end
 
+function closePluginTabs()
+    for _,p in pairs(plugins) do
+        for _,tab in ipairs(p.tabs or {}) do
+            toggleTab(tab, false)
+        end
+    end
+end
+
 function LoadProject()
+    -- Close all plugin tabs by default
+    closePluginTabs()
+    
+    handlePluginCallback("onPreLoadProject")
+    
     NESBuilder:setWorkingFolder()
     print("loading project "..data.projectID)
     
@@ -1486,6 +1517,20 @@ function LoadProject()
         print('loading rom data')
     end
     
+    local t = {}
+    local control = NESBuilder:getWindowQt()
+    for n in iterItems(control.menus['menuView'].actions) do
+        t[n] = control.tabParent.isTabVisible(control.tabParent.indexOf(control.getTab(n)))
+    end
+    data.project.visibleTabs = data.project.visibleTabs or {}
+    for k,v in pairs(data.project.visibleTabs) do
+        t[k] = v
+    end
+    data.project.visibleTabs = t
+    
+    for k,v in pairs(data.project.visibleTabs) do
+        toggleTab(k, v)
+    end
     
     handlePluginCallback("onLoadProject")
     
@@ -1562,6 +1607,12 @@ function SaveProject()
         --data.project.rom.data = nil
     --end
     
+    -- Save tabs
+    data.project.visibleTabs = {}
+    local control = NESBuilder:getWindowQt()
+    for n in iterItems(control.menus['menuView'].actions) do
+        data.project.visibleTabs[n] = control.tabParent.isTabVisible(control.tabParent.indexOf(control.getTab(n)))
+    end
     
     handlePluginCallback("onSaveProject")
     
@@ -2401,7 +2452,6 @@ iKeys = python.eval("lambda l:sorted([x for x in l if type(x)==int]) or False")
 max = python.eval("lambda x:max(x)")
 min = python.eval("lambda x:min(x)")
 
-
 pyItems = python.eval("lambda x: x.items()")
 function iterItems(x)
     return python.iter(pyItems(x))
@@ -2414,6 +2464,17 @@ iLength = function(t)
         return len(keys)
     else
         return 0
+    end
+end
+
+function makeTab(t)
+    NESBuilder:makeTabQt{name=t.name, text=t.text}
+    
+    -- Keep track of which plugin generated a tab
+    local p = _getPlugin and plugins[_getPlugin().name]
+    if p then
+        p.tabs = p.tabs or {}
+        table.insert(p.tabs, t.name)
     end
 end
 
@@ -2578,9 +2639,6 @@ function importAllChr()
     local chrData, chrStart, nPrg, nChr
     local fileData = NESBuilder:tableToList(data.project.rom.data,0)
     
-    --local fileData = getRomData()
-    --local fileData = NESBuilder:tableToList(data.rom.data,0)
-    
     nPrg = int(fileData[4])
     nChr = int(fileData[5])
     chrStart = 0x10 + nPrg * 0x4000
@@ -2685,8 +2743,18 @@ function exportAllChr_cmd(t)
     NESBuilder:saveArrayToFile(f, fileData)
 end
 
+function getRomData()
+    if data.project.rom and data.project.rom.data then
+        return data.project.rom.data
+    end
+end
 --getRomData()
 --    NESBuilder:setWorkingFolder(data.folders.projects..data.project.folder)
 --    local fileData = NESBuilder:listToTable(NESBuilder:getFileAsArray(data.project.rom.filename))
 --    return fileData
 --end
+
+function combo1_cmd(t)
+    print(t.control.index)
+    print(t.control.value)
+end

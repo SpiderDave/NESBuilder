@@ -1,7 +1,6 @@
 # needs lupa, pyinstaller, pillow, pyqt5, numpy
 '''
 ToDo:
-    * move to pyQt5!
     * make return value of control generating methods more consistant
     * makeCanvas method
     * clean up color variable names, add more
@@ -124,14 +123,12 @@ def fixPath2(p):
 def fixPath(p):
     return p.replace("/",os.sep).replace('\\',os.sep)
 
-
 # create our config parser
 cfg = Cfg(filename=fixPath2("config.ini"))
 
 # read config file if it exists
 cfg.load()
 
-cfg.setDefault('main', 'stylemenus', 1)
 cfg.setDefault('main', 'project', "newProject")
 cfg.setDefault('main', 'upperhex', 0)
 cfg.setDefault('main', 'alphawarning', 1)
@@ -167,6 +164,12 @@ QtDave.loadCursors(cursorData)
 def fancy(text):
     return "*"*60+"\n"+text+"\n"+"*"*60
 
+def depreciated(func):
+    def wrapper(*args, **kwargs):
+        plugin = lua.eval("_getPlugin and _getPlugin().name or 'main'")
+        print('(Plugin {}): Depreciated function {}()'.format(plugin, func.__name__))
+        func(*args, **kwargs)
+    return wrapper
 
 class Stack(deque):
     def push(self, *args):
@@ -278,7 +281,7 @@ class ForLua:
             m = getattr(self, method_name)
             if m.__class__.__name__ == 'function':
                 # these are control creation functions
-                # makedir maketab
+                # makedir
                 makers = ['makeButton', 'makeCanvas', 'makeEntry', 'makeLabel', "makeTree",
                           'makeMenu', 'makePaletteControl', 'makePopupMenu',
                           'makeText', 'makeWindow', 'makeSpinBox',
@@ -412,7 +415,8 @@ class ForLua:
                 
         return None
     def fileExists(self, f):
-        f = fixPath(script_path+"/"+f)
+        #f = fixPath(script_path+"/"+f)
+        f = fixPath2(f)
         return os.path.isfile(f)
     def pathToFolder(self, path):
         return pathToFolder(path)
@@ -1025,8 +1029,13 @@ class ForLua:
         ctrl.onMouseRelease = makeCmdNew(t)
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
+    
     @lupa.unpacks_lua_table
+    @depreciated
     def makeTabQt(self, t):
+        return self.makeTab(self, t) 
+    @lupa.unpacks_lua_table
+    def makeTab(self, t):
         window = self.windowQt
         
         #if t.name in self.windowQt.tabs:
@@ -1114,6 +1123,24 @@ class ForLua:
         d = os.path.dirname(sys.modules[folder].__file__)
         filename = os.path.join(d, file)
         return filename
+    @lupa.unpacks_lua_table
+    def makeComboBox(self, t):
+        ctrl = QtDave.ComboBox(self.tabQt)
+        #t.text = coalesce(t.text, '')
+        #ctrl.addItems(t.items)
+        #lua_func = lua.eval('function(o) {0} = o return o end'.format('NESBuilder'))
+        
+        ctrl.addItems(t.itemList.values())
+        
+        t.control = ctrl
+        ctrl.init(t)
+        
+        ctrl.currentIndexChanged.connect(makeCmdNoEvent(t))
+        
+        
+        #ctrl.textChanged.connect(makeCmdNoEvent(t))
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
     @lupa.unpacks_lua_table
     def makeLineEdit(self, t):
         ctrl = QtDave.LineEdit(self.tabQt)

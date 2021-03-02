@@ -915,7 +915,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         if v.startswith('-'):
             label = v.split(' ',1)[0]
             if len(aLabels) > 0:
-                foundAddresses = [x[1] for x in aLabels if x[0]==label and x[1]<currentAddress]
+                foundAddresses = sorted([x[1] for x in aLabels if x[0]==label and x[1]<currentAddress], reverse=True)
                 if len(foundAddresses) !=0:
                     return foundAddresses[-1], 2
             # negative number?
@@ -923,7 +923,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         if v.startswith('+'):
             label = v.split(' ',1)[0]
             try:
-                return [x[1] for x in aLabels if x[0]==label and x[1]>=currentAddress][0], 2
+                return sorted([x[1] for x in aLabels if x[0]==label and x[1]>=currentAddress])[0], 2
             except:
                 return 0,0
         

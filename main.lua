@@ -920,18 +920,16 @@ function projectProperties_cmd()
     control = NESBuilder:makeCheckbox{x=x,y=y,name="ppRomDataInc", text="Save ROM data with project", value=bool(data.project.incRomData)}
     y = y + control.height + pad
     
-    if devMode() then
-        control = NESBuilder:makeLabelQt{x=x,y=y, clear=true, text="Assembler"}
-        control.setFont("Verdana", 10)
-        push(x)
-        x = x + control.width + pad
-        control = NESBuilder:makeComboBox{x=x,y=y,w=buttonWidth, name="ppAssembler", text="Test", itemList = {'sdasm','asm6','xkasplus'}}
-        y = y + control.height + pad
-        x=pop()
-    end
-    
-    
+    control = NESBuilder:makeLabelQt{x=x,y=y, clear=true, text="Assembler"}
+    control.setFont("Verdana", 10)
+    push(x)
+    x = x + control.width + pad
+    control = NESBuilder:makeComboBox{x=x,y=y,w=buttonWidth, name="ppAssembler", text="Test", itemList = {'sdasm','asm6','xkasplus'}}
+    y = y + control.height + pad
+    x=pop()
+
     control.setByText(data.project.assembler)
+    
     
 --    control = NESBuilder:makeCheckbox{x=x,y=y,name="pptest1", text="Test", value=cfgGet('test')}
 --    y = y + control.height + pad
@@ -1097,6 +1095,14 @@ function BuildProject()
     if data.project.type == 'dev' then
         BuildProject_cmd()
     elseif data.project.type == 'romhack' then
+
+        if data.project.rom.filename and not data.project.rom.data then
+            loadRom(data.project.rom.filename)
+            print('loading rom data')
+            
+            if not data.project.rom.data then return end
+        end
+
         -- export chr to rom and build game.nes
         exportAllChr()
         build_sdasm()
@@ -2697,6 +2703,8 @@ end
 function exportAllChr()
     local chrData, chrStart, nPrg, nChr
     local fileData = data.project.rom.data
+    
+    if not data.project.rom.data then return end
     
     nPrg = int(fileData[4])
     nChr = int(fileData[5])

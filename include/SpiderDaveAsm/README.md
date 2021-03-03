@@ -109,7 +109,7 @@ Line Continuation:
         Choose a random item from a list.
     
 ```
-    db {choose:$00, $01, $02} ; outputs either $01, $02 or $03
+    db {choose:$01, $02, $03} ; outputs either $01, $02 or $03
 ```
     
     random

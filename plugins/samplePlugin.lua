@@ -1,16 +1,13 @@
 -- NESBuilder plugin
 -- samplePlugin.lua
---
--- To enable this plugin, remove the "_" from the start of the filename.
 
 local plugin = {
     author = "SpiderDave",
 }
 
 function plugin.onInit()
-    --NESBuilder:setWindow("Main")
-    NESBuilder:makeTabQt{name="sampleplugin", text="Sample Plugin"}
-    NESBuilder:setTabQt("sampleplugin")
+    makeTab{name="sampleplugin", text="Sample Plugin"}
+    setTab("sampleplugin")
     
     local x,y,control,pad
     

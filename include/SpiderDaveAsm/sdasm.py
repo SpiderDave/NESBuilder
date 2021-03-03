@@ -1307,6 +1307,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                                 fmtEnd = line.find(':',fmtStart)
                                 fmtString = '{:' + line[fmtStart:fmtEnd] + '}'
                                 l = getValue(line[fmtEnd+1:end])
+                                
+                                if type(l) is list:
+                                    print("can't format a list")
+                                
                                 l = fmtString.format(l)
                             else:
                                 l = getValue(line[start+2+len(item):end], mode=item)
@@ -1536,7 +1540,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 v = getValue(line.split(" ")[1].strip())
                 out[6] = (out[6] & 0xfe) | v
             elif k == 'inesbattery':
-                v = getValue(line.split(" ")[1].strip())
+                if k.strip() == line.strip().lower():
+                    v = 1
+                else:
+                    v = getValue(line.split(" ")[1].strip())
                 out[6] = (out[6] & 0xfd) | v<<1
             elif k == 'ines2':
                 v = getValue(line.split(" ")[1].strip())

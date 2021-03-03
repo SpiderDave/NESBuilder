@@ -282,11 +282,11 @@ class ForLua:
             if m.__class__.__name__ == 'function':
                 # these are control creation functions
                 # makedir
-                makers = ['makeButton', 'makeCanvas', 'makeEntry', 'makeLabel', "makeTree",
+                makers = ['makeCanvas', 'makeEntry', 'makeLabel', "makeTree",
                           'makeMenu', 'makePaletteControl', 'makePopupMenu',
                           'makeText', 'makeWindow', 'makeSpinBox',
                           ]
-                QtWidgets = ['makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeTab', 'makeCanvasQt', 'makeSideSpin', 'makeCheckbox', 'makeLink', 'makeTextEdit', 'makeList']
+                QtWidgets = ['makeButton', 'makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeTab', 'makeCanvasQt', 'makeSideSpin', 'makeCheckbox', 'makeLink', 'makeTextEdit', 'makeList']
                 
                 if method_name in makers:
                     attr = getattr(self, method_name)
@@ -1059,6 +1059,9 @@ class ForLua:
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
+    def makeButtonQt(self, t):
+        return self.makeButton(self, t)
+    @lupa.unpacks_lua_table
     def makeButton2(self, t):
         
         if t.w:
@@ -1096,7 +1099,7 @@ class ForLua:
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
-    def makeButtonQt(self, t):
+    def makeButton(self, t):
         ctrl = QtDave.Button(t.text, self.tabQt)
         ctrl.init(t)
         

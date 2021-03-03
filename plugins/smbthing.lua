@@ -55,8 +55,6 @@ local smbPaletteData = {
     {name = 'Palette3Data4', offset = 0x9dd, nColors = 4},
 }
 
-
-
 -- create index
 for k,v in ipairs(smbPaletteData) do
     smbPaletteData[v.name]=v
@@ -69,7 +67,7 @@ end
 
 function plugin.onInit()
     makeTab{name="smbthing", text="SMB Thing"}
-    NESBuilder:setTabQt("smbthing")
+    setTab("smbthing")
     
     local stack, push, pop = NESBuilder:newStack()
     local x,y,control,pad
@@ -159,7 +157,7 @@ function plugin.onInit()
     if not devMode() then return end
     
     makeTab{name="smbthing2", text="SMB Thing"}
-    NESBuilder:setTabQt("smbthing2")
+    setTab("smbthing2")
     
     x,y=left,top
     
@@ -183,9 +181,11 @@ function plugin.onLoadProject()
     
     if not getRomData() then return end
     
-    control = NESBuilder:getControl("smbWalkSpeed")
-    offset = 0xB444 - 0x8000 + 0x10
-    control.value = int(data.project.rom.data[offset])
+    if devMode() then
+        control = NESBuilder:getControl("smbWalkSpeed")
+        offset = 0xB444 - 0x8000 + 0x10
+        control.value = int(data.project.rom.data[offset])
+    end
 end
 
 function plugin.onBuild()

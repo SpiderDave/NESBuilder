@@ -25,7 +25,7 @@ function plugin.onInit()
     x,y=left,top
     
     --NESBuilder:setWindow("Main")
-    NESBuilder:makeTabQt{name="nesst", text="Screen Tool"}
+    makeTab{name="nesst", text="Screen Tool"}
     NESBuilder:setTabQt("nesst")
     
     control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth, name="nesstLoad",text="Open Session"}

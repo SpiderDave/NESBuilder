@@ -28,7 +28,7 @@ def chunker(seq, size):
     if res:
         yield res
 
-def makeTable(data, indent=4, nItems=8):
+def makeTableData(data, indent=4, nItems=8):
     # make sure it's a list, tuple, etc
     if type(data) in (int, str):
         data = [data]

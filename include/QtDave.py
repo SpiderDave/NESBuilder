@@ -368,6 +368,11 @@ class ComboBox(Base, QComboBox):
             return super().currentIndex()
         else:
             return super().__getattribute__(key)
+    def setByText(self, txt=''):
+        try:
+            self.setCurrentIndex(self.findText(txt))
+        except:
+            pass
 
 class LineEdit(Base, QLineEdit):
     def __init__(self, *args, **kw):
@@ -398,6 +403,14 @@ class TextEdit(Base, QPlainTextEdit):
                 self.setPlainText(file.read())
         except:
             print("Error: Could not load file "+filename)
+
+    def __getattribute__(self, key):
+        if key == 'text':
+            return super().toPlainText()
+        else:
+            return super().__getattribute__(key)
+
+
 
 class CodeEdit(Base_Light, QsciScintilla):
     def __init__(self, *args, **kw):

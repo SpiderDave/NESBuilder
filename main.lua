@@ -26,6 +26,7 @@ config = {
     },
     pluginFolder = "plugins", -- this one is for python
     nRecentFiles = 20,
+    defaultAssembler = 'sdasm',
 }
 
 config.pad = 6
@@ -43,7 +44,7 @@ helping create a NES game from start to finish.
 
 Features:
  *  Open source
- *  Building a project integrates asm6 and assembles project.asm if it exists.
+ *  Integrated custom assembler
  *  Palette editor
  *  CHR Import/export and editing.
  *  Metatiles
@@ -588,7 +589,6 @@ function toggleTab(n, visible)
         control.menus['menuView'].actions[n].setChecked(true)
         control.tabParent.insertTab(tab.index, tab, tab.title)
     end
-    
 end
 
 function handlePluginCallback(f, arg)
@@ -905,8 +905,8 @@ function projectProperties_cmd()
 --    NESBuilder:makeWindow{x=0,y=0,w=760,h=600, name="prefWindow",title="Preferences"}
 --    NESBuilder:setWindow("prefWindow")
     
-    NESBuilder:makeTab{name="tabProjectProperties",text="Project Properties"}
-    NESBuilder:setTabQt("tabProjectProperties")
+    NESBuilder:makeTabQt{name="tabProjectProperties",text="Project Properties"}
+    setTab("tabProjectProperties")
     
     control = NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight, name="ppLoadRom",text="Load ROM"}
     x = x + control.width + pad
@@ -925,10 +925,13 @@ function projectProperties_cmd()
         control.setFont("Verdana", 10)
         push(x)
         x = x + control.width + pad
-        control = NESBuilder:makeComboBox{x=x,y=y,w=buttonWidth, name="combo1", text="Test", itemList = {'sdasm','asm6','xkasplus'}}
+        control = NESBuilder:makeComboBox{x=x,y=y,w=buttonWidth, name="ppAssembler", text="Test", itemList = {'sdasm','asm6','xkasplus'}}
         y = y + control.height + pad
         x=pop()
     end
+    
+    
+    control.setByText(data.project.assembler)
     
 --    control = NESBuilder:makeCheckbox{x=x,y=y,name="pptest1", text="Test", value=cfgGet('test')}
 --    y = y + control.height + pad
@@ -1050,25 +1053,17 @@ function New_cmd()
     data.launchFrames.set('new')
     NESBuilder:switchTab("Launcher")
 end
-function OpenProject_cmd()
-    Open_cmd()
-end
-function BuildProjectTest_cmd()
-    BuildTest_cmd()
-end
 
-function Save_cmd()
-    SaveProject()
-end
+function OpenProject_cmd() Open_cmd() end
+function BuildProjectTest_cmd() BuildTest_cmd() end
+function Save_cmd() SaveProject() end
 
 function openProjectFolder_cmd()
     local workingFolder = data.folders.projects..data.project.folder
     NESBuilder:shellOpen(workingFolder, data.folders.projects..data.project.folder)
 end
 
-function Build_cmd()
-    BuildProject()
-end
+function Build_cmd() BuildProject() end
 
 function BuildTest_cmd()
     BuildProject()
@@ -1085,24 +1080,25 @@ end
 function BuildProject()
     ppUpdate()
     
+    NESBuilder:setWorkingFolder()
+    
+    -- make sure folders exist for this project
+    NESBuilder:makeDir(data.folders.projects..data.project.folder)
+    NESBuilder:makeDir(data.folders.projects..data.project.folder.."chr")
+    NESBuilder:makeDir(data.folders.projects..data.project.folder.."code")
+    
+    local folder = data.folders.projects..data.project.folder
+    
+    -- remove old game.nes
+    NESBuilder:delete(folder.."game.nes")
+    
+    handlePluginCallback("onBuild")
+    
     if data.project.type == 'dev' then
         BuildProject_cmd()
-    else
-        NESBuilder:setWorkingFolder()
-        -- make sure folders exist for this project
-        NESBuilder:makeDir(data.folders.projects..data.project.folder)
-        
-        handlePluginCallback("onBuild")
-        
-        
-        local folder = data.folders.projects..data.project.folder
-        
-        -- remove old game.nes
-        NESBuilder:delete(folder.."game.nes")
-        
+    elseif data.project.type == 'romhack' then
         -- export chr to rom and build game.nes
         exportAllChr()
-        
         build_sdasm()
     end
 end
@@ -1113,10 +1109,6 @@ function build_sdasm()
     local folder = data.folders.projects..data.project.folder
     
     NESBuilder:setWorkingFolder()
-    -- make sure folders exist for this project
-    NESBuilder:makeDir(data.folders.projects..data.project.folder)
-    --NESBuilder:makeDir(data.folders.projects..data.project.folder.."chr")
-    NESBuilder:makeDir(data.folders.projects..data.project.folder.."code")
     
     saveChr()
     
@@ -1172,26 +1164,44 @@ function build_sdasm()
     if out ~= '' then util.writeToFile(filename,0, out, true) end
     
     NESBuilder:setWorkingFolder(folder)
-    local sdasm = python.eval('sdasm')
-    local fixPath = python.eval('fixPath2')
-    local romData = data.project.rom.data
     
-    -- Apply IPS patches.
-    for i, patchFile in ipairs_sparse(data.project.patches) do
-        f = NESBuilder:findFile(patchFile, list(folder))
-        if f then
-            print('Applying IPS patch: '..f)
-            ipsData = NESBuilder:getFileAsArray(f)
-            romData = NESBuilder:applyIps(ipsData, romData)
-        elseif patchFile ~='' then
-            print('*** Invalid IPS patch: '..patchFile)
+    if data.project.assembler == 'asm6' then
+        local cmd = data.folders.tools.."asm6.exe"
+        local args = "-L project.asm game.nes list.txt"
+        print("Starting asm 6...")
+        
+        NESBuilder:run(folder, cmd, args)
+    elseif data.project.assembler == 'xkasplus' then
+        local cmd = data.folders.tools.."xkas-plus/xkas.exe"
+        local args = "-o game.nes project.asm"
+        print("Starting xkas plus...")
+        
+        NESBuilder:run(folder, cmd, args)
+    elseif data.project.assembler == 'sdasm' then
+    
+        local sdasm = python.eval('sdasm')
+        local fixPath = python.eval('fixPath2')
+        local romData = data.project.rom.data
+        
+        -- Apply IPS patches.
+        for i, patchFile in ipairs_sparse(data.project.patches) do
+            f = NESBuilder:findFile(patchFile, list(folder))
+            if f then
+                print('Applying IPS patch: '..f)
+                ipsData = NESBuilder:getFileAsArray(f)
+                romData = NESBuilder:applyIps(ipsData, romData)
+            elseif patchFile ~='' then
+                print('*** Invalid IPS patch: '..patchFile)
+            end
         end
+        
+        -- Start assembling with sdasm
+        print("Assembling with sdasm...")
+        
+        sdasm.assemble('project.asm', 'game.nes', 'output.txt', fixPath(data.folders.projects..projectFolder..'config.ini'), romData)
+    else
+        print('invalid assembler '..data.project.assembler)
     end
-    
-    -- Start assembling with sdasm
-    print("Assembling with sdasm...")
-    
-    sdasm.assemble('project.asm', 'game.nes', 'output.txt', fixPath(data.folders.projects..projectFolder..'config.ini'), romData)
     
     print("done.")
 end
@@ -1365,29 +1375,28 @@ function BuildProject_cmd()
     end
     util.writeToFile(filename,0, out, true)
     
-    
     -- assemble project
     
     -- make sure project.asm exists, or dont bother
-    --if util.fileExists(folder.."project.asm") then
     if NESBuilder:fileExists(folder.."project.asm") then
         -- remove old game.nes
         if NESBuilder:delete(folder.."game.nes") then
             NESBuilder:setWorkingFolder(folder)
-            local asm6 = false
-            if asm6 then
+            if data.project.assembler == 'asm6' then
                 local cmd = data.folders.tools.."asm6.exe"
                 local args = "-L project.asm game.nes list.txt"
                 print("Starting asm 6...")
                 
                 NESBuilder:run(folder, cmd, args)
-            else
+            elseif data.project.assembler == 'sdasm' then
                 local sdasm = python.eval('sdasm')
                 print("Starting sdasm...")
                 
                 local fixPath = python.eval('fixPath2')
                 
                 sdasm.assemble('project.asm', 'game.nes', 'output.txt', fixPath(data.folders.projects..projectFolder..'config.ini'))
+            else
+                print('invalid assembler '..data.project.assembler)
             end
         else
             print("Did not assemble project.")
@@ -1406,6 +1415,13 @@ function LoadProject_cmd()
 end
 
 function closePluginTabs()
+    toggleTab('Palette', false)
+    toggleTab('Image', false)
+    toggleTab('Symbols', false)
+    toggleTab('Metatiles', false)
+    
+    --toggleTab('tabProjectProperties', false)
+
     for _,p in pairs(plugins) do
         for _,tab in ipairs(p.tabs or {}) do
             toggleTab(tab, false)
@@ -1439,10 +1455,7 @@ function LoadProject()
     -- Add this to projects that didn't have a project type
     data.project.type = data.project.type or "dev"
     
-    -- Wipe data stored on the canvas control
-    --NESBuilder:getControlNew('tsaCanvas').loadCHRData()
-    
-    --NESBuilder:getControlNew('tsaCanvas').loadCHRData({0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, {[0]=0x0f,0x0f,0x0f,0x0f})
+    data.project.assembler = data.project.assembler or config.defaultAssembler
     
     -- update project folder in case it's been moved
     data.project.folder = projectFolder
@@ -1464,7 +1477,7 @@ function LoadProject()
     
     local converted = false
     local makeNp = python.eval("lambda x: np.array(x)")
-    --for i=0,#data.project.chr do
+    
     for i in ipairs_sparse(data.project.chr) do
         if type(data.project.chr[i]) == "table" then
             data.project.chr[i] = NESBuilder:tableToList(data.project.chr[i], 0)
@@ -1512,7 +1525,9 @@ function LoadProject()
 --    end
 --    NESBuilder:setWorkingFolder()
     
-    if data.project.rom and not data.project.rom.data then
+    data.project.rom = data.project.rom or {}
+    
+    if data.project.rom.filename and not data.project.rom.data then
         loadRom(data.project.rom.filename)
         print('loading rom data')
     end
@@ -1528,14 +1543,14 @@ function LoadProject()
     end
     data.project.visibleTabs = t
     
-    for k,v in pairs(data.project.visibleTabs) do
-        toggleTab(k, v)
+    data.project.tabsList = data.project.tabsList  or {}
+    for i,tab in ipairs (data.project.tabsList) do
+        toggleTab(tab, data.project.visibleTabs[tab])
     end
     
     handlePluginCallback("onLoadProject")
     
     PaletteEntryUpdate()
-    
     
     -- refresh metatile tile canvas
     local control = NESBuilder:getControlNew('tsaTileCanvasQt')
@@ -1609,8 +1624,10 @@ function SaveProject()
     
     -- Save tabs
     data.project.visibleTabs = {}
+    data.project.tabsList = {}
     local control = NESBuilder:getWindowQt()
     for n in iterItems(control.menus['menuView'].actions) do
+        table.insert(data.project.tabsList, n)
         data.project.visibleTabs[n] = control.tabParent.isTabVisible(control.tabParent.indexOf(control.getTab(n)))
     end
     
@@ -1972,6 +1989,8 @@ end
 function CHRName_cmd(t)
     local control = NESBuilder:getControl('CHRList')
     
+    if control.getIndex() == -1 then return end
+    
     if t.control.text~=control.getItem() then
         --control.editItem(control.currentItem())
         local item = control.currentItem()
@@ -2095,8 +2114,16 @@ function updateSquareoid()
     local controlFrom = NESBuilder:getControlNew("tsaCanvasQt")
     local controlTo = NESBuilder:getControlNew("tsaCanvas2Qt")
     
+    local control = NESBuilder:getControlNew("mTileList")
+    if control.count() == 0 then return end
+    
+    if data.project.mTileSets.index == -1 then
+        data.project.mTileSets.index = 0
+        control.setCurrentRow(0)
+    end
     
     local control = NESBuilder:getControl("tsaSquareoidNumber")
+    
     control.setText(string.format('%s',data.project.mTileSets[data.project.mTileSets.index].index))
     
     if not data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] then
@@ -2437,6 +2464,9 @@ function devMode() return (cfgGet('dev')==1) end
 function type(item) return NESBuilder:type(item) end
 function currentMetatile() return data.project.mTileSets[data.project.mTileSets.index][n or data.project.mTileSets[data.project.mTileSets.index].index] or {[0]=0,0,0,0} end
 function setMetatileData(mTileData, n) data.project.mTileSets[data.project.mTileSets.index][n or data.project.mTileSets[data.project.mTileSets.index].index]=mTileData end
+function getControl(n) return NESBuilder:getControl(n) end
+
+
 
 int = python.eval("lambda x:int(x)")
 sliceList = python.eval("lambda x,y,z:x[y:z]")
@@ -2476,6 +2506,10 @@ function makeTab(t)
         p.tabs = p.tabs or {}
         table.insert(p.tabs, t.name)
     end
+end
+
+function setTab(tab)
+    NESBuilder:setTabQt(tab)
 end
 
 function cfgGet(section, key)
@@ -2748,13 +2782,7 @@ function getRomData()
         return data.project.rom.data
     end
 end
---getRomData()
---    NESBuilder:setWorkingFolder(data.folders.projects..data.project.folder)
---    local fileData = NESBuilder:listToTable(NESBuilder:getFileAsArray(data.project.rom.filename))
---    return fileData
---end
 
-function combo1_cmd(t)
-    print(t.control.index)
-    print(t.control.value)
+function ppAssembler_cmd(t)
+    data.project.assembler = t.control.value
 end

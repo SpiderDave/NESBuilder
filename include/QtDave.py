@@ -9,17 +9,16 @@ from PIL.ImageQt import ImageQt
 
 from PyQt5 import QtGui
 from PyQt5.QtGui import QIcon, QPainter, QColor, QImage, QBrush, QPixmap, QPen, QCursor, QWindow, QFont
-from PyQt5.QtCore import QDateTime, Qt, QTimer, QCoreApplication, QSize, QRect
+from PyQt5.QtCore import QDateTime, Qt, QTimer, QCoreApplication, QSize, QRect, QPoint
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
         QDial, QDialog, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
         QProgressBar, QPushButton, QRadioButton, QScrollBar, QSizePolicy,
         QSlider, QSpinBox, QStyleFactory, QTableWidget, QTabWidget, QTextEdit,
         QVBoxLayout, QWidget, QAction, QMainWindow, QMessageBox, QFileDialog, 
         QInputDialog, QErrorMessage, QFrame, QPlainTextEdit, QListWidget, QListWidgetItem,
-        QVBoxLayout,QTableWidgetItem, QMenu
+        QVBoxLayout,QTableWidgetItem, QMenu, QScrollArea
         )
 
-#from PyQt5.Qsci import *
 from PyQt5.Qsci import QsciScintilla, QsciLexerCustom
 
 opcodes = [
@@ -73,7 +72,6 @@ basePalette = [
     ]
 
 basePens = [QColor(*basePalette[x]) for x in range(4)]
-
 
 # This is something to reformat lua tables from lupa into 
 # lists if needed.  I'd like to avoid importing lupa here
@@ -476,19 +474,17 @@ class Link(Label):
         self.setOpenExternalLinks(True)
         self.linkHovered.connect(self._linkHovered)
         self.linkActivated.connect(self._linkClicked)
-        #self.setStyleSheet("color: blue;border:1px solid blue;")
     def _linkHovered(self):
-        #print('hover')
-        #self.text = self.text.replace("white","blue")
-        #self.setStyleSheet("color: blue;border:1px solid red;")
         pass
     def _linkClicked(self):
-        #print('click')
         pass
 
 class CheckBox(Base, QCheckBox): pass
 
 class Frame(Base, QFrame): pass
+class ScrollFrame(Base, QScrollArea):
+    def init(self, t):
+        super().init(t)
 
 class LauncherIcon(Frame):
     def init(self, t):
@@ -496,29 +492,14 @@ class LauncherIcon(Frame):
         
         self.addCssClass("launcherFrame")
         
-#        l = Label(self)
-#        l.addCssClass("launcherText")
-#        l.init(t)
-#        l.move(0,self.height-l.height-8)
-#        self.label = l
-        
         ctrl = Label("", self)
         t.text = ""
         ctrl.init(t)
-        #ctrl.resize(self.width, self.height-l.height-8)
         ctrl.resize(self.width, self.height)
         ctrl.move(0,0)
         ctrl.addCssClass("launcherIcon")
         
-#        pixmap = QPixmap('project.png')
-#        ctrl.setAlignment(Qt.AlignHCenter)
-#        ctrl.setPixmap(pixmap)
-        
         self.iconCtrl = ctrl
-        
-        # This is very hacky but it fixes an issue where 
-        # the labels are initially cut off.
-        #QTimer.singleShot(400, self.label.adjustSize)
     def setText(self, text):
         #self.label.text = text
         pass
@@ -530,7 +511,6 @@ class TabWidget(Base, QTabWidget):
         self.height = 1000
         self.self = self
         self.setTabsClosable(True)
-        #self.tabCloseRequested.connect(lambda index: self.removeTab(index))
         self.tabCloseRequested.connect(lambda index: self.closeTab(index))
     def closeTab(self, index):
         if self.tabsClosable():
@@ -581,8 +561,6 @@ class MainWindow(Base, QMainWindow):
             menu = Menu(menuText)
             self.menuBar().addMenu(menu)
             self.menus.update({menuName:menu})
-            
-            #self.menus.update({menuName:self.menuBar().addMenu(Menu(menuText))})
         
         m = self.menus.get(menuName)
         
@@ -669,10 +647,6 @@ class Dialog():
         
             filter = ";;".join([x+" ("+y+")" for x,y in types])
             filter=filter.replace("(.","(*.")
-        
-        #print(filter)
-        
-        #"Images (*.png *.xpm *.jpg);;Text files (*.txt);;XML files (*.xml)"
         file, _ = d.getOpenFileName(None, title, initial, filter)
         return file
     def saveFile(self, filetypes=None, initial=None, title="Save As...", filter="All Files (*.*)"):
@@ -704,11 +678,16 @@ class Dialog():
     def showError(self, text=None):
         d = QMessageBox()
         d.setText(text)
-        
         d.setIcon(3)
-        #d.setInformativeText("Some message")
         d.setStyleSheet(".QLabel {padding:1em;}")
         d.setWindowTitle("Error")
+        d.exec_()
+    def showInfo(self, text=None, title="Info"):
+        d = QMessageBox()
+        d.setText(text)
+        d.setIcon(2)
+        d.setStyleSheet(".QLabel {padding:1em;}")
+        d.setWindowTitle(title)
         d.exec_()
         
         
@@ -727,7 +706,6 @@ class Painter(QPainter):
 
 QPixmap = QPixmap
 
-
 class ClipOperations():
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
@@ -745,10 +723,7 @@ class ClipOperations():
         """
         if not pix:
             pix = clip.get('pix')
-        #self.setPixmap(pix.scaled(self.size()))
         self.setPixmap(pix.scaledToWidth(self.width))
-
-
 
 class Canvas(ClipOperations, Base, QLabel):
     def init(self, t):
@@ -763,6 +738,16 @@ class Canvas(ClipOperations, Base, QLabel):
         painter.end()
         self.columns = (self.width/self.scale)/8
         self.rows = (self.height/self.scale)/8
+    def reset(self, columns=16,rows=16):
+        self.columns = columns
+        self.rows = rows
+        w = columns * 8 * self.scale
+        h = rows * 8 * self.scale
+        self.width = w
+        self.height = h
+        
+        canvas=QPixmap(w,h)
+        self.setPixmap(canvas)
     def setNameTable(self, nameTable=False):
         if not nameTable:
             nameTable = [0]*math.floor(self.columns*self.rows)
@@ -787,45 +772,26 @@ class Canvas(ClipOperations, Base, QLabel):
         # needs work
         painter = Painter(self.pixmap())
         painter.scale(self.scale, self.scale)
-#        pen = QPen()
-#        pen.width=0
-#        pen.color='white'
-        
-        
         painter.setPen(QPen(Qt.white,  5, Qt.DotLine))
-        
-        
-        #painter.setPen(QColor('white'))
-        #painter.setPen(pen)
         painter.drawLine(x,y,x2,y2)
         painter.end()
     def horizontalLine(self, y):
         painter = Painter(self.pixmap())
         painter.scale(self.scale, self.scale)
-
         pen = QPen()
         pen.setColor(QColor("white"))
         painter.setPen(pen)
-        
-        #painter.setPen(QColor('white'))
         painter.drawLine(0,y,self.width,y)
         painter.end()
-
-#        painter.fillRect(0,y,self.width/self.scale,y+1,QBrush(Qt.white))
-#        painter.end()
     def setPixel(self, x,y, c=[0,0,0]):
         painter = Painter(self.pixmap())
         painter.scale(self.scale, self.scale)
-        #painter.setPen(QColor(168, 34, 3))
-        #painter.fillRect(x,y,1,1,QBrush(Qt.white))
-        #painter.fillRect(x,y,1,1,QBrush(QColor(*fix(c))))
         painter.fillRect(x,y,1,1,QBrush(QColor(c[1],c[2],c[3])))
         painter.end()
     def test(self, chr):
         pix = NESPixmap(8*16,8*16)
         pix.loadCHR(chr)
         p=Painter(self.pixmap())
-        #p.drawPixmap(pix.rect(), pix)
         p.drawPixmap(QRect(0,0,self.width,self.height), pix)
         p.end()
         self.repaint()
@@ -871,7 +837,6 @@ class Canvas(ClipOperations, Base, QLabel):
         painter.end()
         #self.update()
 
-
 class PaletteButton(Label):
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
@@ -889,8 +854,6 @@ class PaletteButton(Label):
             self.onMouseMove(event)
         else:
             super().mouseMoveEvent(event)
-
-        
         
 # todo: always use indexed palettes
 class PaletteControl(Base, QFrame):
@@ -950,6 +913,10 @@ class PaletteControl(Base, QFrame):
                     s = s.replace('border:1px solid white;', 'border:none;')
                 cell.setStyleSheet(s)
     def set(self, index=0, c=0x0f):
+        if not (0 <= c < len(nesPalette)):
+            print('Invalid palette index {}'.format(c))
+            c = 0
+        
         cell = self.cells[index]
         
         bg = "#{0:02x}{1:02x}{2:02x}".format(nesPalette[c][0],nesPalette[c][1],nesPalette[c][2])
@@ -965,11 +932,16 @@ class PaletteControl(Base, QFrame):
             cell.setText("{0:02X}".format(c), autoSize=False)
         else:
             cell.setText("{0:02x}".format(c), autoSize=False)
-
         
 class SideSpin(Base, QFrame):
     def init(self, t):
         super().init(t)
+        self.format = "{0:02x}"
+        if t.format in ("hex", "hexidecimal"):
+            self.format = "{:02x}"
+        if t.format in ("dec", "decimal"):
+            self.format = "{}"
+        
         self._value = 0
         self.min = 0
         self.max = 255
@@ -983,10 +955,11 @@ class SideSpin(Base, QFrame):
         self.label = m = Label(self)
         self.label.autoSize = False
         m.init(t)
-        m.text="00"
+        m.text=self.format.format(0)
         m.setFont("Verdana",12)
         m.move(l.width,0)
-        m.resize(self.width/3, self.height)
+        #m.resize(self.width/3, self.height)
+        m.resize(self.width-self.height*2, self.height)
         m.addCssClass("sideSpinLabel")
         #self.rightButton = r = Button(u"\u25B6", self)
         self.rightButton = r = Button("+", self)
@@ -1008,7 +981,7 @@ class SideSpin(Base, QFrame):
             self.onChange()
     def refresh(self):
         self._value = clamp(self._value, self.min, self.max)
-        self.label.text = "{0:02x}".format(self._value)
+        self.label.text = self.format.format(self._value)
     
     def _changed(self):
         if self.onChange:
@@ -1064,16 +1037,12 @@ class NESPixmap(ClipOperations, Base, QPixmap):
                 for x in range(8):
                     for i in range(4):
                         color = img.pixelColor(x+(t*8) % w, y + math.floor(t/(w/8))*8)
-                        #print(list(color.getRgb()),colors[i])
                         if list(color.getRgb()[:-1]) == colors[i]:
-                        #if img.pixel(x+(t*8) % w, y + math.floor(t/(w/8))*8) == colors[i]:
                             tile[y] += (2**(7-x)) * (i%2)
                             tile[y+8] += (2**(7-x)) * (math.floor(i/2))
             
             for i in range(16):
                 out.append(tile[i])
-        
-        #ret = lua.table_from(out)
         ret = out
         
         self.columns = math.floor(w/8)
@@ -1096,7 +1065,6 @@ class NESPixmap(ClipOperations, Base, QPixmap):
         
         imageData = fix(imageData)
         
-        #a = np.zeros((8,8,3))
         for tile in range(math.floor(len(imageData)/16)):
             for y in range(8):
                 for x in range(8):
@@ -1113,17 +1081,10 @@ class NESPixmap(ClipOperations, Base, QPixmap):
                     painter.setPen(basePens[c])
                     painter.drawPoint(tileX*8+(7-x),tileY*8+y)
         painter.end()
-#        palette = [
-#            nesPalette[0x0f],
-#            nesPalette[0x21],
-#            nesPalette[0x11],
-#            nesPalette[0x01],
-#        ]
-#        self.applyPalette(palette=palette)
 
     def applyPalette(self, palette=False):
         painter = Painter(self)
-
+        
         # black, green, red, blue
         colors = [
             [0,0,0],
@@ -1134,22 +1095,7 @@ class NESPixmap(ClipOperations, Base, QPixmap):
         
         palette = fix(palette)
         palette = [nesPalette[x] for x in palette]
-#        palette = [
-#            nesPalette[0x0f],
-#            nesPalette[0x21],
-#            nesPalette[0x11],
-#            nesPalette[0x01],
-#        ]
-        
         pens = [QColor(*palette[x]) for x in range(4)]
-        
-#        rndPens = [
-#            [QColor(*nesPalette[randrange(0x40)]) for x in range(4)],
-#            [QColor(*nesPalette[randrange(0x40)]) for x in range(4)],
-#            [QColor(*nesPalette[randrange(0x40)]) for x in range(4)],
-#            [QColor(*nesPalette[randrange(0x40)]) for x in range(4)],
-#        ]
-        
         masks = []
         for i, c in enumerate(colors):
             masks.append(self.createMaskFromColor(QColor(*colors[i]), Qt.MaskOutColor))
@@ -1158,17 +1104,10 @@ class NESPixmap(ClipOperations, Base, QPixmap):
             for y in range(8):
         
                 for i, mask in enumerate(masks):
-                    #painter.setPen(QColor(*palette[i]))
                     painter.setPen(pens[i])
-                    #painter.setPen(QColor(randrange(0,255), randrange(0,255), randrange(0,255)))
-                    #painter.setPen(rndPens[randrange(4)][i])
-                    #p.drawPixmap(self.rect(), mask, mask.rect())
-                    #p.drawPixmap(QRect(0,0,self.width*2,self.height*2), mask, mask.rect())
-                    
                     r = QRect(x*16,y*16,16,16)
                     painter.drawPixmap(r, mask, r)
         painter.end()
-
 
 class listItemLabel(Label, QListWidgetItem):pass
 
@@ -1218,7 +1157,10 @@ class Table(Base, QTableWidget):
         for r in range(self.rowCount()):
             for c in range(self.columnCount()):
                 self.set(r,c,None)
-    
+    def _changed(self):
+        if self.onChange:
+            self.onChange()
+
 class MyLexer(QsciLexerCustom):
     def __init__(self, parent):
         super(MyLexer, self).__init__(parent)
@@ -1243,7 +1185,6 @@ class MyLexer(QsciLexerCustom):
         
         for i, color in enumerate(colors):
             self.setColor(QColor(color), i)
-            #self.setPaper(QColor("#ffffffff"), i)
             self.setPaper(QColor("#303046"), i)
             
             if i == 1:
@@ -1295,3 +1236,4 @@ class Menu(QMenu):
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
         self.actions = dict()
+

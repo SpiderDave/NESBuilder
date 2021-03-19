@@ -44,7 +44,9 @@ except: badImport('numpy')
 
 import pickle
 
-from shutil import copyfile
+import shutil
+from shutil import copyfile, copy2
+
 import subprocess
 import traceback
 
@@ -442,21 +444,41 @@ class ForLua:
             return False
     def sleep(self, t):
         time.sleep(t)
+    def rename(self, filename, newFilename):
+        filename = fixPath2(filename)
+        newFilename = fixPath2(newFilename)
+        
+        print(filename)
+        print(newFilename)
+        print(os.path.exists(filename))
+        print(os.path.exists(newFilename))
+        
+        if os.path.exists(filename) and os.path.exists(newFilename)==False:
+            os.rename(filename, newFilename)
+            print("Rename "+filename + " --> "+newFilename)
     def delete(self, filename):
-        filename = fixPath(script_path+"/"+filename)
+        #filename = fixPath(script_path+"/"+filename)
+        filename = fixPath2(filename)
         try:
             if os.path.exists(filename):
                 os.remove(filename)
+            else:
+                print(filename + " does not exist.")
             return True
         except:
             print("Could not delete "+filename)
             return False
-    def run(self, workingFolder, cmd, args):
+    def run(self, workingFolder, cmd, args, input=None, capture=False):
         try:
+            if input:
+                input = bytes(input, 'utf-8')
             cmd = fixPath(script_path+"/"+cmd)
-            workingFolder = fixPath(script_path+"/"+workingFolder)
+            #workingFolder = fixPath(script_path+"/"+workingFolder)
+            workingFolder = fixPath2(workingFolder)
             os.chdir(workingFolder)
-            subprocess.run([cmd]+ args.split())
+            p = subprocess.run([cmd]+ args.split(), capture_output=capture, input=input)
+            if capture:
+                return '\n'.join(p.stdout.decode().splitlines())
             print()
             return True
         except:
@@ -479,6 +501,9 @@ class ForLua:
     def showError(self, title="Error", text=""):
         d = QtDave.Dialog()
         d.showError(text)
+    def showInfo(self, title="Info2", text=""):
+        d = QtDave.Dialog()
+        d.showInfo(text, title)
     def askText(self, title, text):
         d = QtDave.Dialog()
         return d.askText(title, text)
@@ -582,6 +607,17 @@ class ForLua:
         setattr(self, f, getattr(m, f))
         
         return getattr(m,f)
+    def copyFolder(self, src, dst):
+        src = fixPath2(src)
+        dst = fixPath2(dst)
+        
+        def ignore(folder, contents):
+            contents = [x for x in contents]
+            print(folder, contents)
+            return (folder, contents)
+        
+        #shutil.copytree(src, dst, symlinks=False, ignore=None, copy_function=copy2, ignore_dangling_symlinks=False)
+        shutil.copytree(src, dst, symlinks=False, ignore=ignore, copy_function=copy2, ignore_dangling_symlinks=False, dirs_exist_ok=True)
     def copyFile(self, src,dst):
         copyfile(src,dst)
     def canvasPaint(self, x,y, c):
@@ -773,6 +809,9 @@ class ForLua:
         file.close()
         return True
     def writeToFile(self, f, fileData):
+        if not fileData or fileData==True:
+            print('Nothing to write.')
+            return False
 #        if type(fileData) == np.ndarray:
 #            fileData = list(fileData)
         
@@ -818,6 +857,10 @@ class ForLua:
         file.close()
         
         return list(fileData)
+    def getTextFileContents(self, f):
+        with open(f, "r") as file:
+            text = file.read()
+        return text
     def loadCHRFile(self, f='chr.chr', colors=(0x0f,0x21,0x11,0x01), start=0):
         file=open(f,"rb")
         file.seek(start)
@@ -1083,7 +1126,13 @@ class ForLua:
         t.control = ctrl
         #ctrl.onChange = makeCmdNoEvent(t)
         
-        ctrl.clicked.connect(makeCmdNew(t))
+        #ctrl.itemChanged.connect(makeCmdNew(t))
+        ctrl.itemChanged.connect(ctrl._changed)
+        
+        #ctrl.currentItemChanged.connect(makeCmdNew(t))
+        #ctrl.currentItemChanged.connect(ctrl._changed)
+        
+        #ctrl.clicked.connect(makeCmdNew(t))
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
@@ -1177,6 +1226,12 @@ class ForLua:
         ctrl = QtDave.Frame(self.tabQt)
         ctrl.init(t)
         #ctrl.clicked.connect(makeCmdNew(t))
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
+    def makeScrollFrame(self, t):
+        ctrl = QtDave.ScrollFrame(self.tabQt)
+        ctrl.init(t)
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table

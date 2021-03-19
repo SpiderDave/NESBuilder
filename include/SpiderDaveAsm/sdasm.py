@@ -424,7 +424,7 @@ directives = [
 filters = [
     'shuffle','getbyte','getword','choose',
     'format','random','range','textmap',
-    'evalvar','pop','astext',
+    'evalvar','pop','astext','len',
 ]
 
 asm=[
@@ -785,6 +785,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 pass
             
             return out[a],1
+        if mode == 'len':
+            v, l = getValueAndLength(v)
+            return l, 1
         if mode == 'choose':
             v = v.split(',')
             random.shuffle(v)
@@ -1106,7 +1109,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         file = open(filename, "r")
     except:
         print("Error: could not open file.")
-        exit()
+        return False
     
     print('sdasm {} by {}\n{}'.format(version.get('version'), version.get('author'), version.get('url')))
     print(dedent("""

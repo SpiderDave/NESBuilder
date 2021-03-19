@@ -161,14 +161,66 @@ function plugin.onInit()
     
     x,y=left,top
     
-    push(y)
-    control = NESBuilder:makeLabelQt{x=x,y=y,w=buttonWidth, text="Walking/Swimming Speed"}
-    control.setFont("Verdana", 10)
-    x = x + buttonWidth * 1.5 + pad
-    y = pop()
-    control = NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="smbWalkSpeed"}
-    control.min = 0
-    control.max = 0xff
+--    push(y)
+--    control = NESBuilder:makeLabelQt{x=x,y=y,w=buttonWidth, text="Walking/Swimming Speed"}
+--    control.setFont("Verdana", 10)
+--    x = x + buttonWidth * 1.5 + pad
+--    y = pop()
+--    control = NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="smbWalkSpeed"}
+--    control.min = 0
+--    control.max = 0xff
+--    y = y + control.height + pad
+--    x=left
+    
+    smbData = {
+        { offset = 0xb441, text = "Walk/Swim Speed Left", },
+        { offset = 0xb444, text = "Walk/Swim Speed Right", },
+        { offset = 0xb440, text = "Run Speed Left", },
+        { offset = 0xb443, text = "Run Speed Right", },
+        { offset = 0xb442, text = "Ocean Walk Speed Left", },
+        { offset = 0xb445, text = "Ocean Walk Speed Right", },
+        { offset = 0xb446, text = "Auto Walk Speed", },
+        
+        { offset = 0xb432, text = "Jump Power Base (Slow/Stopped)", newCol=true, newSection=True},
+        { offset = 0xb433, text = "Jump Power Base (Walking)", },
+        { offset = 0xb434, text = "Jump Power Base (Slow Run)", },
+        { offset = 0xb435, text = "Jump Power Base (Run)", },
+        { offset = 0xb436, text = "Jump Power Base (Fast Run)", },
+        
+        { offset = 0xb439, text = "Jump Power Correction (Slow/Stopped)", },
+        { offset = 0xb43a, text = "Jump Power Correction (Walking)", },
+        { offset = 0xb43b, text = "Jump Power Correction (Slow Run)", },
+        { offset = 0xb43c, text = "Jump Power Correction (Run)", },
+        { offset = 0xb43d, text = "Jump Power Correction (Fast Run)", },
+        
+        { offset = 0xb424, text = "Jump Power Rise Rate (Slow/Stopped)", newCol=true},
+        { offset = 0xb425, text = "Jump Power Rise Rate (Walking)", },
+        { offset = 0xb426, text = "Jump Power Rise Rate (Slow Run)", },
+        { offset = 0xb427, text = "Jump Power Rise Rate (Run)", },
+        { offset = 0xb428, text = "Jump Power Rise Rate (Fast Run)", },
+        
+        { offset = 0xb42b, text = "Jump Power Fall Rate (Slow/Stopped)", },
+        { offset = 0xb42c, text = "Jump Power Fall Rate (Walking)", },
+        { offset = 0xb42d, text = "Jump Power Fall Rate (Slow Run)", },
+        { offset = 0xb42e, text = "Jump Power Fall Rate (Run)", },
+        { offset = 0xb42f, text = "Jump Power Fall Rate (Fast Run)", },
+    }
+    
+    --control = NESBuilder:makeScrollFrame{x=x,y=y,w=buttonWidth*5,h=config.height, name="smbScrollFrame"}
+    --NESBuilder:setContainer(control)
+    
+    for i, item in ipairs(smbData) do
+        push(x)
+        push(y)
+        control = NESBuilder:makeLabelQt{x=x,y=y,w=buttonWidth, text=item.text}
+        control.setFont("Verdana", 10)
+        x = x + buttonWidth * 1.8 + pad
+        y = pop()
+        control = NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*4, h=buttonHeight, name = string.format('smbData%d', i), format="decimal"}
+        smbData[i].control = control
+        x = pop()
+        y = y + control.height + pad
+    end
 end
 
 function plugin.onLoadProject()
@@ -182,14 +234,29 @@ function plugin.onLoadProject()
     if not getRomData() then return end
     
     if devMode() then
-        control = NESBuilder:getControl("smbWalkSpeed")
-        offset = 0xB444 - 0x8000 + 0x10
-        control.value = int(data.project.rom.data[offset])
+--        control = NESBuilder:getControl("smbWalkSpeed")
+--        offset = 0xB444 - 0x8000 + 0x10
+--        control.value = int(data.project.rom.data[offset])
+        
+        for i, item in ipairs(smbData) do
+            offset = item.offset - 0x8000 + 0x10
+            item.control.value = int(data.project.rom.data[offset])
+        end
     end
 end
 
 function plugin.onBuild()
     smbthingExport()
+end
+
+function plugin.onTemplateInit()
+end
+
+function plugin.onTemplateAction(k, v)
+    if k == 'initSMB' then
+        smbthingReload_cmd()
+        smbthingMtiles_cmd()
+    end
 end
 
 function smbthingReload_cmd()
@@ -205,6 +272,9 @@ function smbthingMtiles_cmd()
     local mTilesPerPalette = {[0]=39,46,10,6}
     local tileNum = 0
     local tileSet = 0
+    
+    -- wipe all
+    data.project.mTileSets = {}
     
     -- Remove entries already named the same
 --    for i,v in ipairs_sparse(data.project.mTileSets) do
@@ -223,10 +293,11 @@ function smbthingMtiles_cmd()
     end
     
     for p = 0,3 do
-        data.project.mTileSets[tileSet] = {index=0, name=string.format("Palette%x_MTiles",p)}
+        data.project.mTileSets[tileSet] = {index=0, name=string.format("Palette%x_MTiles",p), style="grid", map={[0]=0,2,1,3},w=2,h=2, chrIndex = 1, org=0x8b10+tileNum*4}
+        
         for m = 0,mTilesPerPalette[p]-1 do
             data.project.mTileSets[tileSet][m] = {}
-            for i = 0, 4 do
+            for i = 0, 3 do
                 data.project.mTileSets[tileSet][m][i] = int(data.project.rom.data[offset + tileNum*4 + i])
             end
             data.project.mTileSets[tileSet][m].palette = p
@@ -234,6 +305,28 @@ function smbthingMtiles_cmd()
         end
         tileSet = tileSet + 1
     end
+    
+    offset = 0xe73e - 0x8000 + 0x10
+    data.project.mTileSets[tileSet] = {index=0, name="EnemyGraphicsTable", style="grid", map={[0]=0,1,2,3,4,5}, w=2,h=3, chrIndex = 0, org=0xe73e}
+    for tileNum = 0,43-1 do
+        data.project.mTileSets[tileSet][tileNum] = {}
+        for i = 0, 5 do
+            data.project.mTileSets[tileSet][tileNum][i] = int(data.project.rom.data[offset + tileNum*6 + i])
+        end
+        data.project.mTileSets[tileSet][tileNum].palette = 4
+    end
+    tileSet = tileSet + 1
+    
+    offset = 0xee17 - 0x8000 + 0x10
+    data.project.mTileSets[tileSet] = {index=0, name="PlayerGraphicsTable", style="grid", map={[0]=0,1,2,3,4,5,6,7}, w=2,h=4, chrIndex = 0, org=0xee17}
+    for tileNum = 0,26-1 do
+        data.project.mTileSets[tileSet][tileNum] = {}
+        for i = 0, 7 do
+            data.project.mTileSets[tileSet][tileNum][i] = int(data.project.rom.data[offset + tileNum*8 + i])
+        end
+        data.project.mTileSets[tileSet][tileNum].palette = 4
+    end
+    tileSet = tileSet + 1
     
     updateMTileList()
 end
@@ -275,28 +368,36 @@ function smbthingExport()
         out = out .. "\n\n"
     end
     
-    filename = data.folders.projects..projectFolder.."code/smbPalettes.asm"
+    filename = data.folders.projects..data.project.folder.."code/smbPalettes.asm"
     util.writeToFile(filename,0, out, true)
     
     
     if not devMode() then return end
     
-    filename = data.folders.projects..projectFolder.."code/smbTest.asm"
+    filename = data.folders.projects..data.project.folder.."code/smbTest.asm"
     out = ""
     
-    control = NESBuilder:getControl("smbWalkSpeed")
+    --control = NESBuilder:getControl("smbWalkSpeed")
     
     out = out .. "bank 0\n"
     
-    offset = 0xB441
-    out = out .. string.format("org $%04x\n", offset)
-    out = out .. string.format("    db $%02x\n", 0x100-control.value)
-    out = out .. "\n"
+--    offset = 0xB441
+--    out = out .. string.format("org $%04x\n", offset)
+--    out = out .. string.format("    db $%02x\n", 0x100-control.value)
+--    out = out .. "\n"
     
-    offset = 0xB444
-    out = out .. string.format("org $%04x\n", offset)
-    out = out .. string.format("    db $%02x\n", control.value)
-    out = out .. "\n"
+--    offset = 0xB444
+--    out = out .. string.format("org $%04x\n", offset)
+--    out = out .. string.format("    db $%02x\n", control.value)
+--    out = out .. "\n"
+    
+    for i, item in ipairs(smbData) do
+        out = out .. string.format("; %s\n", item.text)
+        out = out .. string.format("org $%04x\n", item.offset)
+        out = out .. string.format("    db $%02x\n", item.control.value)
+        out = out .. "\n"
+    end
+    
     
     util.writeToFile(filename,0, out, true)
 

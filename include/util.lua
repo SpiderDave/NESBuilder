@@ -160,6 +160,22 @@ function util.ipairs_sparse(t)
     end
 end
 
+-- Zero-based, works on sparse
+function util.maxTableIndex(t)
+    local index = 0
+    local i
+    index = next(t)
+    while index do
+        i = index
+        index = next(t, index)
+    end
+    return i
+end
 
+-- Zero based
+function util.tableAppendSparse(t, item)
+    t[(util.maxTableIndex(t) or -1)+1] = item
+    return t
+end
 
 return util

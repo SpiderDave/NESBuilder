@@ -155,7 +155,6 @@ QMessageBox QPushButton {
     padding-top:.5em;
     background: _bk2_ url('icons/project.png') center top no-repeat;
     background-origin: content;
-    
 }
 
 .launcherText {

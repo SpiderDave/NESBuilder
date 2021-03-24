@@ -635,13 +635,14 @@ function handlePluginCallback(f, arg)
     for _,n in pairs(keys) do
         _getPlugin = function() return plugins[n] end
         if plugins[n][f] then
-            print(string.format("(Plugin %s): %s",n,f))
-            if type(arg) == 'table' then
-                plugins[n][f](table.unpack(arg))
-            else
-                plugins[n][f](arg)
+            if not plugins[n].hide then
+                print(string.format("(Plugin %s): %s",n,f))
+                if type(arg) == 'table' then
+                    plugins[n][f](table.unpack(arg))
+                else
+                    plugins[n][f](arg)
+                end
             end
-            
         end
     end
 end
@@ -1735,6 +1736,13 @@ function LoadProject(templateFilename)
     
     -- Close all plugin tabs by default
     closePluginTabs()
+    
+    for k,v in pairs(plugins) do
+        -- Unhide plugin by default
+        -- This makes the plugin available and work, but doesn't
+        -- actually show the tab.
+        showPlugin(k)
+    end
     
     handlePluginCallback("onPreLoadProject")
     
@@ -3213,3 +3221,81 @@ end
 function ppAssembler_cmd(t)
     data.project.assembler = t.control.value
 end
+
+function hidePlugin(pluginName)
+    local control = NESBuilder:getWindowQt()
+    
+    if not plugins[pluginName] then
+        print(string.format("[hidePlugin] no such plugin: %s", pluginName))
+        return
+    end
+
+    for i,v in ipairs(plugins[pluginName].tabs or {}) do
+        -- hide plugin's generated tabs
+        toggleTab(v, false)
+        -- hide view menu entries
+        control.menus['menuView'].actions[v].setVisible(false)
+    end
+    
+    plugins[pluginName].hide = true
+end
+
+function showPlugin(pluginName)
+    local control = NESBuilder:getWindowQt()
+    
+    if not plugins[pluginName] then
+        print(string.format("[showPlugin] no such plugin: %s", pluginName))
+        return
+    end
+
+    for i,v in ipairs(plugins[pluginName].tabs or {}) do
+        -- show plugin's generated tabs
+        --toggleTab(v, false)
+        
+        -- show view menu entries
+        control.menus['menuView'].actions[v].setVisible(true)
+    end
+    
+    plugins[pluginName].hide = false
+end
+
+function removePlugin(pluginName)
+    if not plugins[pluginName] then
+        print(string.format("[removePlugin] no such plugin: %s", pluginName))
+        return
+    end
+    
+    -- close plugin's generated tabs
+    for i,v in ipairs(plugins[pluginName].tabs or {}) do
+        closeTab(v)
+    end
+    
+    -- remove view menu entries
+    local control = NESBuilder:getWindowQt()
+    local popItem = python.eval("lambda d,k: d.pop(k)")
+    -- generate a list of keys to remove
+    local keys = {}
+    for k,v in iterItems(control.tabs) do
+        if not v then
+            control.menus['menuView'].removeAction(control.menus['menuView'].actions[k])
+            table.insert(keys, k)
+        end
+    end
+    
+    -- remove empty entries from control.tabs
+    for i, k in ipairs(keys) do
+        popItem(control.tabs, k)
+    end
+    
+    -- todo: remove generated menu items
+    
+    -- This is specifically for unloading a plugin
+    -- Not for cleanup when exiting.
+    handlePluginCallback("onUnload")
+    
+    -- remove plugin
+    plugins[pluginName] = nil
+end
+
+
+

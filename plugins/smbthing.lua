@@ -259,7 +259,7 @@ function plugin.onTemplateAction(k, v)
     end
 end
 
-function smbthingReload_cmd()
+function plugin.smbthingReload_cmd()
     -- make sure file is loaded
     if not getRomData() then return end
 

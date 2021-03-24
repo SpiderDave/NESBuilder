@@ -166,7 +166,9 @@ function util.maxTableIndex(t)
     local i
     index = next(t)
     while index do
-        i = index
+        if type(index) == "number" then
+            i = index
+        end
         index = next(t, index)
     end
     return i

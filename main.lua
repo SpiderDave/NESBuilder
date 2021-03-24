@@ -102,6 +102,7 @@ data.folders = {
 }
 
 data.project = {chr={}}
+data.assemblers = {'sdasm','asm6','xkasplus'}
 
 nespalette={[0]=
 {0x74,0x74,0x74},{0x24,0x18,0x8c},{0x00,0x00,0xa8},{0x44,0x00,0x9c},
@@ -988,9 +989,7 @@ function ppInit()
     control.setFont("Verdana", 10)
     push(x)
     x = x + control.width + pad
-    data.assemblers = {'sdasm','asm6','xkasplus'}
-    
-    --handlePluginCallback("onRegisterAssembler")
+    --data.assemblers = {'sdasm','asm6','xkasplus'}
     
     f = data.folders.tools..'bB/2600basic.exe'
     if NESBuilder:fileExists(f) then
@@ -1003,7 +1002,7 @@ function ppInit()
 
     control.setByText(data.project.assembler)
     
-    control = NESBuilder:makeTable{x=x,y=y,w=buttonWidth*5,h=buttonHeight*5, name="ppSettingsTable", rows=100, columns=3}
+    control = NESBuilder:makeTable{x=x,y=y,w=buttonWidth*5,h=buttonHeight*5, name="ppSettingsTable", rows=30, columns=3}
     control.setHorizontalHeaderLabels("Setting", "Value", "Comment")
     control.horizontalHeader().setStretchLastSection(true)
     
@@ -1014,7 +1013,7 @@ function ppInit()
     control = NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight, name="ppLoadIPS",text="Load IPS Patch"}
     y = y + control.height + pad
     
-    control = NESBuilder:makeTable{x=x,y=y,w=buttonWidth*5,h=buttonHeight*5, name="patchesTable",rows=100, columns=1}
+    control = NESBuilder:makeTable{x=x,y=y,w=buttonWidth*5,h=buttonHeight*5, name="patchesTable",rows=30, columns=1}
     control.setHorizontalHeaderLabels("IPS patches")
     local header = control.horizontalHeader()
     header.setStretchLastSection(true)
@@ -2939,11 +2938,26 @@ end
 function addCHR_cmd()
     local control = NESBuilder:getControl('CHRList')
     
+--    tableAppend(data.project.chr, NESBuilder:newCHRData())
+--    local n = maxTableIndex(data.project.chr) or 0
     local n = #data.project.chr+1
     data.project.chr[n] = NESBuilder:newCHRData()
-    data.project.chrNames[n] = string.format("CHR %02x", n-1)
+    data.project.chrNames[n] = string.format("CHR %02x", n)
     control.addItem(data.project.chrNames[n])
 end
+
+function updateCHRList()
+    local control = NESBuilder:getControl('CHRList')
+    control.clear()
+    
+    for i in ipairs_sparse(data.project.chr) do
+        data.project.chrNames[i] = data.project.chrNames[i] or string.format("CHR %02x", i)
+        control.addItem(data.project.chrNames[i])
+    end
+    
+    data.project.chr.index = math.max(0, (data.project.chr.index or 0))
+end
+
 
 function ppLoadIPS_cmd()
     local f, filename
@@ -3161,8 +3175,9 @@ function importAllChr_cmd(t)
     for i = 0,(nChr*2)-1 do
         chrData = sliceList(fileData, chrStart + i * 0x1000, chrStart + i * 0x1000 + 0x1000)
         setChrData(chrData, i)
-        addCHR_cmd()
+        --addCHR_cmd()
     end
+    updateCHRList()
     
     refreshCHR()
 end

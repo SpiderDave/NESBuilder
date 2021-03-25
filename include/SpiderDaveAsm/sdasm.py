@@ -27,6 +27,7 @@ try:
 except:
     import include
 Cfg = include.Cfg
+ips = include.ips
 import time
 from datetime import date
 
@@ -451,7 +452,7 @@ directives = [
     'inesworkram','inessaveram','ines2',
     'orgpad','quit','incchr','chr','setpalette','loadpalette',
     'rept','endr','endrept','sprite8x16','export','diff',
-    'assemble', 'exportchr',
+    'assemble', 'exportchr', 'ips',
 ]
 
 filters = [
@@ -1259,7 +1260,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         showAddress = False
         out = []
         
-        if type(fileData) != bool:
+        
+        if type(fileData) != bool and fileData != None:
             out = list(fileData)
         
         if usenp:
@@ -1902,6 +1904,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 filename = assembler.findFile(filename)
                 if filename:
                     assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False)
+                else:
+                    errorText = 'file not found'
+            elif k == 'ips' and passNum == lastPass:
+                filename = line.split(" ",1)[1].strip()
+                filename = getString(filename)
+                filename = assembler.findFile(filename)
+                if filename:
+                    ipsData = np.fromfile(filename, dtype='B')
+                    out = ips.applyIps(ipsData, out) or out
                 else:
                     errorText = 'file not found'
             elif k == 'include' or k == 'include?' or k=='incsrc' or k == 'require':

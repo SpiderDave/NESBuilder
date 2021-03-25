@@ -140,6 +140,7 @@ cfg.setDefault('main', 'breakonluaerrors', 0)
 cfg.setDefault('main', 'autosave', 1)
 cfg.setDefault('main', 'autosaveinterval', 1000 * 60 * 5) # 5 minutes
 cfg.setDefault('main', 'dev', 0)
+cfg.setDefault('main', 'oldbuild', 0)
 
 # make cfg available to lua
 lua_func = lua.eval('function(o) {0} = o return o end'.format('cfg'))

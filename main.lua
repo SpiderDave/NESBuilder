@@ -586,7 +586,7 @@ function onReady()
     local items = {}
     local control = NESBuilder:getWindowQt()
     for k, v in iterItems(control.tabs) do
-        table.insert(items, {name=k, text=v.title, action = function() toggleTab(k) end, checked = true})
+        table.insert(items, {name=k, text=v.title, action = function() toggleTab(k, nil, true) end, checked = true})
     end
     control = NESBuilder:makeMenuQt{name="menuView",text="View", menuItems=items}
     
@@ -605,7 +605,7 @@ function onReady()
     NESBuilder:switchTab("Launcher")
 end
 
-function toggleTab(n, visible)
+function toggleTab(n, visible, switchTo)
     local control = NESBuilder:getWindowQt()
     local tab = control.getTab(n)
     
@@ -622,6 +622,7 @@ function toggleTab(n, visible)
     else
         control.menus['menuView'].actions[n].setChecked(true)
         control.tabParent.insertTab(tab.index, tab, tab.title)
+        if switchTo then NESBuilder:switchTab(n) end
     end
 end
 
@@ -1021,6 +1022,16 @@ function ppInit()
     
     y = y + control.height + pad
     
+    push(x)
+    for file in python.iter(cfgGet('plugins', 'list')) do
+        if cfgGet('plugins', file) == 1 then
+            control = NESBuilder:makeCheckbox{x=x,y=y,name='ppPlugin_'.. replace(replace(file, '.','_'), '_lua', ''), text=file, value=1, file=file, functionName='ppEnablePlugin'}
+            y = y + control.height + pad
+        end
+    end
+    x=pop()
+    
+    
     y = y + pad*7
     b=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="ppClose",text="close"}
 end
@@ -1060,6 +1071,24 @@ function ppLoad()
     for i,f in ipairs_sparse(data.project.patches) do
         control.set(i,0,f)
     end
+    
+    local pluginName,n,value
+    for file in python.iter(cfgGet('plugins', 'list')) do
+        pluginName = getPluginNameFromFile(file)
+        if pluginName then
+            n = 'ppPlugin_'.. replace(replace(file, '.','_'), '_lua', '')
+            value = data.project.plugins[pluginName]
+            if value == nil then
+                value = 1
+            else
+                value = boolNumber(value)
+            end
+            control = getControl(n)
+            control.setChecked(value)
+            control.setText(pluginName)
+        end
+    end
+    
     print('ppLoad()')
 end
 
@@ -1080,6 +1109,27 @@ end
 
 function ppRomDataInc_cmd(t)
     data.project.incRomData = t.isChecked()
+end
+
+function getPluginNameFromFile(filename)
+    for k,v in pairs(plugins) do
+        if v.file == filename then
+            return k
+        end
+    end
+end
+
+function ppEnablePlugin_cmd(t)
+    local n = getPluginNameFromFile(t.file)
+    print(t.isChecked())
+    
+    if t.isChecked() == true then
+        showPlugin(n)
+        data.project.plugins[n] = true
+    else
+        hidePlugin(n)
+        data.project.plugins[n] = false
+    end
 end
 
 function launcherButtonPreferences_cmd()
@@ -1140,7 +1190,6 @@ end
 function prefEnablePlugin_cmd(t)
     NESBuilder:cfgSetValue("plugins", t.file, boolNumber(t.isChecked()))
 end
-
 
 function launcherButtonInfo_cmd()
     local x,y,left,top,pad
@@ -1277,26 +1326,30 @@ function TestRom_cmd()
 end
 
 function BuildProject()
+    local n
+    local folder = data.folders.projects..data.project.folder
+    
     --ppUpdate()
     
     NESBuilder:setWorkingFolder()
     
     -- make sure folders exist for this project
-    NESBuilder:makeDir(data.folders.projects..data.project.folder)
-    NESBuilder:makeDir(data.folders.projects..data.project.folder.."chr")
-    NESBuilder:makeDir(data.folders.projects..data.project.folder.."code")
-    
-    local folder = data.folders.projects..data.project.folder
+    NESBuilder:makeDir(folder)
+    NESBuilder:makeDir(folder.."chr")
+    NESBuilder:makeDir(folder.."code")
     
     -- remove old binary
     NESBuilder:delete(folder..data.project.binaryFilename)
     
     handlePluginCallback("onBuild")
     
-    if data.project.type == 'dev' then
+    -- use old build project routine
+    if cfgGet('oldbuild')==1 and data.project.type == 'dev' then
         BuildProject_cmd()
-    elseif data.project.type == 'romhack' then
-
+        return
+    end
+    
+    if data.project.type == 'romhack' then
         if data.project.rom.filename and not data.project.rom.data then
             loadRom(data.project.rom.filename)
             print('loading rom data')
@@ -1306,15 +1359,9 @@ function BuildProject()
 
         -- export chr to rom and build binary
         exportAllChr()
-        build_sdasm()
     end
-end
-
-function build_sdasm()
-    local n
     
-    local folder = data.folders.projects..data.project.folder
-    
+    -- build_sdasm
     NESBuilder:setWorkingFolder()
     
     saveChr()
@@ -1348,7 +1395,9 @@ function build_sdasm()
             end
         end
     end
-    util.writeToFile(filename,0, out, true)
+    if out ~= '' then
+        util.writeToFile(filename,0, out, true)
+    end
     
     -- Make metatilesXX.asm
     for tileSet=0, #data.project.mTileSets do
@@ -1413,20 +1462,21 @@ function build_sdasm()
         
         NESBuilder:run(folder, cmd, args)
     elseif data.project.assembler == 'sdasm' then
-    
         local sdasm = python.eval('sdasm')
         local fixPath = python.eval('fixPath2')
         local romData = data.project.rom.data
         
-        -- Apply IPS patches.
-        for i, patchFile in ipairs_sparse(data.project.patches) do
-            f = NESBuilder:findFile(patchFile, list(folder))
-            if f then
-                print('Applying IPS patch: '..f)
-                ipsData = NESBuilder:getFileAsArray(f)
-                romData = NESBuilder:applyIps(ipsData, romData)
-            elseif patchFile ~='' then
-                print('*** Invalid IPS patch: '..patchFile)
+        if data.project.type == 'romhack' then
+            -- Apply IPS patches.
+            for i, patchFile in ipairs_sparse(data.project.patches) do
+                f = NESBuilder:findFile(patchFile, list(folder))
+                if f then
+                    print('Applying IPS patch: '..f)
+                    ipsData = NESBuilder:getFileAsArray(f)
+                    romData = NESBuilder:applyIps(ipsData, romData)
+                elseif patchFile ~='' then
+                    print('*** Invalid IPS patch: '..patchFile)
+                end
             end
         end
         
@@ -1873,6 +1923,11 @@ function LoadProject(templateFilename)
     data.project.tabsList = data.project.tabsList  or {}
     for i,tab in ipairs (data.project.tabsList) do
         toggleTab(tab, data.project.visibleTabs[tab])
+    end
+    
+    data.project.plugins = data.project.plugins or {}
+    for k,v in pairs(data.project.plugins) do
+        if v then showPlugin(k) else hidePlugin(k) end
     end
     
     handlePluginCallback("onLoadProject")

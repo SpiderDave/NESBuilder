@@ -161,17 +161,6 @@ function plugin.onInit()
     
     x,y=left,top
     
---    push(y)
---    control = NESBuilder:makeLabelQt{x=x,y=y,w=buttonWidth, text="Walking/Swimming Speed"}
---    control.setFont("Verdana", 10)
---    x = x + buttonWidth * 1.5 + pad
---    y = pop()
---    control = NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="smbWalkSpeed"}
---    control.min = 0
---    control.max = 0xff
---    y = y + control.height + pad
---    x=left
-    
     smbData = {
         { offset = 0xb441, text = "Walk/Swim Speed Left", },
         { offset = 0xb444, text = "Walk/Swim Speed Right", },

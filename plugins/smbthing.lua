@@ -55,6 +55,43 @@ local smbPaletteData = {
     {name = 'Palette3Data4', offset = 0x9dd, nColors = 4},
 }
 
+smbData = {
+    { category='speed' },
+    { offset = 0xb441, text = "Walk/Swim Speed Left", },
+    { offset = 0xb444, text = "Walk/Swim Speed Right", },
+    { offset = 0xb440, text = "Run Speed Left", },
+    { offset = 0xb443, text = "Run Speed Right", },
+    { offset = 0xb442, text = "Ocean Walk Speed Left", },
+    { offset = 0xb445, text = "Ocean Walk Speed Right", },
+    { offset = 0xb446, text = "Auto Walk Speed", },
+    { category='jump1' },
+    { offset = 0xb432, text = "Jump Power Base (Slow/Stopped)", newCol=true, newSection=True},
+    { offset = 0xb433, text = "Jump Power Base (Walking)", },
+    { offset = 0xb434, text = "Jump Power Base (Slow Run)", },
+    { offset = 0xb435, text = "Jump Power Base (Run)", },
+    { offset = 0xb436, text = "Jump Power Base (Fast Run)", },
+    
+    { offset = 0xb439, text = "Jump Power Correction (Slow/Stopped)", },
+    { offset = 0xb43a, text = "Jump Power Correction (Walking)", },
+    { offset = 0xb43b, text = "Jump Power Correction (Slow Run)", },
+    { offset = 0xb43c, text = "Jump Power Correction (Run)", },
+    { offset = 0xb43d, text = "Jump Power Correction (Fast Run)", },
+    
+    { offset = 0xb424, text = "Jump Power Rise Rate (Slow/Stopped)", newCol=true},
+    { offset = 0xb425, text = "Jump Power Rise Rate (Walking)", },
+    { offset = 0xb426, text = "Jump Power Rise Rate (Slow Run)", },
+    { offset = 0xb427, text = "Jump Power Rise Rate (Run)", },
+    { offset = 0xb428, text = "Jump Power Rise Rate (Fast Run)", },
+    
+    { offset = 0xb42b, text = "Jump Power Fall Rate (Slow/Stopped)", },
+    { offset = 0xb42c, text = "Jump Power Fall Rate (Walking)", },
+    { offset = 0xb42d, text = "Jump Power Fall Rate (Slow Run)", },
+    { offset = 0xb42e, text = "Jump Power Fall Rate (Run)", },
+    { offset = 0xb42f, text = "Jump Power Fall Rate (Fast Run)", },
+    { category='jump2' },
+}
+
+
 -- create index
 for k,v in ipairs(smbPaletteData) do
     smbPaletteData[v.name]=v
@@ -81,9 +118,50 @@ function plugin.onInit()
     bottom=0
     x,y=left,top
     
-    control = NESBuilder:makeLabelQt{x=x,y=y,name="testLabel",clear=true,text="SMB Thing!"}
-    control.setFont("Verdana", 24)
+    x,y=left,top
+    
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text="tools", name="smbSwitchFrame4", functionName = 'smbthingSwitchFrame', value='tools'}
+    x = x + control.width + pad
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text="palette", name="smbSwitchFrame4", functionName = 'smbthingSwitchFrame', value='palette'}
+    x = x + control.width + pad
+    for i,item in pairs(smbData) do
+        if item.category then
+            control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text=item.category, name="smbSwitchFrame", functionName = 'smbthingSwitchFrame', value=item.category}
+            x = x + control.width + pad
+        end
+    end
+    
     y = y + control.height + pad
+    
+    x=left
+    startY = y
+    
+    plugin.frames2 = {
+        palette = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="palette"},
+        frame2 = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="frame2"},
+        tools = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="smbthingTools"},
+        speed = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="speed"},
+        jump1 = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="jump1"},
+        jump2 = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="jump2"},
+        frame6 = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="frame6"},
+        set = function(f)
+            for k,v in pairs(plugin.frames2) do
+                if k == "set" then
+                elseif k == f then
+                    v.show()
+                else
+                    v.hide()
+                end
+            end
+        end,
+    }
+    
+--    control = NESBuilder:makeLabelQt{x=x,y=y,name="testLabel",clear=true,text="SMB Thing!"}
+--    control.setFont("Verdana", 24)
+--    y = y + control.height + pad
+    
+    NESBuilder:setContainer(plugin.frames2.palette)
+    x,y = left,top
     
     push(y)
     
@@ -93,15 +171,6 @@ function plugin.onInit()
     control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingImport",text="Import"}
     control.helpText = "Import palette from another file."
     y = y + control.height + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingMtiles",text="Generate MTiles"}
-    control.helpText = "Generate Metatiles for use in the Metatiles tab."
-    
-    y = y + control.height + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingLevelExtract",text="Extract Level"}
-    control.helpText = "Extract level from a .nes file."
-    
-    y = y + control.height + pad
-    local y2 = y
     
     x = x + control.width + pad
     y = pop()
@@ -110,7 +179,7 @@ function plugin.onInit()
     control=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbthingPalette", palette=nespalette}
     control.helpText = "Click to select a color"
     y = y + control.height + pad*2
-    y=y2
+    --y=y2
     
     push(x + control.width+pad * 2)
     
@@ -164,60 +233,45 @@ function plugin.onInit()
 
     if not devMode() then return end
     
-    makeTab{name="smbthing2", text="SMB Thing"}
-    setTab("smbthing2")
-    
-    x,y=left,top
-    
-    smbData = {
-        { offset = 0xb441, text = "Walk/Swim Speed Left", },
-        { offset = 0xb444, text = "Walk/Swim Speed Right", },
-        { offset = 0xb440, text = "Run Speed Left", },
-        { offset = 0xb443, text = "Run Speed Right", },
-        { offset = 0xb442, text = "Ocean Walk Speed Left", },
-        { offset = 0xb445, text = "Ocean Walk Speed Right", },
-        { offset = 0xb446, text = "Auto Walk Speed", },
-        
-        { offset = 0xb432, text = "Jump Power Base (Slow/Stopped)", newCol=true, newSection=True},
-        { offset = 0xb433, text = "Jump Power Base (Walking)", },
-        { offset = 0xb434, text = "Jump Power Base (Slow Run)", },
-        { offset = 0xb435, text = "Jump Power Base (Run)", },
-        { offset = 0xb436, text = "Jump Power Base (Fast Run)", },
-        
-        { offset = 0xb439, text = "Jump Power Correction (Slow/Stopped)", },
-        { offset = 0xb43a, text = "Jump Power Correction (Walking)", },
-        { offset = 0xb43b, text = "Jump Power Correction (Slow Run)", },
-        { offset = 0xb43c, text = "Jump Power Correction (Run)", },
-        { offset = 0xb43d, text = "Jump Power Correction (Fast Run)", },
-        
-        { offset = 0xb424, text = "Jump Power Rise Rate (Slow/Stopped)", newCol=true},
-        { offset = 0xb425, text = "Jump Power Rise Rate (Walking)", },
-        { offset = 0xb426, text = "Jump Power Rise Rate (Slow Run)", },
-        { offset = 0xb427, text = "Jump Power Rise Rate (Run)", },
-        { offset = 0xb428, text = "Jump Power Rise Rate (Fast Run)", },
-        
-        { offset = 0xb42b, text = "Jump Power Fall Rate (Slow/Stopped)", },
-        { offset = 0xb42c, text = "Jump Power Fall Rate (Walking)", },
-        { offset = 0xb42d, text = "Jump Power Fall Rate (Slow Run)", },
-        { offset = 0xb42e, text = "Jump Power Fall Rate (Run)", },
-        { offset = 0xb42f, text = "Jump Power Fall Rate (Fast Run)", },
-    }
+    NESBuilder:setContainer(plugin.frames2.frame2)
+    x,y = left,top
     
     --control = NESBuilder:makeScrollFrame{x=x,y=y,w=buttonWidth*5,h=config.height, name="smbScrollFrame"}
     --NESBuilder:setContainer(control)
     
     for i, item in ipairs(smbData) do
-        push(x)
-        push(y)
-        control = NESBuilder:makeLabelQt{x=x,y=y,w=buttonWidth, text=item.text}
-        control.setFont("Verdana", 10)
-        x = x + buttonWidth * 1.8 + pad
-        y = pop()
-        control = NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*4, h=buttonHeight, name = string.format('smbData%d', i), format="decimal"}
-        smbData[i].control = control
-        x = pop()
-        y = y + control.height + pad
+        if item.category then
+            NESBuilder:setContainer(plugin.frames2[item.category])
+            x,y = top,left
+        else
+            push(x)
+            push(y)
+            control = NESBuilder:makeLabelQt{x=x,y=y,w=buttonWidth, text=item.text}
+            control.setFont("Verdana", 10)
+            x = x + buttonWidth * 1.8 + pad
+            y = pop()
+            control = NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*4, h=buttonHeight, name = string.format('smbData%d', i), format="decimal"}
+            smbData[i].control = control
+            x = pop()
+            y = y + control.height + pad
+        end
     end
+    
+    NESBuilder:setContainer(plugin.frames2.tools)
+    x,y = left,top
+    --control = NESBuilder:makeLabelQt{x=x,y=y,w=buttonWidth, text='tools'}
+    
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingLevelExtract",text="Extract Level"}
+    control.helpText = "Extract level from a .nes file."
+    y = y + control.height + pad
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingMtiles",text="Generate MTiles"}
+    control.helpText = "Generate Metatiles for use in the Metatiles tab."
+    y = y + control.height + pad
+
+end
+
+function smbthingSwitchFrame_cmd(t)
+    plugin.frames2.set(t.value)
 end
 
 function plugin.onLoadProject()
@@ -236,8 +290,10 @@ function plugin.onLoadProject()
 --        control.value = int(data.project.rom.data[offset])
         
         for i, item in ipairs(smbData) do
-            offset = item.offset - 0x8000 + 0x10
-            item.control.value = int(data.project.rom.data[offset])
+            if item.offset then
+                offset = item.offset - 0x8000 + 0x10
+                item.control.value = int(data.project.rom.data[offset])
+            end
         end
     end
 end
@@ -265,12 +321,14 @@ function plugin.smbthingReload_cmd()
 end
 
 function smbthingLevelExtract_cmd()
+    NESBuilder:setWorkingFolder()
     local f = NESBuilder:openFile{filetypes={{"NES rom", ".nes"}}}
     if f == "" then
         print("Open cancelled.")
         return
     end
-
+    
+    NESBuilder:setWorkingFolder()
     local levelExtract = NESBuilder:importFunction('plugins.SMBLevelExtract.SMBLevelExtract','LevelExtract')
     local outputFilename = data.folders.projects..data.project.folder.."code/output.asm"
     levelExtract(f, outputFilename)

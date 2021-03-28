@@ -114,6 +114,8 @@ def LevelExtract(filename, outputFilename, outputFilename2=False):
     
     FileTopper = out
 
+    
+    out+='Start_LevelData:\n'
     out+='WorldAddrOffsets:\n'
     
     out+= makeData(['World{0}Areas-AreaAddrOffsets'.format(x) for x in range(1,ret['nWorlds']+1)], indent=6, nItems=2)
@@ -176,6 +178,8 @@ def LevelExtract(filename, outputFilename, outputFilename2=False):
                 out+=makeData(areaData[:-1], indent=6, nItems=10)
                 out+=makeData(areaData[-1], indent=6) # separate line for terminator
                 out+="\n"
+    
+    out+='\nEnd_LevelData:\n'
     
     out+= '\n'
     out+= '.ifdef IncludeHalfwayPageData\n'

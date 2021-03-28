@@ -135,8 +135,7 @@ def LevelExtract(filename, outputFilename, outputFilename2=False):
         halfwayOut+="      HalfwayDataW{0}: {1}".format(w+1, makeData(data)) 
     
     halfwayOut+=".else\n"
-    halfwayOut+= '    .ifndef HalfwayPageNybbles\n'
-    
+    halfwayOut+= '    .ifdef IncludeHalfwayPageData\n'
     halfwayOut+= '        HalfwayPageNybbles:\n'
     
     for w, data in enumerate(ret['HalfwayData']):

@@ -133,15 +133,6 @@ def LevelExtract(filename, outputFilename, outputFilename2=False):
     halfwayOut+="HalfwayData:\n"
     for w, data in enumerate(ret['HalfwayData']):
         halfwayOut+="      HalfwayDataW{0}: {1}".format(w+1, makeData(data)) 
-    
-    halfwayOut+=".else\n"
-    halfwayOut+= '    .ifdef IncludeHalfwayPageData\n'
-    halfwayOut+= '        HalfwayPageNybbles:\n'
-    
-    for w, data in enumerate(ret['HalfwayData']):
-        halfwayOut+="        {1}".format(w+1, makeData([data[0]*0x10+data[1],data[2]*0x10+data[3]])) 
-    
-    halfwayOut+="    .endif\n"
     halfwayOut+=".endif\n"
     halfwayOut+="\n"
     
@@ -185,6 +176,18 @@ def LevelExtract(filename, outputFilename, outputFilename2=False):
                 out+=makeData(areaData[:-1], indent=6, nItems=10)
                 out+=makeData(areaData[-1], indent=6) # separate line for terminator
                 out+="\n"
+    
+    out+= '\n'
+    out+= '.ifdef IncludeHalfwayPageData\n'
+    out+= '    .ifdef HalfwayPageNybbles\n'
+    out+= '        org HalfwayPageNybbles\n'
+    out+= '    .else\n'
+    out+= '        HalfwayPageNybbles:\n'
+    out+= '    .endif\n'
+    for w, data in enumerate(ret['HalfwayData']):
+        out+="    {1}".format(w+1, makeData([data[0]*0x10+data[1],data[2]*0x10+data[3]])) 
+    out+=".endif\n"
+    
     
     print("Writing to file: {0}".format(outputFilename))
     print(out, file=outputFile)

@@ -96,13 +96,21 @@ function plugin.onInit()
     control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingMtiles",text="Generate MTiles"}
     control.helpText = "Generate Metatiles for use in the Metatiles tab."
     
+    y = y + control.height + pad
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingLevelExtract",text="Extract Level"}
+    control.helpText = "Extract level from a .nes file."
+    
+    y = y + control.height + pad
+    local y2 = y
+    
     x = x + control.width + pad
     y = pop()
+    
     
     control=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="smbthingPalette", palette=nespalette}
     control.helpText = "Click to select a color"
     y = y + control.height + pad*2
-    
+    y=y2
     
     push(x + control.width+pad * 2)
     
@@ -254,6 +262,19 @@ function plugin.smbthingReload_cmd()
 
     data.project.smbPaletteData = {}
     smbthingRefreshPalettes()
+end
+
+function smbthingLevelExtract_cmd()
+    local f = NESBuilder:openFile{filetypes={{"NES rom", ".nes"}}}
+    if f == "" then
+        print("Open cancelled.")
+        return
+    end
+
+    local levelExtract = NESBuilder:importFunction('plugins.SMBLevelExtract.SMBLevelExtract','LevelExtract')
+    local outputFilename = data.folders.projects..data.project.folder.."code/output.asm"
+    levelExtract(f, outputFilename)
+    
 end
 
 function smbthingMtiles_cmd()

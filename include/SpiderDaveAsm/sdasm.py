@@ -2,6 +2,7 @@
 Bugs/Issues:
     * changing output on first pass affects second pass
         for example, using inesprg
+    * diff can give wrong addresses depending on bank
 ToDo:
     * create large test .asm
     * text mapping
@@ -28,6 +29,7 @@ except:
     import include
 Cfg = include.Cfg
 ips = include.ips
+GG = include.GG
 import time
 from datetime import date
 
@@ -244,6 +246,7 @@ class Assembler():
     initialFolder = None
     initialFilename = None
     hideOutputLine = False
+    suppressError = False
     currentTextMap = 'default'
     textMap = {}
     errorLinePos = False
@@ -289,6 +292,10 @@ class Assembler():
         if self.caseSensitive:
             return txt
         return txt.lower()
+    def isString(self, text):
+        for q in self.quotes:
+            if text.startswith(q) and text.endswith(q):
+                return True
     def stripQuotes(self, text):
         for q in self.quotes:
             if text.startswith(q) and text.endswith(q):
@@ -452,7 +459,7 @@ directives = [
     'inesworkram','inessaveram','ines2',
     'orgpad','quit','incchr','chr','setpalette','loadpalette',
     'rept','endr','endrept','sprite8x16','export','diff',
-    'assemble', 'exportchr', 'ips',
+    'assemble', 'exportchr', 'ips','gg',
 ]
 
 filters = [
@@ -681,6 +688,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     cfg.setDefault('main', 'lineContinue', '\\')
     cfg.setDefault('main', 'lineContinueComma', True)
     cfg.setDefault('main', 'quotes', '\',","""')
+    cfg.setDefault('main', 'suppressErrorPrefix', '-E-,-e-')
     
     assembler.quotes = tuple(makeList(cfg.getValue('main', 'quotes')))
 
@@ -754,7 +762,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             return str(chrSize)
         elif s == 'prgbanks':
             if passNum != lastPass:
-                return 0
+                return str(0)
             return str(out[4])
         elif s == 'lastbank':
             return str(out[4]-1)
@@ -890,6 +898,17 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             if mode == 'shuffle':
                 random.shuffle(v)
             return v,len(v)
+        
+        if '??' in v:
+            v = v.split('??',1)
+            
+            v2, l = getValueAndLength(v[0])
+            # make sure length isn't 0 or -1
+            if l > 0:
+                return v2, l
+            else:
+                v2, l = getValueAndLength(v[1])
+                return v2, l
         
         if v.startswith("[") and v.endswith("]"):
             v = v[1:-1]
@@ -1048,6 +1067,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             else:
                 return 0, 1
             l = 1 if v <=256 else 2
+            return v,l
+        
+        if v.startswith('#'):
+            v = getValue(v[1:])
+            l = 1
             return v,l
         
         if v.startswith("<"):
@@ -1240,11 +1264,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         mapdb = cfg.isTrue(cfg.getValue('main', 'mapdb'))
         clampdb = cfg.isTrue(cfg.getValue('main', 'clampdb'))
         lineSep = makeList(cfg.getValue('main', 'linesep'))
+        suppressErrorPrefix = makeList(cfg.getValue('main', 'suppressErrorPrefix'))
         caseSensitive = cfg.isTrue(cfg.getValue('main', 'caseSensitive'))
         
         assembler.caseSensitive = caseSensitive
         
         lineSep = [x for x in lineSep if x != '']
+        suppressErrorPrefix = [x for x in suppressErrorPrefix if x != '']
         
         assembler.currentFilename = assembler.initialFilename
         lines = originalLines
@@ -1260,12 +1286,19 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         showAddress = False
         out = []
         
-        
-        if type(fileData) != bool and fileData != None:
+        if fileData is not None:
             out = list(fileData)
         
+#        try:
+#            if type(fileData) != bool and fileData != None:
+#                out = list(fileData)
+#        except:
+            # I'm sick of your nonsense, numpy.
+#            pass
+        
         if usenp:
-            out = np.array([],dtype="B")
+            #out = np.array([],dtype="B")
+            out = np.array(out, dtype="B")
         
         outputText = ''
 
@@ -1334,11 +1367,20 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 line = [line]
                 for s in lineSep:
                     line = flattenList([l.split(s) for l in line])
-            
+                
                 if len(line) > 1:
-                    #print(line)
-                    lines = lines[:i]+['']+line[1:]+lines[i+1:]
-                line = line[0]
+                    lines[i+1:i+1] = line
+                    line = ''
+                    assembler.hideOutputLine = True
+                else:
+                    line = line[0]
+            
+            
+            if suppressErrorPrefix:
+                for s in suppressErrorPrefix:
+                    if line.startswith(s):
+                        line = line.split(s,1)[1]
+                        assembler.suppressError = True
             
             # "EQU" replacement
             for item in equ:
@@ -1558,7 +1600,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 # Make sure there's a bare bones header if
                 # it doesn't exist.
                 header = (list(out[:16]) + [0] * 16)[:16]
-                header[0:3] = list(bytearray("NES", 'utf8')) + [0x1a]
+                header[0:4] = list(bytearray("NES", 'utf8')) + [0x1a]
                 if header[4] == 0:
                     # Don't let it have zero prg
                     header[4] = 1
@@ -1797,8 +1839,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         print('export error')
             elif k == 'diff':
                 if passNum == lastPass:
-                    filename = line.split(" ",1)[1].strip()
-                    filename = getString(filename)
+                    arg = line.split(' ',1)[1].strip()
+                    arg = assembler.tokenize(arg)
+                    
+                    filename = arg[0]
+                    filename = getValueAsString(filename) or getString(filename)
                     filename = assembler.findFile(filename)
                     if filename:
                         with open(filename, 'rb') as file:
@@ -1822,9 +1867,22 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                                 if n>0:
                                     diffOut += '\n'
                                 n = 0
-                        print(diffOut)
+                        if len(arg)>1:
+                            filename = arg[1]
+                            filename = getValueAsString(filename) or getString(filename)
+                            try:
+                                makeSurePathExists(os.path.dirname(filename))
+                                with open(filename, 'w') as file:
+                                    file.write(diffOut)
+                                    print('{} written.'.format(filename))
+                            except:
+                                errorText = 'export error'
+                        else:
+                            print(diffOut)
+                        
                     else:
-                        print('Could not open file')
+                        errorText = 'file not found'
+                        assembler.errorLinePos = len(line.split(' ',1)[0])+1
             elif k == 'incbin' or k == 'bin':
                 l = line.split(" ",1)[1].strip()
                 
@@ -1905,7 +1963,26 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 if filename:
                     assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False)
                 else:
+                    assembler.errorLinePos = len(line.split(' ',1)[0])+1
                     errorText = 'file not found'
+            elif k == 'gg':
+                arg = line.split(' ',1)[1].strip()
+                gg = GG.getGG(line.split(' ',1)[1].strip())
+                
+                offset = gg.get('address') + headerSize
+                while True:
+                    if offset>len(out):
+                        break
+                    if gg.get('compare') is None:
+#                        print('{:04x}:{:02x}'.format(offset, gg.get('value')))
+#                        print('addr={:04x} v={:02x} old={:02x}'.format(offset, gg.get('value'), out[offset]))
+                        out[offset] = gg.get('value')
+                    elif gg.get('compare') == out[offset]:
+#                        print('{:04x}:{:02x}'.format(offset, gg.get('value')))
+#                        print('addr={:04x} v={:02x} c={:02x} old={:02x}'.format(offset, gg.get('value'), gg.get('compare'), out[offset]))
+                        out[offset] = gg.get('value')
+                    offset += 0x2000
+                
             elif k == 'ips' and passNum == lastPass:
                 filename = line.split(" ",1)[1].strip()
                 filename = getString(filename)
@@ -1914,6 +1991,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     ipsData = np.fromfile(filename, dtype='B')
                     out = ips.applyIps(ipsData, out) or out
                 else:
+                    assembler.errorLinePos = len(line.split(' ',1)[0])+1
                     errorText = 'file not found'
             elif k == 'include' or k == 'include?' or k=='incsrc' or k == 'require':
                 filename = line.split(" ",1)[1].strip()
@@ -1963,24 +2041,27 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 print(getString(v))
             elif k == 'warning' and passNum == lastPass:
                 v = line.split(" ",1)[1].strip()
-                print('warning: ' + v)
+                print('Warning: ' + v)
             elif k == 'error' and passNum == lastPass:
                 v = line.split(" ",1)[1].strip()
                 print('Error: ' + v)
                 exit()
             
-            elif k == '_find':
+            elif k == '_find' and passNum == lastPass:
                 data = line.split(' ',1)[1]
                 findData = list(bytes.fromhex(''.join(['0'*(len(x)%2) + x for x in data.split()])))
                 #b = b + list(bytes.fromhex(''.join(['0'*(len(x)%2) + x for x in data.split()])))
-                result = [i for i in range(len(out)-len(findData)+1) if out[i:i+len(findData)]==findData]
-                a = result[0]
-                print([hex(x-headerSize) for x in result])
                 
-                a = (a-headerSize)
-                resultBank = math.floor(a/bankSize)
-                a=a-resultBank*bankSize+0x8000
-                print('{:02x}:{:04x}'.format(resultBank,a))
+                out2 = list(out)
+                result = [i for i in range(len(out2)-len(findData)+1) if out2[i:i+len(findData)]==findData]
+                if result:
+                    for a in result[:20]:
+                        #print([hex(x-headerSize) for x in result])
+                        
+                        a = (a-headerSize)
+                        resultBank = math.floor(a/bankSize)
+                        a=a-resultBank*bankSize+0x8000
+                        print('{:02x}:{:04x}'.format(resultBank,a))
                 
             elif k == 'macro':
                 v = line.split(" ")[1].strip()
@@ -2351,9 +2432,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         startAddress = addr
                     currentAddress = addr
                 else:
-                    #symbols[assembler.lower(k)] = v
                     symbols[assembler.lower(k)] = getValue(v)
-                    
                 k=''
             
             if len(b)>0:
@@ -2433,6 +2512,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     else:
                         listBytes = ' '.join(['{:02X}'.format(x) for x in b[:nBytes]]).ljust(3*nBytes-1) + ('..' if len(b)>nBytes else '  ')
                     outputText+="{} {}\n".format(listBytes, originalLine)
+                if assembler.suppressError:
+                    assembler.suppressError = False
+                    errorText = False
                 if errorText:
                     if assembler.errorLinePos:
                         outputText +=' '*38 + ' '*assembler.errorLinePos+'^\n'
@@ -2459,16 +2541,22 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         
     
     # output:
+    if set(out).issubset(set(range(256))):
+        # contains only valid bytes
+        pass
+    else:
+        print('Invalid bytes found.  Processing...')
+        # This list comprehension is very slow.
+        invalidBytes = [(i,x) for (i,x) in enumerate(out) if x not in range(256)]
+        if len(invalidBytes)!=0:
+            outputText+='*** Invalid bytes:'
+            print('Invalid bytes:')
+            for a,b in invalidBytes:
+                outputText += '{:05x}: {:02x}'.format(a,b)
+                print('{:05x}: {:02x}'.format(a,b))
+                out[a] = 0
+    print('done.')
     
-    invalidBytes = [(i,x) for (i,x) in enumerate(out) if x not in range(256)]
-    if len(invalidBytes)!=0:
-        outputText+='*** Invalid bytes:'
-        print('Invalid bytes:')
-        for a,b in invalidBytes:
-            outputText += '{:05x}: {:02x}'.format(a,b)
-            print('{:05x}: {:02x}'.format(a,b))
-            out[a] = 0
-
     if outputFilename:
         with open(outputFilename, "wb") as file:
             if assembler.stripHeader:
@@ -2478,7 +2566,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             print('{} written.'.format(outputFilename))
     else:
         print("No output file")
-    
     
     outputTopper = ''
     outputTopper+= 'Assembled with sdasm\n\n'
@@ -2546,7 +2633,7 @@ if __name__ == '__main__':
     outputFilename = args.outputfile
     listFilename = args.l
     configFile = args.cfg
-    binFile = args.bin # not implemented
+    binFile = args.bin
     
     #print(args)
     assemble(filename, outputFilename = outputFilename, listFilename = listFilename, configFile = configFile, binFile = binFile)

@@ -144,8 +144,8 @@ function plugin.onInit()
         jump1 = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="jump1"},
         jump2 = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="jump2"},
         frame6 = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="frame6"},
-        set = function(f)
-            for k,v in pairs(plugin.frames2) do
+        set = function(self, f)
+            for k,v in pairs(self) do
                 if k == "set" then
                 elseif k == f then
                     v.show()
@@ -271,7 +271,7 @@ function plugin.onInit()
 end
 
 function smbthingSwitchFrame_cmd(t)
-    plugin.frames2.set(t.value)
+    plugin.frames2:set(t.value)
 end
 
 function plugin.onLoadProject()
@@ -460,10 +460,12 @@ function smbthingExport()
 --    out = out .. "\n"
     
     for i, item in ipairs(smbData) do
-        out = out .. string.format("; %s\n", item.text)
-        out = out .. string.format("org $%04x\n", item.offset)
-        out = out .. string.format("    db $%02x\n", item.control.value)
-        out = out .. "\n"
+        if item.offset then
+            out = out .. string.format("; %s\n", item.text)
+            out = out .. string.format("org $%04x\n", item.offset)
+            out = out .. string.format("    db $%02x\n", item.control.value)
+            out = out .. "\n"
+        end
     end
     
     

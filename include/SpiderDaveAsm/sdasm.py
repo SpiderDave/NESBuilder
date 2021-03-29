@@ -259,6 +259,7 @@ class Assembler():
     hidePrefix = '__hide__'
     caseSensitive = False
     Sprite8x16 = False
+    echoLine = False
     
     nesRegisters = Map(
         PPUCTRL = 0x2000, PPUMASK = 0x2001, PPUSTATUS = 0x2002,
@@ -459,7 +460,7 @@ directives = [
     'inesworkram','inessaveram','ines2',
     'orgpad','quit','incchr','chr','setpalette','loadpalette',
     'rept','endr','endrept','sprite8x16','export','diff',
-    'assemble', 'exportchr', 'ips','gg',
+    'assemble', 'exportchr', 'ips','gg','echo',
 ]
 
 filters = [
@@ -959,6 +960,32 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 l=1
             return v,l
         
+        if ' > ' in v:
+            l,r = v.split(' > ')
+            if (getValue(l) > getValue(r)):
+                return 1, 1
+            else:
+                return 0, 1
+        if ' < ' in v:
+            l,r = v.split(' < ')
+            if (getValue(l) < getValue(r)):
+                return 1, 1
+            else:
+                return 0, 1
+        if ' >= ' in v:
+            l,r = v.split(' >= ')
+            if (getValue(l) >= getValue(r)):
+                return 1, 1
+            else:
+                return 0, 1
+        if ' <= ' in v:
+            l,r = v.split(' <= ')
+            if (getValue(l) <= getValue(r)):
+                return 1, 1
+            else:
+                return 0, 1
+        
+        
         if '=' in v:
             v = v.replace('==', '=')
             if '!=' in v:
@@ -1286,7 +1313,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         showAddress = False
         out = []
         
-        if fileData is not None:
+        if (fileData is not None) and (fileData is not False):
             out = list(fileData)
         
 #        try:
@@ -1335,10 +1362,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             
             lineTime = time.time()
             
-            #print(originalLine)
+#            if assembler.echoLine and passNum == lastPass:
+#                print('>>>',originalLine)
             
             # change tabs to spaces
             line = line.replace("\t"," ")
+            
+            if assembler.echoLine and passNum == lastPass:
+                if line.strip().lower() != 'echo off':
+                    print(originalLine)
             
             # remove single line comments
             for sep in commentSep:
@@ -2035,7 +2067,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 files = [x for x in os.listdir(folder) if os.path.splitext(x.lower())[1] in ['.asm']]
                 files = [x for x in files if not x.startswith('_')]
                 lines = lines[:i]+['']+['include {}/{}'.format(folder, x) for x in files]+lines[i+1:]
-            
+            elif k == 'echo' and passNum == lastPass:
+                v = line.split(" ",1)[1].strip()
+                if (v.lower() in ['on','true']) or (getValue(v) == 1):
+                    assembler.echoLine = True
+                else:
+                    assembler.echoLine = False
             elif k == 'print' and passNum == lastPass:
                 v = (line+' ').split(" ",1)[1].strip()
                 print(getString(v))

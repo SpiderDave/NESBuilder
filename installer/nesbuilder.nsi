@@ -102,6 +102,7 @@ Section "-DefaultStuff"
     CreateDirectory $INSTDIR\tools
     CreateDirectory $INSTDIR\tools\xkas-plus
     CreateDirectory $INSTDIR\plugins
+    CreateDirectory $INSTDIR\plugins\SMBLevelExtract
     CreateDirectory $INSTDIR\templates
     
     ; Set output path to the installation directory.
@@ -113,6 +114,9 @@ Section "-DefaultStuff"
         "${GitURL}plugins/samplePlugin.lua" "plugins/samplePlugin.lua"\
         "${GitURL}plugins/hello.py" "plugins/hello.py"\
         "${GitURL}plugins/smbthing.lua" "plugins/smbthing.lua"\
+        "${GitURL}plugins/SMBLevelExtract/SMBLevelExtract.bat" "plugins/SMBLevelExtract/SMBLevelExtract.bat"\
+        "${GitURL}plugins/SMBLevelExtract/SMBLevelExtract.py" "plugins/SMBLevelExtract/SMBLevelExtract.py"\
+        "${GitURL}plugins/SMBLevelExtract/README.md" "plugins/SMBLevelExtract/README.md"\
         "${GitURL}plugins/rominfo.lua" "plugins/rominfo.lua"\
         "${GitURL}plugins/hash.py" "plugins/hash.py"\
         "${GitURL}plugins/debug.lua" "plugins/debug.lua"\
@@ -166,7 +170,6 @@ Section "NESBuilder Source"
         "${GitURL}cursors/pencil.cur" "cursors/pencil.cur"\
         "${GitURL}NESBuilder.py" "NESBuilder.py"\
         "${GitURL}makeVersion.py" "makeVersion.py"\
-        "${GitURL}icon.ico" "icon.ico"\
         "${GitURL}build.bat" "build.bat"\
         "${GitURL}build_console.bat" "build_console.bat"\
         "${GitURL}install dependencies.bat" "install dependencies.bat"\
@@ -195,6 +198,8 @@ Section "NESBuilder Source"
         "${GitURL}include/SpiderDaveAsm/README.md" "include/SpiderDaveAsm/README.md"\
         "${GitURL}include/SpiderDaveAsm/include/__init__.py" "include/SpiderDaveAsm/include/__init__.py"\
         "${GitURL}include/SpiderDaveAsm/include/config.py" "include/SpiderDaveAsm/include/config.py"\
+        "${GitURL}include/SpiderDaveAsm/include/gg.py" "include/SpiderDaveAsm/include/gg.py"\
+        "${GitURL}include/SpiderDaveAsm/include/ips.py" "include/SpiderDaveAsm/include/ips.py"\
         /END
     Pop $0
 

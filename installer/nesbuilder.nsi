@@ -167,7 +167,6 @@ Section "NESBuilder Source"
     inetc::get \
         "${GitURL}README.md" "README.md"\
         "${GitURL}main.lua" "main.lua"\
-        "${GitURL}cursors/pencil.cur" "cursors/pencil.cur"\
         "${GitURL}NESBuilder.py" "NESBuilder.py"\
         "${GitURL}makeVersion.py" "makeVersion.py"\
         "${GitURL}build.bat" "build.bat"\
@@ -185,15 +184,17 @@ Section "NESBuilder Source"
         "${GitURL}include/calc.py" "include/calc.py"\
         "${GitURL}include/ips.py" "include/ips.py"\
         "${GitURL}chr.png" "chr.png"\
-        "${GitURL}icons/icon.ico" "icons/icon.ico"\
+        "${GitURL}icons/__init__.py" "icons/__init__.py"\
         "${GitURL}icons/folder32.png" "icons/folder32.png"\
         "${GitURL}icons/folderplus32.png" "icons/folderplus32.png"\
         "${GitURL}icons/gear32.png" "icons/gear32.png"\
         "${GitURL}icons/note32.png" "icons/note32.png"\
         "${GitURL}icons/clock32.png" "icons/clock32.png"\
         "${GitURL}icons/project.png" "icons/project.png"\
-        "${GitURL}icons/__init__.py" "icons/__init__.py"\
+        "${GitURL}icons/icon.ico" "icons/icon.ico"\
         "${GitURL}cursors/__init__.py" "cursors/__init__.py"\
+        "${GitURL}cursors/pencil.cur" "cursors/pencil.cur"\
+        "${GitURL}cursors/LinkSelect.cur" "cursors/LinkSelect.cur"\
         "${GitURL}include/SpiderDaveAsm/__init__.py" "include/SpiderDaveAsm/__init__.py"\
         "${GitURL}include/SpiderDaveAsm/sdasm.py" "include/SpiderDaveAsm/sdasm.py"\
         "${GitURL}include/SpiderDaveAsm/README.md" "include/SpiderDaveAsm/README.md"\

@@ -239,9 +239,7 @@ SectionEnd
 ;--------------------------------
 
 ; Uninstaller
-
 Section "Uninstall"
-
     ; Remove registry keys
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NESBuilder"
     DeleteRegKey HKLM SOFTWARE\NESBuilder
@@ -275,9 +273,6 @@ Section "Uninstall"
     Delete $INSTDIR\NESBuilder.exe.spec
     Delete $INSTDIR\uninstall.exe
 
-    StrCopy $0 "$INSTDIR\projects"
-    call un.DeleteDirIfEmtpy
-
     ; Remove shortcuts, if any
     Delete "$SMPROGRAMS\NESBuilder\*.lnk"
 
@@ -304,17 +299,3 @@ Function checkDl
     dlok:
 FunctionEnd
 
-Function un.DeleteDirIfEmpty
-  FindFirst $R0 $R1 "$0\*.*"
-  strcmp $R1 "." 0 NoDelete
-   FindNext $R0 $R1
-   strcmp $R1 ".." 0 NoDelete
-    ClearErrors
-    FindNext $R0 $R1
-    IfErrors 0 NoDelete
-     FindClose $R0
-     Sleep 1000
-     RMDir "$0"
-  NoDelete:
-   FindClose $R0
-FunctionEnd

@@ -11,6 +11,7 @@
 !include "MUI2.nsh"
 !include Sections.nsh
 
+
 ; The name of the installer
 Name "NES Builder"
 
@@ -127,7 +128,7 @@ Section "-DefaultStuff"
         "${GitURL}templates/romhack_xkasplus1.zip" "templates/romhack_xkasplus1.zip"\
         "${GitURL}templates/romhack_sdasm1.zip" "templates/romhack_sdasm1.zip"\
         /END
-    Pop $0
+    Call checkDl
 SectionEnd
 
 ; The stuff to install
@@ -146,7 +147,7 @@ Section "NESBuilder Executable"
         "${GitURL}README.md" "README.md"\
         "${GitURL}dist/NESBuilder.exe" "NESBuilder.exe"\
         /END
-    Pop $0
+    Call checkDl
 
 SectionEnd
 
@@ -203,7 +204,7 @@ Section "NESBuilder Source"
         "${GitURL}include/SpiderDaveAsm/include/gg.py" "include/SpiderDaveAsm/include/gg.py"\
         "${GitURL}include/SpiderDaveAsm/include/ips.py" "include/SpiderDaveAsm/include/ips.py"\
         /END
-    Pop $0
+    Call checkDl
 
 SectionEnd
 
@@ -223,7 +224,7 @@ Section "Installer Source"
         "${GitURL}installer/updater.nsi" "installer/updater.nsi"\
         "${GitURL}installer/README.md" "installer/readme.txt"\
         /END
-    Pop $0
+    Call checkDl
 
 SectionEnd
 
@@ -274,9 +275,8 @@ Section "Uninstall"
     Delete $INSTDIR\NESBuilder.exe.spec
     Delete $INSTDIR\uninstall.exe
 
-    ; Settings and project files remain
-    ;RMDir /r /REBOOTOK $INSTDIR\projects
-    ;Delete $INSTDIR\settings.dat
+    StrCopy $0 "$INSTDIR\projects"
+    call un.DeleteDirIfEmtpy
 
     ; Remove shortcuts, if any
     Delete "$SMPROGRAMS\NESBuilder\*.lnk"
@@ -295,3 +295,26 @@ SectionEnd
 ;        /END
 ;    Pop $0
 ;FunctionEnd
+
+; Make sure all files downloaded
+Function checkDl
+    Pop $0
+    StrCmp $0 "OK" dlok
+    DetailPrint "*** Error: Not all files were downloaded."
+    dlok:
+FunctionEnd
+
+Function un.DeleteDirIfEmpty
+  FindFirst $R0 $R1 "$0\*.*"
+  strcmp $R1 "." 0 NoDelete
+   FindNext $R0 $R1
+   strcmp $R1 ".." 0 NoDelete
+    ClearErrors
+    FindNext $R0 $R1
+    IfErrors 0 NoDelete
+     FindClose $R0
+     Sleep 1000
+     RMDir "$0"
+  NoDelete:
+   FindClose $R0
+FunctionEnd

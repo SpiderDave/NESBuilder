@@ -1,4 +1,4 @@
-# needs lupa, pyinstaller, pillow, pyqt5, numpy
+# needs lupa, PyInstaller, Pillow, PyQt5, numpy
 '''
 ToDo:
     * make return value of control generating methods more consistant
@@ -16,8 +16,6 @@ def badImport(m):
     print('Error: Could not import {0}.  Please run "install dependencies.bat".'.format(m))
     sys.exit(1)
 
-
-
 try: import lupa
 except: badImport('lupa')
 from lupa import LuaRuntime
@@ -26,7 +24,7 @@ lua = LuaRuntime(unpack_returned_tuples=True)
 try: import PyQt5.QtWidgets
 except: badImport('PyQt5')
 try: from PIL import ImageTk, Image, ImageDraw
-except: badImport('pillow')
+except: badImport('Pillow')
 from PIL import ImageOps
 from PIL import ImageGrab
 from collections import deque

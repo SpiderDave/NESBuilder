@@ -185,6 +185,7 @@ Section "NESBuilder Source"
         "${GitURL}include/calc.py" "include/calc.py"\
         "${GitURL}include/ips.py" "include/ips.py"\
         "${GitURL}chr.png" "chr.png"\
+        "${GitURL}icons/icon.ico" "icons/icon.ico"\
         "${GitURL}icons/folder32.png" "icons/folder32.png"\
         "${GitURL}icons/folderplus32.png" "icons/folderplus32.png"\
         "${GitURL}icons/gear32.png" "icons/gear32.png"\
@@ -250,7 +251,6 @@ Section "Uninstall"
     Delete $INSTDIR\cursors
     Delete $INSTDIR\NESBuilder.py
     Delete $INSTDIR\makeVersion.py
-    Delete $INSTDIR\icon.ico
     Delete $INSTDIR\build.bat
     Delete $INSTDIR\build_console.bat
     Delete "$INSTDIR\install dependencies.bat"

@@ -1,3 +1,4 @@
+@echo off
 rem ----------------------------------------
 rem findpython.bat by SpiderDave
 rem ----------------------------------------
@@ -16,7 +17,6 @@ rem     :success
 rem     %pycmd% myScript.py
 rem
 rem     :theend
-@echo off
 
 set dopause=0
 

@@ -1039,7 +1039,6 @@ end
 function ppLoad()
     local control, i
     
-    
     control = getControl('ppAssembler')
     control.itemList = data.assemblers
     control.clear()

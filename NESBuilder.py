@@ -289,7 +289,7 @@ class ForLua:
                           'makeMenu', 'makePaletteControl', 'makePopupMenu',
                           'makeText', 'makeWindow', 'makeSpinBox',
                           ]
-                QtWidgets = ['makeButton', 'makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeTab', 'makeCanvasQt', 'makeSideSpin', 'makeCheckbox', 'makeLink', 'makeTextEdit', 'makeList']
+                QtWidgets = ['makeButton', 'makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeTab', 'makeCanvasQt', 'makeSideSpin', 'makeCheckbox', 'makeLink', 'makeTextEdit', 'makeConsole', 'makeList']
                 
                 if method_name in makers:
                     attr = getattr(self, method_name)
@@ -299,7 +299,7 @@ class ForLua:
                     attr = getattr(self, method_name)
                     wrapped = self.QtWrapper(attr)
                     setattr(self, method_name, wrapped)
-                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap','listToTable','tableToList','print','type', 'executeLuaFile']:
+                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap','listToTable','tableToList','print','type', 'executeLuaFile', 'getPrintable', '_getPrintable']:
                     # getNESColors: excluded because it may have a table as its first parameter
                     # makeControl: excluded because it's a decorator
                     pass
@@ -321,8 +321,8 @@ class ForLua:
         return cfg.save()
     def cfgMakeSections(self, *sections):
         return cfg.makeSections(*sections)
-    def cfgGetValue(self, section, key, default=None):
-        return cfg.getValue(section, key, default)
+    def cfgGetValue(self, section, key, default=None, hint=None):
+        return cfg.getValue(section, key, default, hint=hint)
     def cfgSetValue(self, section, key, value):
         return cfg.setValue(section, key, value)
     def cfgSetDefault(self, section,key,value):
@@ -342,7 +342,61 @@ class ForLua:
     def calc(self, s):
         calc = Calculator()
         return calc(s)
-    def print(self, item='', *args, indent=0,limit=5):
+    #def getPrintable(self, item='', *args):
+    def getPrintable(self, *args):
+        #return self.print(self,  item=item, *args, indent=indent, limit=limit, returnString=True)
+#        if args:
+#            print('args=',args)
+        
+        ret = ''
+        for arg in args:
+            ret = ret + self._getPrintable(self, arg)
+        return ret
+    def _getPrintable(self, item, indent=0, *args, **kwargs):
+        limit=5
+        #indent=0
+        if type(item) == np.ndarray:
+            return('{}{}'.format(" "*indent, item))
+        elif (item==None) or (type(item) == bool):
+            return('{}{}'.format(" "*indent, item))
+        elif lupa.lua_type(item) == "None":
+            return('{}{}'.format(" "*indent, item))
+        elif (type(item)==str) or (lupa.lua_type(item) == "string"):
+            
+            # This should be changed to make everything printable too
+            if args:
+                item = item.format(*args)
+            
+            return('{}{}'.format(" "*indent, item))
+        elif lupa.lua_type(item) == "function":
+            return('{}()'.format(" "*indent))
+        elif lupa.lua_type(item) == "table":
+            ret = '{\n'
+            #l = len(list(item))
+            n=0
+            for i, (k,v) in enumerate(item.items()):
+                if n>=limit:
+                    ret+='{}...\n'.format(" "*(indent+2))
+                    break
+                if type(k) != str:
+                    k = '[{}]'.format(k)
+                    n=n+1
+                if lupa.lua_type(v)=="function":
+                    # Dont need to show a value for functions
+                    ret+='{}{}(),\n'.format(" "*(indent+2), k)
+                elif type(v)==str:
+                    ret+='{}{} = {},\n'.format(" "*(indent+2), k, repr(v))
+                else:
+                    ret+='{}{} = {},\n'.format(" "*(indent+2), k, self._getPrintable(self, v, indent=indent+2).lstrip())
+            ret+= '{}}}'.format(" "*(indent))
+            return ret
+        else:
+            if str(item).startswith('<include.QtDave.'):
+                return('{}<{}>'.format(" "*indent, item.__class__.__name__))
+            return('{}{}'.format(" "*indent, item))
+        return
+
+    def print(self, item='', *args, indent=0,limit=5, returnString=False):
         def getPrintable(item, indent=0):
             if type(item) == np.ndarray:
                 return('{}{}'.format(" "*indent, item))
@@ -384,6 +438,8 @@ class ForLua:
                     return('{}<{}>'.format(" "*indent, item.__class__.__name__))
                 return('{}{}'.format(" "*indent, item))
             return
+        if returnString:
+            return getPrintable(item)
         print(getPrintable(item))
     def printNoPrefix(self, item):
         if repr(item).startswith("<"):
@@ -1216,6 +1272,12 @@ class ForLua:
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
+    def makeConsole(self, t):
+        ctrl = QtDave.Console(t.text, self.tabQt)
+        ctrl.init(t)
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
     def makeTextEdit(self, t):
         ctrl = QtDave.TextEdit(t.text, self.tabQt)
         ctrl.init(t)
@@ -1747,7 +1809,7 @@ for (k,v) in r.items():
 if frozen:
     folder = os.path.dirname(sys.modules['icons'].__file__)
     s=s.replace("url('icons/","url('"+folder.replace("\\","/")+"/")
-    print(s)
+    #print(s)
 
 app.setStyleSheet(s)
 

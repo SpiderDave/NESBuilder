@@ -35,17 +35,17 @@ class Cfg(configparser.ConfigParser):
     def isnumber(self, s):
         s = str(s).strip()
         if len(s)==0:
-            return false
+            return False
         if s[0]=='-' or s[0] == '+':
             s = s[1:]
         if s.find('.') == s.rfind('.'):
             s = s.replace('.', '')
         return s.isdigit()
     # Interprets and formats a value
-    def makeValue(self, value):
+    def makeValue(self, value, hint=None):
         if type(value) is not str:
             return value
-        if ',' in value:
+        if ',' in value or hint=='list':
             value = value.split(',')
             for k,v in enumerate(value):
                 v=v.strip()
@@ -75,12 +75,14 @@ class Cfg(configparser.ConfigParser):
                     else:
                         value = int(value)
             return value
-    def getValue(self, section, key, default=None):
+    def getValue(self, section, key, default=None, hint=None):
+        if not section or not key:
+            return
         if default:
             # make sure section exists
             if not section in self.sections():
                 self[section] = {}
-        return self.makeValue(self[section].get(key, default))
+        return self.makeValue(self[section].get(key, default), hint=hint)
     def setValue(self, section, key, value):
         # make sure section exists
         if not section in self.sections():

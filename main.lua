@@ -155,7 +155,7 @@ function init()
     ipairs_sparse = util.ipairs_sparse
     
     -- make sure projects folder exists
-    NESBuilder:makeDir(data.folders.projects)
+    --NESBuilder:makeDir(data.folders.projects)
     
     statusBar=NESBuilder:makeLabelQt{x=x,y=y,text="Status bar"}
     statusBar.setFont("Verdana", 10)
@@ -163,6 +163,8 @@ function init()
     if cfgGet('alphawarning')==1 then
         control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Warning",text="Warning"}
     end
+    
+    control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Log",text="Log"}
     
     control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Launcher",text="Launcher"}
     launchTab = control
@@ -228,6 +230,18 @@ function init()
     
     local items = {}
     control = NESBuilder:makeMenuQt{name="menuView",text="View", menuItems=items}
+    
+    
+    NESBuilder:setTabQt("Log")
+    x,y = left, top
+    control = NESBuilder:makeConsole{x=x,y=y,w=750,h=600,name="log", text=""}
+    console = control
+    local oldPrint = print
+    print = function(...)
+        oldPrint(...)
+        console.print(NESBuilder:getPrintable(...))
+    end
+    --print = control.print
     
     NESBuilder:setTabQt("Image")
     x,y=8,8
@@ -1023,7 +1037,7 @@ function ppInit()
     y = y + control.height + pad
     
     push(x)
-    for file in python.iter(cfgGet('plugins', 'list')) do
+    for file in python.iter(pluginsList()) do
         if cfgGet('plugins', file) == 1 then
             control = NESBuilder:makeCheckbox{x=x,y=y,name='ppPlugin_'.. replace(replace(file, '.','_'), '_lua', ''), text=file, value=1, file=file, functionName='ppEnablePlugin'}
             y = y + control.height + pad
@@ -1072,7 +1086,7 @@ function ppLoad()
     end
     
     local pluginName,n,value
-    for file in python.iter(cfgGet('plugins', 'list')) do
+    for file in python.iter(pluginsList()) do
         pluginName = getPluginNameFromFile(file)
         if pluginName then
             n = 'ppPlugin_'.. replace(replace(file, '.','_'), '_lua', '')
@@ -1156,7 +1170,7 @@ function launcherButtonPreferences_cmd()
     
     push(x)
     x=x+pad*4
-    for file in python.iter(cfgGet('plugins', 'list')) do
+    for file in python.iter(pluginsList()) do
         control = NESBuilder:makeCheckbox{x=x,y=y,name='prefPlugin_'.. replace(replace(file, '.','_'), '_lua', ''), text=file, value=cfgGet('plugins', file), file=file, functionName='prefEnablePlugin'}
         y = y + control.height + pad
     end
@@ -1770,6 +1784,7 @@ function closePluginTabs()
     toggleTab('Image', false)
     toggleTab('Symbols', false)
     toggleTab('Metatiles', false)
+    toggleTab('Log', false)
     
     toggleTab('tabProjectProperties', false)
 
@@ -2815,7 +2830,8 @@ function tsaCanvas2Qt_cmd(t)
 end
 --tsaTileCanvasQt_cmd = canvasQt_cmd
 
-function buttonWarningClose_cmd() closeTab('Warning', 'Launcher') end
+--function buttonWarningClose_cmd() closeTab('Warning', 'Launcher') end
+function buttonWarningClose_cmd() toggleTab('Warning', false) end
 function buttonPreferencesClose_cmd() closeTab('tabPreferences', 'Launcher') end
 function buttonInfoClose_cmd() closeTab('infoTab', 'Launcher') end
 function ppClose_cmd()
@@ -3351,5 +3367,12 @@ function removePlugin(pluginName)
     plugins[pluginName] = nil
 end
 
-
+function pluginsList()
+    local l = cfgGet('plugins', 'list')
+    if l == nil or l == '' then return list() end
+    if type(l) ~= 'list' then
+        l = python.eval('lambda x:[x]')(l)
+    end
+    return l
+end
 

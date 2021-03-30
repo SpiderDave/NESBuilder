@@ -192,6 +192,17 @@ QPlainTextEdit, QLineEdit {
     font-size:11pt;
 }
 
+.console {
+    border:1px solid _textInputBorder_;
+    background-color:#112;
+    color:#eef;
+
+    font-family: Terminal;
+    font: 12px "lucida console" !important;
+    line-height: 12px;
+    padding:1px;
+}
+
 .paletteHighlight {
     border:1px solid white;
 }

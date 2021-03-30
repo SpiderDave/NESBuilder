@@ -408,6 +408,16 @@ class TextEdit(Base, QPlainTextEdit):
         else:
             return super().__getattribute__(key)
 
+class Console(TextEdit):
+    def init(self, t):
+        super().init(t)
+        self.addCssClass('console')
+
+    def print(self, txt=''):
+        self.appendPlainText(str(txt))
+        #self.ensureCursorVisible()
+        #self.setCenterOnScroll(True)
+        self.scrollContentsBy(0,100)
 
 
 class CodeEdit(Base_Light, QsciScintilla):
@@ -433,6 +443,8 @@ class CodeEdit(Base_Light, QsciScintilla):
             super().setText(str(v))
         else:
             super().__setattr__(key,v)
+    def print(self, txt=''):
+        self.text = self.text + txt + '\n'
 
 
 class Button(Base, QPushButton):

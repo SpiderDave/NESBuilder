@@ -8,9 +8,34 @@
 !define MUI_HEADERIMAGE_BITMAP "header.bmp"
 !define MUI_HEADERIMAGE_BITMAP_STRETCH AspectFitHeight
 
+var err
+
 !include "MUI2.nsh"
 !include Sections.nsh
 
+; Download a file
+!macro dl source
+    !define UniqueID ${__LINE__}
+    inetc::get "${GitURL}${source}" "${source}"
+    Pop $0
+    StrCmp $0 "OK" dlok2_${UniqueID}
+    DetailPrint "*** Error: Could not download ${source}."
+    strcpy $err "error"
+    dlok2_${UniqueID}:
+    !undef UniqueID
+!macroend
+
+; Download a file and give it a different name
+!macro dlrename source dest
+    !define UniqueID ${__LINE__}
+    inetc::get "${GitURL}${source}" "${dest}"
+    Pop $0
+    StrCmp $0 "OK" dlok2_${UniqueID}
+    DetailPrint "*** Error: Could not download ${source}."
+    strcpy $err "error"
+    dlok2_${UniqueID}:
+    !undef UniqueID
+!macroend
 
 ; The name of the installer
 Name "NES Builder"
@@ -109,27 +134,33 @@ Section "-DefaultStuff"
     ; Set output path to the installation directory.
     SetOutPath $INSTDIR
     
-    inetc::get \
-        "${GitURL}tools/asm6.exe" "tools/asm6.exe"\
-        "${GitURL}tools/xkas-plus/xkas.exe" "tools/xkas-plus/xkas.exe"\
-        "${GitURL}plugins/samplePlugin.lua" "plugins/samplePlugin.lua"\
-        "${GitURL}plugins/hello.py" "plugins/hello.py"\
-        "${GitURL}plugins/smbthing.lua" "plugins/smbthing.lua"\
-        "${GitURL}plugins/SMBLevelExtract/SMBLevelExtract.bat" "plugins/SMBLevelExtract/SMBLevelExtract.bat"\
-        "${GitURL}plugins/SMBLevelExtract/SMBLevelExtract.py" "plugins/SMBLevelExtract/SMBLevelExtract.py"\
-        "${GitURL}plugins/SMBLevelExtract/README.md" "plugins/SMBLevelExtract/README.md"\
-        "${GitURL}plugins/rominfo.lua" "plugins/rominfo.lua"\
-        "${GitURL}plugins/hash.py" "plugins/hash.py"\
-        "${GitURL}plugins/debug.lua" "plugins/debug.lua"\
-        "${GitURL}plugins/nesst.lua" "plugins/nesst.lua"\
-        "${GitURL}plugins/nesst.py" "plugins/nesst.py"\
-        "${GitURL}templates/codeTemplate.zip" "templates/codeTemplate.zip"\
-        "${GitURL}templates/codeTemplate3.zip" "templates/codeTemplate3.zip"\
-        "${GitURL}templates/romhack_xkasplus1.zip" "templates/romhack_xkasplus1.zip"\
-        "${GitURL}templates/romhack_sdasm1.zip" "templates/romhack_sdasm1.zip"\
-        /END
-    Call checkDl
+    ; Download files
+    !insertmacro dl "tools/asm6.exe"
+    !insertmacro dl "tools/xkas-plus/xkas.exe"
+    !insertmacro dl "plugins/samplePlugin.lua"
+    !insertmacro dl "plugins/hello.py"
+    !insertmacro dl "plugins/smbthing.lua"
+    !insertmacro dl "plugins/SMBLevelExtract/SMBLevelExtract.bat"
+    !insertmacro dl "plugins/SMBLevelExtract/SMBLevelExtract.py"
+    !insertmacro dl "plugins/SMBLevelExtract/README.md"
+    !insertmacro dl "plugins/rominfo.lua"
+    !insertmacro dl "plugins/hash.py"
+    !insertmacro dl "plugins/debug.lua"
+    !insertmacro dl "plugins/nesst.lua"
+    !insertmacro dl "plugins/nesst.py"
+    !insertmacro dl "templates/codeTemplate.zip"
+    !insertmacro dl "templates/codeTemplate3.zip"
+    !insertmacro dl "templates/romhack_xkasplus1.zip"
+    !insertmacro dl "templates/romhack_sdasm1.zip"
 SectionEnd
+
+;Section "test"
+;    SectionIn 1
+;    SetOutPath $INSTDIR
+;    !insertmacro dl "README.md"
+;    !insertmacro dl "blah"
+;    !insertmacro dlrename "README.md" "blah.md"
+;SectionEnd
 
 ; The stuff to install
 Section "NESBuilder Executable"
@@ -143,11 +174,9 @@ Section "NESBuilder Executable"
     ; Put file there
     ;File "example2.nsi"
 
-    inetc::get \
-        "${GitURL}README.md" "README.md"\
-        "${GitURL}dist/NESBuilder.exe" "NESBuilder.exe"\
-        /END
-    Call checkDl
+    ; Download files
+    !insertmacro dl "README.md"
+    !insertmacro dlrename "dist/NESBuilder.exe" "NESBuilder.exe"
 
 SectionEnd
 
@@ -165,46 +194,44 @@ Section "NESBuilder Source"
     CreateDirectory $INSTDIR\include\SpiderDaveAsm
     CreateDirectory $INSTDIR\include\SpiderDaveAsm\include
 
-    inetc::get \
-        "${GitURL}README.md" "README.md"\
-        "${GitURL}main.lua" "main.lua"\
-        "${GitURL}NESBuilder.py" "NESBuilder.py"\
-        "${GitURL}makeVersion.py" "makeVersion.py"\
-        "${GitURL}build.bat" "build.bat"\
-        "${GitURL}build_console.bat" "build_console.bat"\
-        "${GitURL}install dependencies.bat" "install dependencies.bat"\
-        "${GitURL}run script.bat" "run script.bat"\
-        "${GitURL}findpython.bat" "findpython.bat"\
-        "${GitURL}include/__init__.py" "include/__init__.py"\
-        "${GitURL}include/Tserial.lua" "include/Tserial.lua"\
-        "${GitURL}include/util.lua" "include/util.lua"\
-        "${GitURL}include/SMBLevelExtract.py" "include/SMBLevelExtract.py"\
-        "${GitURL}include/QtDave.py" "include/QtDave.py"\
-        "${GitURL}include/style.qss" "include/style.qss"\
-        "${GitURL}include/config.py" "include/config.py"\
-        "${GitURL}include/calc.py" "include/calc.py"\
-        "${GitURL}include/ips.py" "include/ips.py"\
-        "${GitURL}chr.png" "chr.png"\
-        "${GitURL}icons/__init__.py" "icons/__init__.py"\
-        "${GitURL}icons/folder32.png" "icons/folder32.png"\
-        "${GitURL}icons/folderplus32.png" "icons/folderplus32.png"\
-        "${GitURL}icons/gear32.png" "icons/gear32.png"\
-        "${GitURL}icons/note32.png" "icons/note32.png"\
-        "${GitURL}icons/clock32.png" "icons/clock32.png"\
-        "${GitURL}icons/project.png" "icons/project.png"\
-        "${GitURL}icons/icon.ico" "icons/icon.ico"\
-        "${GitURL}cursors/__init__.py" "cursors/__init__.py"\
-        "${GitURL}cursors/pencil.cur" "cursors/pencil.cur"\
-        "${GitURL}cursors/LinkSelect.cur" "cursors/LinkSelect.cur"\
-        "${GitURL}include/SpiderDaveAsm/__init__.py" "include/SpiderDaveAsm/__init__.py"\
-        "${GitURL}include/SpiderDaveAsm/sdasm.py" "include/SpiderDaveAsm/sdasm.py"\
-        "${GitURL}include/SpiderDaveAsm/README.md" "include/SpiderDaveAsm/README.md"\
-        "${GitURL}include/SpiderDaveAsm/include/__init__.py" "include/SpiderDaveAsm/include/__init__.py"\
-        "${GitURL}include/SpiderDaveAsm/include/config.py" "include/SpiderDaveAsm/include/config.py"\
-        "${GitURL}include/SpiderDaveAsm/include/gg.py" "include/SpiderDaveAsm/include/gg.py"\
-        "${GitURL}include/SpiderDaveAsm/include/ips.py" "include/SpiderDaveAsm/include/ips.py"\
-        /END
-    Call checkDl
+    ; Download files
+    !insertmacro dl "README.md"
+    !insertmacro dl "main.lua"
+    !insertmacro dl "NESBuilder.py"
+    !insertmacro dl "makeVersion.py"
+    !insertmacro dl "build.bat"
+    !insertmacro dl "build_console.bat"
+    !insertmacro dl "install dependencies.bat"
+    !insertmacro dl "run script.bat"
+    !insertmacro dl "findpython.bat"
+    !insertmacro dl "include/__init__.py"
+    !insertmacro dl "include/Tserial.lua"
+    !insertmacro dl "include/util.lua"
+    !insertmacro dl "include/SMBLevelExtract.py"
+    !insertmacro dl "include/QtDave.py"
+    !insertmacro dl "include/style.qss"
+    !insertmacro dl "include/config.py"
+    !insertmacro dl "include/calc.py"
+    !insertmacro dl "include/ips.py"
+    !insertmacro dl "chr.png"
+    !insertmacro dl "icons/__init__.py"
+    !insertmacro dl "icons/folder32.png"
+    !insertmacro dl "icons/folderplus32.png"
+    !insertmacro dl "icons/gear32.png"
+    !insertmacro dl "icons/note32.png"
+    !insertmacro dl "icons/clock32.png"
+    !insertmacro dl "icons/project.png"
+    !insertmacro dl "icons/icon.ico"
+    !insertmacro dl "cursors/__init__.py"
+    !insertmacro dl "cursors/pencil.cur"
+    !insertmacro dl "cursors/LinkSelect.cur"
+    !insertmacro dl "include/SpiderDaveAsm/__init__.py"
+    !insertmacro dl "include/SpiderDaveAsm/sdasm.py"
+    !insertmacro dl "include/SpiderDaveAsm/README.md"
+    !insertmacro dl "include/SpiderDaveAsm/include/__init__.py"
+    !insertmacro dl "include/SpiderDaveAsm/include/config.py"
+    !insertmacro dl "include/SpiderDaveAsm/include/gg.py"
+    !insertmacro dl "include/SpiderDaveAsm/include/ips.py"
 
 SectionEnd
 
@@ -216,15 +243,13 @@ Section "Installer Source"
 
     CreateDirectory $INSTDIR\installer
 
-    inetc::get \
-        "${GitURL}installer/nesbuilder.nsi" "installer/nesbuilder.nsi"\
-        "${GitURL}installer/header.bmp" "installer/header.bmp"\
-        "${GitURL}installer/header.xcf" "installer/header.xcf"\
-        "${GitURL}installer/installicon.ico" "installer/installicon.ico"\
-        "${GitURL}installer/updater.nsi" "installer/updater.nsi"\
-        "${GitURL}installer/README.md" "installer/readme.txt"\
-        /END
-    Call checkDl
+    ; Download files
+    !insertmacro dl "installer/nesbuilder.nsi"
+    !insertmacro dl "installer/header.bmp"
+    !insertmacro dl "installer/header.xcf"
+    !insertmacro dl "installer/installicon.ico"
+    !insertmacro dl "installer/updater.nsi"
+    !insertmacro dlrename "installer/README.md" "installer/readme.txt"
 
 SectionEnd
 
@@ -279,7 +304,6 @@ Section "Uninstall"
     ; Remove directories
     RMDir "$SMPROGRAMS\NESBuilder"
     RMDir "$INSTDIR"
-
 SectionEnd
 
 ;Function .onInit
@@ -291,11 +315,9 @@ SectionEnd
 ;    Pop $0
 ;FunctionEnd
 
-; Make sure all files downloaded
-Function checkDl
-    Pop $0
-    StrCmp $0 "OK" dlok
-    DetailPrint "*** Error: Not all files were downloaded."
-    dlok:
+Function .onInstSuccess
+    StrCmp "${err}" "error" 0 noerror
+    MessageBox MB_OK|MB_ICONINFORMATION 'Error: not all files were downloaded.!'
+    noerror:
 FunctionEnd
 

@@ -1029,7 +1029,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         if v.startswith('+'):
             label = v.split(' ',1)[0]
             try:
-                return sorted([x[1] for x in aLabels if x[0]==label and x[1]>=currentAddress])[0], 2
+                return sorted([x[1] for x in aLabels if x[0]==label and x[1]>currentAddress])[0], 2
             except:
                 return 0,0
         
@@ -1072,7 +1072,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
 #            return v, l
         # ToDo: tokenize, allow (), implement proper order of operations.
         if '+' in v:
-            v = v.split('+')
+            v = v.split('+',1)
             left, right = getValue(v[0]), getValue(v[1])
             if type(left)==type(right):
                 v = left + right
@@ -1084,7 +1084,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             l = 1 if v <=256 else 2
             return v,l
         if '-' in v:
-            v = v.split('-')
+            v = v.split('-', 1)
             left, right = getValue(v[0]), getValue(v[1])
             if type(left)==type(right):
                 v = left - right
@@ -1888,12 +1888,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                                 if n==0:
                                     #print('{:04x} {:02x} {:02x}\n'.format(i, b,b2))
                                     #print('org ${:04x}\n    db ${:02x}\n'.format(i-0x10+0x8000, b2))
-                                    diffOut += 'org ${:04x} ; ${:04x}\n    db ${:02x}'.format(i-0x10+0x8000, i, b2)
+                                    diffOut += 'org ${:04x} ; ${:04x}\n    db ${:02x}'.format(i-0x10+0x8000, i, b1)
                                 else:
                                     if n % 4 == 0:
-                                        diffOut += '\n    db ${:02x}'.format(b2)
+                                        diffOut += '\n    db ${:02x}'.format(b1)
                                     else:
-                                        diffOut += ', ${:02x}'.format(b2)
+                                        diffOut += ', ${:02x}'.format(b1)
                                 n += 1
                             else:
                                 if n>0:
@@ -2027,7 +2027,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     errorText = 'file not found'
             elif k == 'include' or k == 'include?' or k=='incsrc' or k == 'require':
                 filename = line.split(" ",1)[1].strip()
-                filename = getString(filename)
+                
+                filename = getValueAsString(filename) or getString(filename)
+                print(filename)
+                #filename = getString(filename)
                 filename = assembler.findFile(filename)
                 if filename:
                     #print(filename)

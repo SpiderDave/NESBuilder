@@ -641,6 +641,25 @@ endm / endmacro
             ;           ldy #$56
 ```
 
+function
+endf / endfunction
+
+    Define a function.  Function arguments are separated by commas.
+    Functions create a namespace with the function's name.
+
+```
+    function splitByte(a)
+        ; to access this symbol outside of this function
+        ; use splitByte.foo or change the namespace with
+        ; namespace splitByte
+        foo = 42 
+        return >a, <a
+    macro
+    
+    h,l = splitByte($42)
+
+```
+
 if
 ifdef
 elseif

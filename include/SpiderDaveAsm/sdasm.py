@@ -42,7 +42,7 @@ from math import sqrt
 import random
 
 from textwrap import dedent
-
+from collections import deque
 
 try:
     from PIL import ImageTk, Image, ImageDraw, ImageOps, ImageGrab
@@ -206,6 +206,27 @@ def flattenList(k):
 def inScriptFolder(f):
     return os.path.join(os.path.dirname(os.path.realpath(__file__)),f)
 
+class Stack(deque):
+    def push(self, *args):
+        for arg in args:
+            self.append(arg)
+    def pop(self, n=0):
+        if n > 0:
+            ret = []
+            for i in range(n):
+                ret.append(super().pop())
+            return tuple(ret)
+        else:
+            return super().pop()
+    def remove(self,value):
+        try:
+            super().remove(value)
+            return True
+        except:
+            return False
+    def asList(self):
+        return list(self)
+
 class Map(dict):
     """
     Example:
@@ -253,7 +274,7 @@ class Assembler():
     palette = defaultPalette[:]
     currentPalette = [0x0f,0x01,0x11,0x30]
     stripHeader = False
-    namespace = ''
+    namespace = Stack([''])
     #quotes = ('"""','"',"'")
     quotes = False
     hidePrefix = '__hide__'
@@ -425,7 +446,6 @@ class Assembler():
 
 assembler = Assembler()
 
-
 operations = {
 #    '-':operator.sub,
 #    '+':operator.add,
@@ -460,7 +480,7 @@ directives = [
     'orgpad','quit','incchr','chr','setpalette','loadpalette',
     'rept','endr','endrept','sprite8x16','export','diff',
     'assemble', 'exportchr', 'ips','gg','echo','function','endf', 'endfunction',
-    'return',
+    'return','namespace',
 ]
 
 filters = [
@@ -656,7 +676,7 @@ makeHex = lambda x: '$'+x.to_bytes(((x.bit_length()|1  + 7) // 8),"big").hex()
 
 specialSymbols = [
     'sdasm','bank','banksize','chrsize','randbyte','randword','fileoffset',
-    'prgbanks','chrbanks','lastbank','lastchr','mapper','binfile',
+    'prgbanks','chrbanks','lastbank','lastchr','mapper','binfile','namespace',
 ]
 
 timeSymbols = ['year','month','day','hour','minute','second']
@@ -688,6 +708,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     cfg.setDefault('main', 'varOpen', '{')
     cfg.setDefault('main', 'varClose', '}')
     cfg.setDefault('main', 'labelSuffix', ':')
+    cfg.setDefault('main', 'namespaceSymbol', '.')
     cfg.setDefault('main', 'orgPad', 0)
     cfg.setDefault('main', 'mapdb', False)
     cfg.setDefault('main', 'lineSep', '')
@@ -753,7 +774,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 s=s[len(q):-len(q)]
                 return s
         return s
-    
+    def nsSymbol(s):
+        ns = assembler.namespace[-1]
+        if ns != '':
+            ns = ns + namespaceSymbol
+        return assembler.lower(ns + s)
     def getSpecial(s):
         if s == 'sdasm':
             v = 1
@@ -787,6 +812,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 return str(addr)
         elif s == 'randbyte':
             return makeHex(random.randrange(0x100))
+        elif s == 'namespace':
+            return assembler.namespace[-1]
         elif s == 'randword':
             #return makeHex(random.randrange(0x10000))
             return '${:04x}'.format(random.randrange(0x10000))
@@ -1180,6 +1207,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         elif isNumber(v):
             l = 1 if int(v,10) <=256 else 2
             v = int(v,10)
+        elif nsSymbol(v) in symbols:
+            v, l = getValueAndLength(symbols[nsSymbol(v)], mode=mode)
+        elif v.startswith(namespaceSymbol) and v.split(namespaceSymbol,1)[1] in symbols:
+            v, l = getValueAndLength(symbols[v.split(namespaceSymbol,1)[1]], mode=mode)
         elif assembler.lower(v) in symbols:
             v, l = getValueAndLength(symbols[assembler.lower(v)], mode=mode)
         elif v.lower() in specialSymbols:
@@ -1309,6 +1340,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         varClose = makeList(cfg.getValue('main', 'varClose'))
         varOpenClose = mergeList(varOpen,varClose)
         labelSuffix = makeList(cfg.getValue('main', 'labelSuffix'))
+        namespaceSymbol = cfg.getValue('main', 'namespaceSymbol')
         orgPad = int(cfg.getValue('main', 'orgPad'))
         mapdb = cfg.isTrue(cfg.getValue('main', 'mapdb'))
         clampdb = cfg.isTrue(cfg.getValue('main', 'clampdb'))
@@ -1543,7 +1575,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 if k.startswith('-') or k.startswith('+'):
                     aLabels.append([k0[:-1], currentAddress])
                 else:
-                    symbols[assembler.namespace + assembler.lower(k0[:-1])] = str(currentAddress)
+                    symbols[nsSymbol(assembler.lower(k0[:-1]))] = str(currentAddress)
                     
                     # remove all local labels
                     if not k.startswith(tuple(localPrefix)):
@@ -2000,6 +2032,14 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 else:
                     assembler.errorLinePos = len(line.split(' ',1)[0])+1
                     errorText = 'file not found'
+            elif k == 'namespace':
+                data = (line.split(" ", 1)+[''])[1].strip()
+                if data == '_pop_':
+                    assembler.namespace.pop()
+                else:
+                    assembler.namespace[-1] = data
+                    print('*****  namespace:',assembler.namespace[-1])
+                    print('suffix = {}'.format(namespaceSymbol))
             elif k == 'function':
                 v = line.split(" ", 1)[1].strip()
                 data = ''
@@ -2007,9 +2047,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     data = v.split('(',1)[1].rsplit(')',1)[0]
                     v = v.split('(',1)[0].strip()
                 param = [x.strip() for x in data.split(',')]
-                
-                print('fname =', v)
-                print('fparam =', param)
                 function = v.lower()
                 functions[function]=Map()
                 functions[function].params = param
@@ -2183,14 +2220,18 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 
                 lines = lines[:i]+['']+macros[k].lines+lines[i+1:]
             if kf:
-                for item in functions[kf].params:
-                    if assembler.lower(item) in symbols:
-                        symbols.pop(assembler.lower(item))
+#                for item in functions[kf].params:
+#                    if assembler.lower(item) in symbols:
+#                        symbols.pop(assembler.lower(item))
                 
                 for item in mergeList(functions[kf].params, kfdata):
-                    symbols[assembler.lower(item[0])] = item[1]
+#                    print('kf=',kf,'key=',kf + namespaceSymbol + assembler.lower(item[0]))
+#                    print('item =',item[1],'v=',getValue(item[1]))
+                    symbols[kf + namespaceSymbol + assembler.lower(item[0])] = getValue(item[1])
+                
+                assembler.namespace.push(kf)
                 symbols['return']=None
-                lines = lines[:i]+['']+functions[kf].lines+lines[i+1:]
+                lines = lines[:i]+['']+functions[kf].lines+['namespace _pop_']+lines[i+1:]
             if k == 'enum':
                 oldAddr = addr
                 addr = getValue(v)
@@ -2508,6 +2549,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                             b.append(v % 0x100)
                             b.append(math.floor(v/0x100))
             
+            if originalLine.startswith('showsymb'):
+                print('-'*20)
+                for k,v in symbols.items():
+                    print(k,'=',v)
+                print('-'*20)
+
             if k == 'define':
                 k = line.split(" ")[1].strip()
                 v = line.split(" ",2)[-1].strip()
@@ -2527,7 +2574,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 k = line[:line.lower().find(' equ ')]
                 v = line[line.lower().find(' equ ')+len(' equ '):]
                 equ[k] = v
-            elif (line.split('=')+[''])[1]:
+            elif (line.split('=')+[''])[1] and k!='':
                 k = line.split("=",1)[0].strip()
                 v = line.split("=",1)[1].strip()
 
@@ -2536,7 +2583,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     v = getValue(v)
                     if type(v) == list:
                         for i, k in enumerate(keywords):
-                            symbols[assembler.lower(k)] = v[i]
+                            ns = assembler.namespace[-1]
+                            if namespaceSymbol in k:
+                                ns, k = k.split(namespaceSymbol,1)
+                            if ns!='':
+                                ns = ns + namespaceSymbol
+                            symbols[ns + assembler.lower(k)] = getValue(v[i])
                     
                 else:
                     if k == '$':
@@ -2545,7 +2597,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                             startAddress = addr
                         currentAddress = addr
                     else:
-                        symbols[assembler.lower(k)] = getValue(v)
+                        ns = assembler.namespace[-1]
+                        if namespaceSymbol in k:
+                            ns, k = k.split(namespaceSymbol,1)
+                        if ns!='':
+                            ns = ns + namespaceSymbol
+                        symbols[ns + assembler.lower(k)] = getValue(v)
                     k=''
             
             if len(b)>0:

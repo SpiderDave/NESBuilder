@@ -441,7 +441,6 @@ operations = {
     '*':operator.mul,
 }
 
-
 directives = [
     'org','base','pad','fillto','align','fill','fillvalue','fillbyte','padbyte',
     'include','include?','incsrc','require','includeall','incbin','bin',
@@ -460,15 +459,23 @@ directives = [
     'inesworkram','inessaveram','ines2',
     'orgpad','quit','incchr','chr','setpalette','loadpalette',
     'rept','endr','endrept','sprite8x16','export','diff',
-    'assemble', 'exportchr', 'ips','gg','echo',
+    'assemble', 'exportchr', 'ips','gg','echo','function','endf', 'endfunction',
+    'return',
 ]
 
 filters = [
     'shuffle','getbyte','getword','choose',
     'format','random','range','textmap',
     'evalvar','pop','astext','len',
-    'fileexist', 'nfileexist',
+    'fileexist', 'nfileexist','py',
 ]
+
+autoFilters = {
+    'floor':math.floor,
+    'ceil':math.ceil,
+}
+
+filters = filters + list(autoFilters.keys())
 
 asm=[
 Map(opcode = 'adc', mode = 'Immediate', byte = 105, length = 2),
@@ -690,6 +697,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     cfg.setDefault('main', 'lineContinueComma', True)
     cfg.setDefault('main', 'quotes', '\',","""')
     cfg.setDefault('main', 'suppressErrorPrefix', '-E-,-e-')
+    cfg.setDefault('main', 'floorDiv', False)
     
     assembler.quotes = tuple(makeList(cfg.getValue('main', 'quotes')))
 
@@ -868,6 +876,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             return v,l
         if mode == 'evalvar':
             print(v)
+            v,l = getValueAndLength(v)
+            return v,l
+        if mode in autoFilters.keys():
+            v = autoFilters[mode](*[getValue(x) for x in v.split(',')])
             v,l = getValueAndLength(v)
             return v,l
         if mode == 'random':
@@ -1131,10 +1143,18 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         elif any(x in v for x in operations):
             for op in operations:
                 if op in v:
+#                    print()
+#                    print('line=',line)
+#                    print('v=',v)
+
                     v = v.split(op)
                     
                     v0 = getValue(v[0], mode)
                     v1 = getValue(v[1])
+                    
+#                    print('v0=',v0)
+#                    print('v0=',v1)
+#                    print()
                     
                     if type(v0) is list:
                         v = [operations[op](x, v1) for x in v0]
@@ -1237,7 +1257,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     
     lineContinue = makeList(cfg.getValue('main', 'lineContinue'))
     lineContinueComma = cfg.isTrue(cfg.getValue('main', 'lineContinueComma'))
-    
+    if cfg.isTrue(cfg.getValue('main', 'floorDiv')):
+        operations.update({'/':operator.floordiv})
     
     for c in lineContinue:
         joinLines = [i for i,x in enumerate(lines) if x.strip().endswith(c)]
@@ -1259,6 +1280,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     aLabels = []
     lLabels = []
     macros = Map()
+    functions = Map()
     blockComment = 0
     
     if binFile:
@@ -1308,6 +1330,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         noOutput = False
         
         macro = False
+        function = False
         currentAddress = 0
         mode = ""
         showAddress = False
@@ -1481,10 +1504,22 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 if line.split(" ",1)[0].strip().lower() not in ['endm','endmacro','.endm','.endmacro']:
                     macros[macro].lines.append(originalLine)
                     line = ''
+            if function:
+                if line.split(" ",1)[0].strip().lower() not in ['endf','endfunction','.endf','.endfunction']:
+                    functions[function].lines.append(originalLine)
+                    line = ''
+
             
             b=[]
             k0 = line.split(" ",1)[0].strip()
             k = k0.lower()
+            kf = ''
+            
+            if '(' in line and line.split('(')[0].lower() in functions:
+                kf = line.split('(')[0].lower()
+                kfdata = line.split('(',1)[1].rsplit(')',1)[0].strip()
+                kfdata = [x.strip() for x in kfdata.split(',')]
+                k = ''
             
             if k!='' and (k=="-"*len(k) or k=="+"*len(k)):
                 if not [k,currentAddress] in aLabels:
@@ -1497,7 +1532,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             
             # This is really complicated but we have to check to see
             # if this is a label without a suffix somehow.
-            if k!='' and not (k.startswith('.') and k[1:] in directives) and not k.endswith(tuple(labelSuffix)) and ' equ ' not in line.lower() and '=' not in line and k not in list(directives)+list(macros)+list(opcodes)+opcodes2:
+            if k!='' and not (k.startswith('.') and k[1:] in directives) and not k.endswith(tuple(labelSuffix)) and ' equ ' not in line.lower() and '=' not in line and k not in list(directives)+list(macros)+list(opcodes)+opcodes2+list(functions):
                 if k.startswith('-') or k.startswith('+'):
                     aLabels.append([assembler.lower(k0), currentAddress])
                 else:
@@ -1965,6 +2000,27 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 else:
                     assembler.errorLinePos = len(line.split(' ',1)[0])+1
                     errorText = 'file not found'
+            elif k == 'function':
+                v = line.split(" ", 1)[1].strip()
+                data = ''
+                if '(' in v:
+                    data = v.split('(',1)[1].rsplit(')',1)[0]
+                    v = v.split('(',1)[0].strip()
+                param = [x.strip() for x in data.split(',')]
+                
+                print('fname =', v)
+                print('fparam =', param)
+                function = v.lower()
+                functions[function]=Map()
+                functions[function].params = param
+                functions[function].lines = []
+                noOutput = True
+            elif k == 'endf' or k == 'endfunction':
+                function = False
+                noOutput = False
+            elif k == 'return':
+                v = (line.split(" ", 1)+[''])[1].strip()
+                symbols['return'] = getValue(v)
             elif k == 'rept':
                 reptCount = getValue(line.split(" ",1)[1].strip())
                 startIndex = i
@@ -2126,7 +2182,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     symbols[assembler.lower(item[0])] = item[1]
                 
                 lines = lines[:i]+['']+macros[k].lines+lines[i+1:]
+            if kf:
+                for item in functions[kf].params:
+                    if assembler.lower(item) in symbols:
+                        symbols.pop(assembler.lower(item))
                 
+                for item in mergeList(functions[kf].params, kfdata):
+                    symbols[assembler.lower(item[0])] = item[1]
+                symbols['return']=None
+                lines = lines[:i]+['']+functions[kf].lines+lines[i+1:]
             if k == 'enum':
                 oldAddr = addr
                 addr = getValue(v)
@@ -2466,14 +2530,23 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             elif (line.split('=')+[''])[1]:
                 k = line.split("=",1)[0].strip()
                 v = line.split("=",1)[1].strip()
-                if k == '$':
-                    addr = getValue(v)
-                    if startAddress == False:
-                        startAddress = addr
-                    currentAddress = addr
+
+                keywords = [x.strip() for x in k.split(',')]
+                if len(keywords)>1:
+                    v = getValue(v)
+                    if type(v) == list:
+                        for i, k in enumerate(keywords):
+                            symbols[assembler.lower(k)] = v[i]
+                    
                 else:
-                    symbols[assembler.lower(k)] = getValue(v)
-                k=''
+                    if k == '$':
+                        addr = getValue(v)
+                        if startAddress == False:
+                            startAddress = addr
+                        currentAddress = addr
+                    else:
+                        symbols[assembler.lower(k)] = getValue(v)
+                    k=''
             
             if len(b)>0:
                 invalidBytes = [(i,x) for (i,x) in enumerate(b) if x not in range(256)]

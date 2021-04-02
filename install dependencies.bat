@@ -11,10 +11,6 @@ echo.
 echo Checking for pip...
 %pycmd% -m pip --version 2>NUL
 if %errorlevel% NEQ 0 set errormessage=Could not find pip & goto error
-
-echo Updating pip...
-%pycmd% -m pip install --upgrade pip
-echo.
 echo Attempting to install lupa...
 %pycmd% -m pip install lupa
 if %errorlevel% NEQ 0 echo Could not install Lupa

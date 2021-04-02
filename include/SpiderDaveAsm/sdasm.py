@@ -352,7 +352,15 @@ class Assembler():
         #print("Mapping text:", text)
         textMap = self.textMap.get(self.currentTextMap, {})
         
-        return [textMap.get(x, ord(x)) for x in text]
+#        try:
+#            ret = [textMap.get(x, ord(x)) for x in text]
+#        except:
+#            print('bad textmap data')
+#            ret = [0 for x in text]
+#            return ret
+        
+        ret = [textMap.get(x, ord(x)) for x in text]
+        return ret
     def setTextMap(self, name):
         self.currentTextMap = name
     def getTextMap(self):
@@ -774,6 +782,25 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 s=s[len(q):-len(q)]
                 return s
         return s
+    def getSymbolInfo(symbol):
+        # check for a symbol and return cannoncial name if found.
+        ns = assembler.namespace[-1]
+        
+        ret = dict(
+            namespace = ns,
+        )
+        
+        if ns != '':
+            ns = ns + namespaceSymbol
+        
+        ret.update(key = assembler.lower(ns + symbol))
+        ret.update(baseKey = assembler.lower(symbol))
+        
+        if s in symbols:
+            ret.value = symbols.get(ret.get('key'))
+            return ret
+        else:
+            return
     def nsSymbol(s):
         ns = assembler.namespace[-1]
         if ns != '':
@@ -1230,6 +1257,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             return v, l
 
         if mode == 'textmap':
+            if type(v) is int:
+                print('bad textmap type')
+                return v,l
             v = assembler.mapText(bytearray(makeList(v)).decode('utf8'))
             l = len(v)
         
@@ -1327,6 +1357,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             print("Could not find file: {}".format(binFile))
             return
     lastPass = 3
+    
+    rndState = random.getstate()
+    
     for passNum in range(1,lastPass+1):
         passTime = time.time()
         
@@ -1347,6 +1380,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         lineSep = makeList(cfg.getValue('main', 'linesep'))
         suppressErrorPrefix = makeList(cfg.getValue('main', 'suppressErrorPrefix'))
         caseSensitive = cfg.isTrue(cfg.getValue('main', 'caseSensitive'))
+        
+        # This is important for consistancy in each pass
+        random.setstate(rndState)
         
         assembler.caseSensitive = caseSensitive
         

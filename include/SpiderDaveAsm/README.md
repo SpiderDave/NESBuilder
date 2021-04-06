@@ -86,12 +86,22 @@ Line Continuation:
     sta $4002
 ```
 
-    Symbols enclosed in {} can be used to insert them anywhere.
-    {:expression} can be used to insert an expression anywhere.
+    Symbols and expressions enclosed in {} can be used to insert them
+    anywhere, even in text.
     
 ```
     file = foobar
-    include {file}.asm
+    include "{file}.asm"
+```
+
+## Lists ##
+    Lists can be used in most places.  List indexes start with 0.
+
+```
+    list = [1,2,3]          ; Create a list
+    list = 1,2,3            ; Create a list
+    list[2]                 ; Set the value of a list item.
+    list = {concat:list, 5} ; Add an item to the end of list
 ```
 
 ## Filters ##
@@ -102,7 +112,10 @@ Line Continuation:
         Shuffle a list of bytes.
     
 ```
-    db {shuffle:$00, $01, $02, $03, $04} ; outputs 5 bytes in random order
+    db {shuffle:$00, $01, $02, $03, $04}    ; outputs 5 bytes in random order
+    
+    a = 1,2,3,4,5                           ; Create list
+    a = {shuffle:a}                         ; Shuffle list
 ```
     
     choose
@@ -166,6 +179,13 @@ Line Continuation:
     print test          ; prints "test"
     print {test}        ; prints "[104, 101, 108, 108, 111]"
     print {astext:test} ; prints "hello"
+```
+    
+    concat
+        Concatenate data.
+    
+```
+    print {concat:"foo","bar",0}    ; prints "102,111,111,98,97,114,0"
 ```
     
 ## Special Symbols ##

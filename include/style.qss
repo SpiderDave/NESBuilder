@@ -270,3 +270,7 @@ QComboBox {
     padding:2px;
     font-size:12pt;
 }
+
+* {
+    selection-background-color: _bkHighlight_;
+}

@@ -12,6 +12,9 @@ rem ----------------------------------------
 rem default error
 set errormessage=unspecified error
 
+rem make sure the working folder is the one containing this file.
+cd /D "%~dp0"
+
 rem run this to fill the pycmd environment variable
 call findpython.bat 1
 if %errorlevel% NEQ 0 goto error

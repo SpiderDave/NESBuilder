@@ -22,6 +22,9 @@ rem set pyinstaller flag to determine if a console window will be added
 set parameter=w
 if %console% NEQ 0 set suffix=C& set parameter=c
 
+rem make sure the working folder is the one containing this file.
+cd /D "%~dp0"
+
 rem run this to fill the pycmd environment variable
 call findpython.bat 1
 if %errorlevel% NEQ 0 goto error

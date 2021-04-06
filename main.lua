@@ -17,6 +17,7 @@ config = {
         fg = '#eef',
         menuBk='#404056',
         bk_menu_highlight='#606080',
+        bk_highlight='#404060',
         tkDefault='#656570',
         link='#88f',
         linkHover='white',
@@ -241,7 +242,25 @@ function init()
         oldPrint(...)
         console.print(NESBuilder:getPrintable(...))
     end
-    --print = control.print
+    handlePythonError = function(err, e)
+        print(string.rep('-', 79))
+        print(e)
+        print(string.rep('-', 79))
+        
+        return true
+    end
+    handleLuaError = function(e)
+        print(string.rep('-', 80))
+        print("LuaError:\n")
+        print(e)
+        print()
+        print(string.rep('-', 80))
+        
+        return true
+    end
+    
+    
+    --control=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="testError",text="Test"}
     
     NESBuilder:setTabQt("Image")
     x,y=8,8
@@ -496,22 +515,6 @@ function init()
     
     y=y + control.height + pad
     
---    push(y)
---    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidPrev",text="<"}
---    y=pop()
---    x= x + control.width+pad
-    
---    push(y)
---    control=NESBuilder:makeLineEdit{x=x,y=y,w=20,h=buttonHeight, name="tsaSquareoidNumber",text="0"}
---    y=pop()
---    x= x + control.width+pad
-    
---    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidNext",text=">"}
---    x = left
---    y = y + control.height + pad
-    
---    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth, name="tsaTest",text="Update"}
-    
     x = pop()
     y = pop()
     
@@ -540,16 +543,19 @@ function init()
     push(x)
     
     push(y)
-    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidPrev",text="<"}
+    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="metatilePrev",text="<"}
     y=pop()
     x = x + control.width+pad
     
     push(y)
-    control=NESBuilder:makeLineEdit{x=x,y=y,w=20,h=buttonHeight, name="tsaSquareoidNumber",text="0"}
+    control=NESBuilder:makeLineEdit{x=x,y=y,w=20,h=buttonHeight, name="metatileNumber",text="0"}
     y=pop()
     x= x + control.width+pad
     
-    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="tsaSquareoidNext",text=">"}
+    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="metatileNext",text=">"}
+    x=x+control.width+pad
+    
+    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="metatileNew",text="+"}
     y = y + control.height + pad
     
     x=pop()
@@ -2328,26 +2334,14 @@ function mTileList_cmd(t)
     data.project.mTileSets.index = index
     data.project.mTileSets[data.project.mTileSets.index] = data.project.mTileSets[data.project.mTileSets.index] or {index=0}
     updateSquareoid()
-    
-    --print(data.project.mTileSets[data.project.mTileSets.index])
 end
 
 function addMTile_cmd()
     local tileIndex = 0
     local control = NESBuilder:getControl('mTileList')
     
-    for i,v in ipairs_sparse(data.project.mTileSets) do
-        if iKeys(v) then
-            tileIndex = i +1
-        end
-    end
-    
-    data.project.mTileSets[tileIndex] = {index=0}
-    
     local n = "New MTile Set"
-    
     data.project.mTileSets[len(data.project.mTileSets)+1] = {index=0, name=n}
-    
     control.addItem(n)
 end
 
@@ -2489,18 +2483,39 @@ function tsaCanvas2_cmd(t)
 end
 
 
-function tsaSquareoidPrev_cmd()
+function metatilePrev_cmd()
     data.project.mTileSets[data.project.mTileSets.index].index = math.max(0, data.project.mTileSets[data.project.mTileSets.index].index - 1)
+    print(string.format("%d %d",data.project.mTileSets.index, data.project.mTileSets[data.project.mTileSets.index].index))
     updateSquareoid()
 end
-function tsaSquareoidNext_cmd()
+function metatileNext_cmd()
     data.project.mTileSets[data.project.mTileSets.index].index = math.min(255, data.project.mTileSets[data.project.mTileSets.index].index + 1)
+    print(string.format("%d %d",data.project.mTileSets.index, data.project.mTileSets[data.project.mTileSets.index].index))
     updateSquareoid()
 end
 
-function tsaSquareoidNumber_cmd(t)
+function metatileNew_cmd()
+    if not devMode() then notImplemented() end
+    
+    local m = {}
+    m.map = {}
+    m.w = 2
+    m.h = 2
+    m.palette = data.project.palettes.index
+    m.chrIndex = data.project.chr.index
+    for i=0,m.w * m.h do
+        m[i] = 0
+        m.map[i] = i
+    end
+    
+    data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] = m
+    updateSquareoid()
+    
+end
+
+function metatileNumber_cmd(t)
     if t.event and t.event.type == "KeyPress" and t.event.event.keycode==13 then
-        data.project.mTileSets[data.project.mTileSets.index].index = tonumber(NESBuilder:getControl("tsaSquareoidNumber").getText())
+        data.project.mTileSets[data.project.mTileSets.index].index = tonumber(NESBuilder:getControl("metatileNumber").getText())
     end
 end
 
@@ -2512,25 +2527,6 @@ function updateSquareoid()
     local controlFrom = NESBuilder:getControlNew("tsaCanvasQt")
     local controlTo = NESBuilder:getControlNew("tsaCanvas2Qt")
     
-    if not m then
-        controlTo.reset(2,2)
-        controlTo.clear()
-        controlTo.repaint()
-
-        return
-    end
-    
-    local chrIndex = data.project.mTileSets[data.project.mTileSets.index].chrIndex
-    
-    if (chrIndex or data.project.chr.index) ~= data.project.chr.index then
-        setChr(chrIndex)
-    end
-    
-    local cols = data.project.mTileSets[data.project.mTileSets.index].w or 2
-    local rows = data.project.mTileSets[data.project.mTileSets.index].h or 2
-    
-    controlTo.reset(cols,rows)
-    
     local control = NESBuilder:getControlNew("mTileList")
     if control.count() == 0 then return end
     
@@ -2539,12 +2535,45 @@ function updateSquareoid()
         control.setCurrentRow(0)
     end
     
-    local control = NESBuilder:getControl("tsaSquareoidNumber")
+    local mTileSet = data.project.mTileSets[data.project.mTileSets.index]
     
+    local control = NESBuilder:getControl("metatileNumber")
     control.setText(string.format('%s',data.project.mTileSets[data.project.mTileSets.index].index))
     
+    if not m then
+        controlTo.reset(2,2)
+        controlTo.clear()
+        controlTo.repaint()
+        NESBuilder:getControl("MTileAddress").setText('')
+        return
+    end
+    
+    local cols = m.w or mTileSet.w or 2
+    local rows = m.h or mTileSet.h or 2
+    
+    
+    controlTo.reset(cols,rows)
+    
+    if not m then return end
+    --local chrIndex = data.project.mTileSets[data.project.mTileSets.index].chrIndex
+    local chrIndex = m.chrIndex or mTileSet.chrIndex
+    
+    
+    if (chrIndex or data.project.chr.index) ~= data.project.chr.index then
+        setChr(chrIndex)
+    end
+    
+--    local control = NESBuilder:getControlNew("mTileList")
+--    if control.count() == 0 then return end
+    
+--    if data.project.mTileSets.index == -1 then
+--        data.project.mTileSets.index = 0
+--        control.setCurrentRow(0)
+--    end
+    
     if not data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] then
-        local mtileOffsets = data.project.mTileSets[data.project.mTileSets.index].map or {[0]=0,2,1,3}
+        --local mtileOffsets = data.project.mTileSets[data.project.mTileSets.index].map or {[0]=0,2,1,3}
+        local mtileOffsets = m.map or mTileSet.map or {[0]=0,2,1,3}
         
         for i, v in ipairs_sparse(mtileOffsets) do
             controlTo.drawTile(i%controlTo.columns *8,math.floor(i/controlTo.columns) *8, m[v], currentChr(), p, controlTo.columns, controlTo.rows)
@@ -2557,7 +2586,8 @@ function updateSquareoid()
     
     local p = data.project.palettes[data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].palette or 0]
     
-    local mtileOffsets = data.project.mTileSets[data.project.mTileSets.index].map or {[0]=0,2,1,3}
+    local mtileOffsets = m.map or mTileSet.map or {[0]=0,2,1,3}
+    --local mtileOffsets = data.project.mTileSets[data.project.mTileSets.index].map or {[0]=0,2,1,3}
     for i, v in ipairs_sparse(mtileOffsets) do
         controlTo.drawTile(i%controlTo.columns *8,math.floor(i/controlTo.columns) *8, m[v], currentChr(), p, controlTo.columns, controlTo.rows)
         controlTo.update()
@@ -2806,19 +2836,22 @@ function tsaCanvas2Qt_cmd(t)
     local tileY = math.floor(y/8)
     local tile = tileY*t.control.columns+tileX
     local tileOffset = 16*tile
+    local m = currentMetatile()
+    if not m then return end
     
     if event.button == 1 then
         t.control.drawTile(tileX*8,tileY*8, data.selectedTile, currentChr(), currentPalette(), t.control.columns, t.control.rows)
         t.control.update()
         
-        local m = currentMetatile()
+        --local m = currentMetatile()
         --local mtileOffsets = {[0]=0,2,1,3}
         m[tileX*t.control.columns+tileY] = data.selectedTile
         m.palette = data.project.palettes.index
+        m.chrIndex = data.project.chr.index
         setMetatileData(m)
         print(data.project.mTileSets[data.project.mTileSets.index])
     elseif event.button == 2 then
-        local m = currentMetatile()
+        --local m = currentMetatile()
         --local mtileOffsets = {[0]=0,2,1,3}
         data.selectedTile = m[tileX*t.control.columns+tileY]
         data.project.palettes.index = m.palette
@@ -2879,12 +2912,24 @@ function templateData(k)
     return t
 end
 
+
+pythonEval = function(s)
+    out =    "try:\n"
+    out=out.."  "..s.."\n"
+    out=out.."except LuaError as err:\n"
+    out=out.."  handleLuaError(err)\n"
+    out=out.."except Exception as err:\n"
+    out=out.."  handlePythonError(err)\n"
+    return python.eval(s)
+end
+
 fixPath = python.eval('fixPath2')
 pathSplit = python.eval("lambda x:list(os.path.split(x))")
 int = python.eval("lambda x:int(x)")
 sliceList = python.eval("lambda x,y,z:x[y:z]")
 joinList = python.eval("lambda x,y:x+y")
-reverseByte = python.eval("lambda x:int(('{:08b}'.format(x))[::-1],2)")
+--reverseByte = python.eval("lambda x:int(('{:08b}'.format(x))[::-1],2)")
+reverseByte = pythonEval("lambda x:int(('{:08b}'.format(x))[::-1],2)")
 replace = python.eval("lambda x,y,z:x.replace(y,z)")
 list = python.eval("lambda *x:[item for item in x]")
 listAppend = python.eval("lambda x,y:x.append(y)")
@@ -3376,3 +3421,8 @@ function pluginsList()
     return l
 end
 
+
+function testError_cmd(t)
+    --doesntexist()
+    print(reverseByte('potato'))
+end

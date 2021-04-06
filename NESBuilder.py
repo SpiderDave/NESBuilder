@@ -342,12 +342,7 @@ class ForLua:
     def calc(self, s):
         calc = Calculator()
         return calc(s)
-    #def getPrintable(self, item='', *args):
     def getPrintable(self, *args):
-        #return self.print(self,  item=item, *args, indent=indent, limit=limit, returnString=True)
-#        if args:
-#            print('args=',args)
-        
         ret = ''
         for arg in args:
             ret = ret + self._getPrintable(self, arg)
@@ -1238,8 +1233,8 @@ class ForLua:
         #t.text = coalesce(t.text, '')
         #ctrl.addItems(t.items)
         #lua_func = lua.eval('function(o) {0} = o return o end'.format('NESBuilder'))
-        
-        ctrl.addItems(t.itemList.values())
+        if t.itemList:
+            ctrl.addItems(t.itemList.values())
         
         t.control = ctrl
         ctrl.init(t)
@@ -1599,8 +1594,11 @@ def handlePythonError(err=None, exit=False):
     print("-"*79)
     e = traceback.format_exc().splitlines()
     e = "\n".join([x for x in e if "lupa\_lupa.pyx" not in x])
-    print(e)
-    print("-"*79)
+
+    lua_func = lua.eval("function(e) if handlePythonError then handlePythonError(e) end end")
+    if lua_func(e) != True:
+        print(e)
+        print("-"*79)
     
     if exit or cfg.getValue("main","breakonpythonerrors"):
         sys.exit(1)
@@ -1670,11 +1668,14 @@ def handleLuaError(err):
     err = "\n".join(err)
     err = textwrap.indent(err, " "*4)
     
-    print("-"*80)
-    print("LuaError:\n")
-    print(err)
-    print()
-    print("-"*80)
+    lua_func = lua.eval("function(e) if handleLuaError then return handleLuaError(e) end end")
+    if lua_func(err) != True:
+        print("-"*80)
+        print("*LuaError:\n")
+        print(err)
+        print()
+        print("-"*80)
+
 
     if cfg.getValue("main","breakonluaerrors"):
         sys.exit(1)
@@ -1794,6 +1795,7 @@ r = dict(
     bk3=config.colors.bk3,
     bk4=config.colors.bk4,
     bkMenuHighlight=config.colors.bk_menu_highlight,
+    bkHighlight=config.colors.bk_highlight,
     menuBk=config.colors.menuBk,
     fg=config.colors.fg,
     borderLight=config.colors.borderLight,

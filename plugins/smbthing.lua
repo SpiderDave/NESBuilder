@@ -120,47 +120,79 @@ function plugin.onInit()
     
     x,y=left,top
     
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text="tools", name="smbSwitchFrame4", functionName = 'smbthingSwitchFrame', value='tools'}
+    local remodellerItems = {'(S.M.B. Remodeller)','Mario Settings','General Settings 1','General Settings 2','Enemy Settings 1','Enemy Settings 2','Enemy Settings 3','Scoring Settings','Color Settings','Palette Settings'}
+    control = NESBuilder:makeComboBox{x=x,y=y,w=buttonWidth*1.5,h=buttonHeight*1.1, text="test", name="smbthingRemodeller", itemList = remodellerItems}
+    --control.setByText('')
+    --y = y + control.height + pad
     x = x + control.width + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text="palette", name="smbSwitchFrame4", functionName = 'smbthingSwitchFrame', value='palette'}
+    
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text="tools", name="smbSwitchFrame4", functionName = 'smbthingRemodeller', value='tools'}
     x = x + control.width + pad
-    for i,item in pairs(smbData) do
-        if item.category then
-            control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text=item.category, name="smbSwitchFrame", functionName = 'smbthingSwitchFrame', value=item.category}
-            x = x + control.width + pad
-        end
-    end
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text="palette", name="smbSwitchFrame4", functionName = 'smbthingRemodeller', value='palette'}
+    x = x + control.width + pad
+--    for i,item in pairs(smbData) do
+--        if item.category then
+--            control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text=item.category, name="smbSwitchFrame", functionName = 'smbthingSwitchFrame', value=item.category}
+--            x = x + control.width + pad
+--        end
+--    end
     
     y = y + control.height + pad
     
     x=left
     startY = y
     
-    plugin.frames2 = {
+    local setFrame = function(self, f)
+        for k,v in pairs(self) do
+            if k == "set" then
+            elseif k == f then
+                v.show()
+            else
+                v.hide()
+            end
+        end
+    end
+    
+    plugin.remodellerFrames = {
+        set = setFrame,
         palette = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="palette"},
-        frame2 = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="frame2"},
         tools = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="smbthingTools"},
+    }
+    for i,v in ipairs(remodellerItems) do
+        plugin.remodellerFrames[v] = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, v}
+    end
+    
+    NESBuilder:setContainer(plugin.remodellerFrames['Mario Settings'])
+    x,y = left,top
+    
+    for i,item in pairs(smbData) do
+        if item.category then
+            control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text=item.category, name="smbSwitchFrame", functionName = 'smbthingSwitchFrame', value=item.category}
+            x = x + control.width + pad
+        end
+    end
+    x=left
+    
+    --palette = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="palette"},
+    --tools = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="smbthingTools"},
+    plugin.frames2 = {
+        frame2 = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="frame2"},
         speed = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="speed"},
         jump1 = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="jump1"},
         jump2 = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="jump2"},
         frame6 = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name="frame6"},
-        set = function(self, f)
-            for k,v in pairs(self) do
-                if k == "set" then
-                elseif k == f then
-                    v.show()
-                else
-                    v.hide()
-                end
-            end
-        end,
+        set = setFrame,
     }
+    
+    
+    
+    
     
 --    control = NESBuilder:makeLabelQt{x=x,y=y,name="testLabel",clear=true,text="SMB Thing!"}
 --    control.setFont("Verdana", 24)
 --    y = y + control.height + pad
     
-    NESBuilder:setContainer(plugin.frames2.palette)
+    NESBuilder:setContainer(plugin.remodellerFrames.palette)
     x,y = left,top
     
     push(y)
@@ -257,7 +289,7 @@ function plugin.onInit()
         end
     end
     
-    NESBuilder:setContainer(plugin.frames2.tools)
+    NESBuilder:setContainer(plugin.remodellerFrames.tools)
     x,y = left,top
     --control = NESBuilder:makeLabelQt{x=x,y=y,w=buttonWidth, text='tools'}
     
@@ -268,6 +300,15 @@ function plugin.onInit()
     control.helpText = "Generate Metatiles for use in the Metatiles tab."
     y = y + control.height + pad
 
+end
+
+function smbthingRemodeller_cmd(t)
+    local control = t.control or t
+    
+    if control.value == '' then return end
+    print(control.value)
+    
+    plugin.remodellerFrames:set(control.value)
 end
 
 function smbthingSwitchFrame_cmd(t)

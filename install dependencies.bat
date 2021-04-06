@@ -2,6 +2,20 @@
 
 set numpackages=7
 
+echo Checking for administrative permissions...
+
+net session >nul 2>&1
+if %errorLevel% == 0 (
+    echo Admin permissions confirmed.
+) else (
+    set errormessage=Please run this file as adminstrator
+    goto error
+)
+
+rem make sure the working folder is the one containing this file.
+cd /D "%~dp0"
+echo current directory: %cd%
+
 rem run this to fill the pycmd environment variable
 call findpython.bat 1
 if %errorlevel% NEQ 0 goto error
@@ -49,10 +63,14 @@ if "%%A"=="pip" (set %%A=%%B) else ^
 if "%%A"=="lupa" (set %%A=%%B) else ^
 if "%%A"=="numpy" (set %%A=%%B) else ^
 if "%%A"=="PyInstaller" (set %%A=%%B) else ^
+if "%%A"=="pyinstaller" (set %%A=%%B) else ^
 if "%%A"=="PyQt5" (set %%A=%%B) else ^
 if "%%A"=="Pillow" (set %%A=%%B) else ^
 if "%%A"=="QScintilla" (set %%A=%%B) else ^
 rem
+
+rem Windows 10 (and others?) is "pyinstaller" (lowercase)
+if %pyinstaller%x neq x set PyInstaller=%pyinstaller%
 
 if %pip%x neq x (echo pip %pip% & set /a counter=%counter%+1) else echo pip [not installed]
 if %lupa%x neq x (echo lupa %lupa% & set /a counter=%counter%+1) else (echo lupa [not installed])

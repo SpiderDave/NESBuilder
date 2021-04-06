@@ -489,7 +489,7 @@ directives = [
     'orgpad','quit','incchr','chr','setpalette','loadpalette',
     'rept','endr','endrept','sprite8x16','export','diff',
     'assemble', 'exportchr', 'ips','gg','echo','function','endf', 'endfunction',
-    'return','namespace',
+    'return','namespace','break',
 ]
 
 filters = [

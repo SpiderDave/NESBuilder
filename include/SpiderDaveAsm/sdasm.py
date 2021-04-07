@@ -271,6 +271,9 @@ class Assembler():
     currentTextMap = 'default'
     textMap = {}
     errorLinePos = False
+    expected = False
+    expectedWait = False
+    warnings = 0
     palette = defaultPalette[:]
     currentPalette = [0x0f,0x01,0x11,0x30]
     stripHeader = False
@@ -489,7 +492,7 @@ directives = [
     'orgpad','quit','incchr','chr','setpalette','loadpalette',
     'rept','endr','endrept','sprite8x16','export','diff',
     'assemble', 'exportchr', 'ips','gg','echo','function','endf', 'endfunction',
-    'return','namespace','break',
+    'return','namespace','break','expected',
 ]
 
 filters = [
@@ -687,7 +690,7 @@ makeHex = lambda x: '$'+x.to_bytes(((x.bit_length()|1  + 7) // 8),"big").hex()
 specialSymbols = [
     'sdasm','bank','banksize','chrsize','randbyte','randword','fileoffset',
     'prgbanks','chrbanks','lastbank','lastchr','mapper','binfile','namespace',
-    'vectornmi','vectorreset','vectorirq',
+    'vectornmi','vectorreset','vectorirq','warnings',
 ]
 
 timeSymbols = ['year','month','day','hour','minute','second']
@@ -834,6 +837,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             return str(out[5])
         elif s == 'mapper':
             return str((out[7] & 0xf0) + (out[6]>>4))
+        elif s == 'warnings':
+            return str(assembler.warnings)
         elif s == 'fileoffset':
             if bank != None:
                 return str(addr + bank * bankSize + headerSize)
@@ -1480,6 +1485,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         chrSize = 0x2000
         bank = None
         symbols['reptindex'] = 0
+        assembler.warnings = 0
         
         assembler.clearTextMap(all=True)
         
@@ -1500,6 +1506,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             errorText = False
             assembler.errorLinePos = False
             
+            if assembler.expectedWait:
+                assembler.expectedWait = False
+            else:
+                assembler.expected = False
             
             lineTime = time.time()
             
@@ -2122,6 +2132,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 else:
                     assembler.errorLinePos = len(line.split(' ',1)[0])+1
                     errorText = 'file not found'
+            elif k == 'expected':
+                data = (line.split(" ", 1)+[''])[1].strip()
+                assembler.expected = getString(data).strip().upper()
+                assembler.expectedWait = True # wait for next line
             elif k == 'namespace':
                 data = (line.split(" ", 1)+[''])[1].strip()
                 if data == '_pop_':
@@ -2792,11 +2806,18 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         listBytes = ' '*(3*nBytes+1)
                     else:
                         listBytes = ' '.join(['{:02X}'.format(x) for x in b[:nBytes]]).ljust(3*nBytes-1) + ('..' if len(b)>nBytes else '  ')
+                    
+                    if (not assembler.expectedWait) and assembler.expected and (listBytes.strip() != assembler.expected):
+                        errorText = 'Data and expected not matching\n'.format(listBytes.strip())
+                        errorText += '  Data:     {}\n'.format(listBytes.strip())
+                        errorText += '  Expected: {}\n'.format(assembler.expected)
                     outputText+="{} {}\n".format(listBytes, originalLine)
                 if assembler.suppressError:
                     assembler.suppressError = False
                     errorText = False
                 if errorText:
+                    assembler.warnings += 1
+                    
                     if assembler.errorLinePos:
                         outputText +=' '*38 + ' '*assembler.errorLinePos+'^\n'
                     outputText+='*** {}\n'.format(errorText)

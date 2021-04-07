@@ -2578,20 +2578,21 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     
                     if k == "jmp" and v.startswith("("):
                         op = getOpWithMode(k, 'Indirect')
-                    elif v.endswith('),y'):
+                    elif v.lower().endswith('),y'):
                         op = getOpWithMode(k, '(Indirect), Y')
-                    elif v.endswith(',x)'):
+                    elif v.lower().endswith(',x)'):
                         op = getOpWithMode(k, '(Indirect, X)')
-                    elif v.endswith(',x'):
-                        v = v.split(',x',1)[0]
+                    elif v.lower().endswith(',x'):
+                        # split using whichever case
+                        v = v.split(','+v[-1],1)[0]
                         
                         length = setLength or getLength(v)
                         if length == 1 and getOpWithMode(k, 'Zero Page, X'):
                             op = getOpWithMode(k, 'Zero Page, X')
                         elif getOpWithMode(k, 'Absolute, X'):
                             op = getOpWithMode(k, 'Absolute, X')
-                    elif v.endswith(',y'):
-                        v = v.split(',y',1)[0]
+                    elif v.lower().endswith(',y'):
+                        v = v.split(','+v[-1],1)[0]
                         length = setLength or getLength(v)
                         if length == 1 and getOpWithMode(k, 'Zero Page, Y'):
                             op = getOpWithMode(k, 'Zero Page, Y')

@@ -323,6 +323,7 @@ Function .onInstSuccess
     MessageBox MB_OK|MB_ICONINFORMATION 'Error: not all files were downloaded.!'
     goto skipdependencies
     noerror:
+    IfFileExists "$INSTDIR\install dependencies.bat" 0 skipdependencies
     ExpandEnvStrings $0 %COMSPEC%
     ExecWait '"$0" /C "$INSTDIR\install dependencies.bat"'
     skipdependencies:

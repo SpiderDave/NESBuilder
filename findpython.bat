@@ -99,8 +99,6 @@ if %pycmd%x NEQ x goto foundpython
 :pythonnotfound
 
 set errormessage=Could not find python
-if %windowsversion% equ 10 goto getpython
-
 goto error
 
 :foundpython
@@ -109,22 +107,6 @@ echo Found.
 rem -----------------------------------
 
 goto success
-
-:getpython
-
-rem Make sure we have the May 2019 update of windows which
-rem added "python" and "python3" commands to take you to the
-rem Windows store.
-where python3
-if %errorlevel% neq 0 goto error
-
-choice /c yn /m "Python not found.  Do you want to install it now?"
-if %errorlevel% neq 1 goto error
-
-set errormessage=Please re-run after installing python.
-python3
-
-goto error
 
 :error
 echo.

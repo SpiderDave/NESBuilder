@@ -12,13 +12,22 @@ if %errorLevel% == 0 (
     goto error
 )
 
+set windowsversion=
+for /f "tokens=4-5 delims=. " %%i in ('ver') do set VERSION=%%i.%%j
+if "%version%" == "6.3" set windowsversion=8
+if "%version%" == "6.2" set windowsversion=8
+if "%version%" == "6.1" set windowsversion=7
+if "%version%" == "6.0" set windowsversion=Vista
+if "%version%" == "10.0" set windowsversion=10
+echo Detecting OS: Windows %windowsversion%
+
 rem make sure the working folder is the one containing this file.
 cd /D "%~dp0"
 echo current directory: %cd%
 
 rem run this to fill the pycmd environment variable
 call findpython.bat 1
-if %errorlevel% NEQ 0 goto error
+if %errorlevel% NEQ 0 goto getpython
 
 echo.
 
@@ -84,6 +93,22 @@ echo ----------------------------------------
 if %counter% neq %numpackages% set errormessage=Some packages not installed.&goto error
 
 goto success
+
+:getpython
+
+rem Make sure we have the May 2019 update of windows which
+rem added "python" and "python3" commands to take you to the
+rem Windows store.
+rem where python3
+rem if %errorlevel% neq 0 goto error
+
+choice /c yn /m "Python not found.  Do you want to install it now?"
+if %errorlevel% neq 1 goto error
+
+set errormessage=Please re-run after installing python.
+start https://www.python.org/downloads/
+
+goto error
 
 :error
 echo.

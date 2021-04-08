@@ -733,6 +733,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     cfg.setDefault('main', 'quotes', '\',","""')
     cfg.setDefault('main', 'suppressErrorPrefix', '-E-,-e-')
     cfg.setDefault('main', 'floorDiv', False)
+    cfg.setDefault('main', 'xkasplusbranch', False)
     
     assembler.quotes = tuple(makeList(cfg.getValue('main', 'quotes')))
 
@@ -1435,6 +1436,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         lineSep = makeList(cfg.getValue('main', 'linesep'))
         suppressErrorPrefix = makeList(cfg.getValue('main', 'suppressErrorPrefix'))
         caseSensitive = cfg.isTrue(cfg.getValue('main', 'caseSensitive'))
+        xkasplusbranch = cfg.isTrue(cfg.getValue('main', 'xkasplusbranch'))
         
         # This is important for consistancy in each pass
         random.setstate(rndState)
@@ -2625,13 +2627,21 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                             op = getOpWithMode(k, "Relative")
                 if op:
                     if op.mode == 'Relative' and passNum == lastPass:
-                        if getValue(v) == currentAddress+op.length:
+                        v2 = getValue(v)
+                        if xkasplusbranch and ('${:02x}'.format(v2) == v.lower()) and (v2 < 0x80):
+                            # xkasplus branching quirks
+                            #
+                            # use the value directly with the opcode if:
+                            #    it is in hex, not an expression, less than 0x80,
+                            #    and 3 characters long (i.e. not $0010)
+                            v = getValue(v)
+                        elif v2 == currentAddress+op.length:
                             v = 0
-                        elif getValue(v) > currentAddress+op.length:
-                            v = getValue(v) - (currentAddress+op.length)
+                        elif v2 > currentAddress+op.length:
+                            v = v2 - (currentAddress+op.length)
                             v='${:02x}'.format(v)
                         else:
-                            v = (currentAddress+op.length) - getValue(v)
+                            v = (currentAddress+op.length) - v2
                             v='${:02x}'.format(0x100 - v)
                     v,l = getValueAndLength(v)
                     l = bytesForNumber(v)

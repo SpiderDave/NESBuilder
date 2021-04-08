@@ -4,7 +4,7 @@
 
 Name "Silent"
 OutFile "NESBuilder_Setup.exe"
-RequestExecutionLevel user
+RequestExecutionLevel admin
 
 # uncomment the following line to make the installer silent by default.
 SilentInstall silent

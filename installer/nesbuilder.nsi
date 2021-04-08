@@ -13,6 +13,9 @@ var err
 !include "MUI2.nsh"
 !include Sections.nsh
 
+;!include LogicLib.nsh
+RequestExecutionLevel admin ;Require admin rights on NT6+ (When UAC is turned on)
+
 ; Download a file
 !macro dl source
     !define UniqueID ${__LINE__}
@@ -321,3 +324,12 @@ Function .onInstSuccess
     noerror:
 FunctionEnd
 
+;Function .onInit
+;UserInfo::GetAccountType
+;pop $0
+;${If} $0 != "admin" ;Require admin rights on NT4+
+;    MessageBox mb_iconstop "Administrator rights required!"
+;    SetErrorLevel 740 ;ERROR_ELEVATION_REQUIRED
+;    Quit
+;${EndIf}
+;FunctionEnd

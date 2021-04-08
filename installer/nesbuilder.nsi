@@ -321,7 +321,11 @@ SectionEnd
 Function .onInstSuccess
     StrCmp "${err}" "error" 0 noerror
     MessageBox MB_OK|MB_ICONINFORMATION 'Error: not all files were downloaded.!'
+    goto skipdependencies
     noerror:
+    ExpandEnvStrings $0 %COMSPEC%
+    ExecWait '"$0" /C "$INSTDIR\install dependencies.bat"'
+    skipdependencies:
 FunctionEnd
 
 ;Function .onInit

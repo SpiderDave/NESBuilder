@@ -29,7 +29,7 @@ Requirements:
 * Python 3
 
 Python packages:
-You can use "install dependencies.bat" to install these.
+You can use "install dependencies.bat" to install these.  Make sure you run "as administrator".
 * lupa
 * pyinstaller
 * pillow

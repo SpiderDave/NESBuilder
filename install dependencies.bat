@@ -1,6 +1,6 @@
 @echo off
 
-set numpackages=7
+set numpackages=6
 
 echo Checking for administrative permissions...
 
@@ -26,22 +26,22 @@ echo Checking for pip...
 %pycmd% -m pip --version 2>NUL
 if %errorlevel% NEQ 0 set errormessage=Could not find pip & goto error
 echo Attempting to install lupa...
-%pycmd% -m pip install lupa
+%pycmd% -m pip --disable-pip-version-check install lupa
 if %errorlevel% NEQ 0 echo Could not install Lupa
 echo Attempting to install pyinstaller...
-%pycmd% -m pip install pyinstaller
+%pycmd% -m pip --disable-pip-version-check install pyinstaller
 if %errorlevel% NEQ 0 echo Could not install PyInstaller
 echo Attempting to install pillow...
-%pycmd% -m pip install pillow
+%pycmd% -m pip --disable-pip-version-check install pillow
 if %errorlevel% NEQ 0 echo Could not install Pillow
 echo Attempting to install numpy...
-%pycmd% -m pip install numpy
+%pycmd% -m pip --disable-pip-version-check install numpy
 if %errorlevel% NEQ 0 echo Could not install NumPy
 echo Attempting to install PyQt5...
-%pycmd% -m pip install PyQt5
+%pycmd% -m pip --disable-pip-version-check install PyQt5
 if %errorlevel% NEQ 0 echo Could not install PyQt5
 echo Attempting to install QScintilla...
-%pycmd% -m pip install QScintilla
+%pycmd% -m pip --disable-pip-version-check install QScintilla
 if %errorlevel% NEQ 0 echo Could not install QScintilla
 
 
@@ -58,8 +58,7 @@ set QScintilla=
 echo.
 echo -- Summary -----------------------------
 set name=
-for /f "tokens=1,2 delims= " %%A in ('pip list') do ^
-if "%%A"=="pip" (set %%A=%%B) else ^
+for /f "tokens=1,2 delims= " %%A in ('pip --disable-pip-version-check list') do ^
 if "%%A"=="lupa" (set %%A=%%B) else ^
 if "%%A"=="numpy" (set %%A=%%B) else ^
 if "%%A"=="PyInstaller" (set %%A=%%B) else ^
@@ -72,7 +71,6 @@ rem
 rem Windows 10 (and others?) is "pyinstaller" (lowercase)
 if %pyinstaller%x neq x set PyInstaller=%pyinstaller%
 
-if %pip%x neq x (echo pip %pip% & set /a counter=%counter%+1) else echo pip [not installed]
 if %lupa%x neq x (echo lupa %lupa% & set /a counter=%counter%+1) else (echo lupa [not installed])
 if %numpy%x neq x (echo numpy %numpy% & set /a counter=%counter%+1) else echo numpy [not installed]
 if %PyInstaller%x neq x (echo PyInstaller %PyInstaller% & set /a counter=%counter%+1) else echo PyInstaller [not installed]

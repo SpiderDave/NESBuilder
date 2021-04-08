@@ -18,6 +18,15 @@ rem     %pycmd% myScript.py
 rem
 rem     :theend
 
+set windowsversion=
+for /f "tokens=4-5 delims=. " %%i in ('ver') do set VERSION=%%i.%%j
+if "%version%" == "6.3" set windowsversion=8
+if "%version%" == "6.2" set windowsversion=8
+if "%version%" == "6.1" set windowsversion=7
+if "%version%" == "6.0" set windowsversion=Vista
+if "%version%" == "10.0" set windowsversion=10
+echo Detecting OS: Windows %windowsversion%
+
 set dopause=0
 
 rem turn on pause at the end if we're running this by itself
@@ -37,12 +46,13 @@ if %errorlevel% EQU 0 set pycmd=python&goto foundpython
 echo Attempt 3: "python" using "python" environment variable
 
 rem check for environment variable
-if %python%X EQU X goto pythonnotfound
+if %python%X EQU X goto attempt4
 
 rem test "%python%/python"
 %python%\python -c "from sys import version_info as v;_=0/int(v.major/3)">nul 2>&1
 if %errorlevel% EQU 0 set pycmd=%python%\python&goto foundpython
 
+:attempt4
 echo Attempt 4: Registry
 
 rem Minimum target is 3.6 so we can use f-strings.
@@ -89,6 +99,8 @@ if %pycmd%x NEQ x goto foundpython
 :pythonnotfound
 
 set errormessage=Could not find python
+if %windowsversion% equ 10 goto getpython
+
 goto error
 
 :foundpython
@@ -98,11 +110,27 @@ rem -----------------------------------
 
 goto success
 
+:getpython
+
+rem Make sure we have the May 2019 update of windows which
+rem added "python" and "python3" commands to take you to the
+rem Windows store.
+where python3
+if %errorlevel% neq 0 goto error
+
+choice /c yn /m "Python not found.  Do you want to install it now?"
+if %errorlevel% neq 1 goto error
+
+set errormessage=Please re-run after installing python.
+python3
+
+goto error
+
 :error
 echo.
 echo.ERROR: %errormessage%
 echo.
-pause
+if %dopause% NEQ 0 pause
 goto theend
 
 :success

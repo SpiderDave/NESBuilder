@@ -21,8 +21,13 @@ except: badImport('lupa')
 from lupa import LuaRuntime
 from lupa import LuaError
 lua = LuaRuntime(unpack_returned_tuples=True)
-try: import PyQt5.QtWidgets
+
+try: import PyQt5
 except: badImport('PyQt5')
+
+try: import PyQt5.QtWidgets
+except: badImport('PyQt5.QtWidgets')
+
 try: from PIL import ImageTk, Image, ImageDraw
 except: badImport('Pillow')
 from PIL import ImageOps

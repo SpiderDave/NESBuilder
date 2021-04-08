@@ -45,7 +45,7 @@ from textwrap import dedent
 from collections import deque
 
 try:
-    from PIL import ImageTk, Image, ImageDraw, ImageOps, ImageGrab
+    from PIL import Image, ImageOps
     PIL = True
 except Exception as e:
     PIL = False
@@ -450,6 +450,8 @@ class Assembler():
             os.path.join(str(pathlib.Path(*pathlib.Path(self.initialFolder).parts[:1])),filename),
             os.path.join(os.path.dirname(os.path.realpath(__file__)),filename),
         ]
+        
+        files = [x.replace('\\\\','\\') for x in files]
         
         for f in files:
             if os.path.isfile(f): return f
@@ -900,7 +902,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     def getValueAndLength(v, mode=False, param=False, hint=False):
         assembler.errorHint = False
         if type(v) is int:
-            l = 1 if v <=256 else 2
+            l = 1 if v < 256 else 2
             return v,l
         
         if mode == 'getbyte':
@@ -1202,7 +1204,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 return v,len(v)
             else:
                 return 0, 1
-            l = 1 if v <=256 else 2
+            l = 1 if v < 256 else 2
             return v,l
         if '-' in v:
             v = v.split('-', 1)
@@ -1214,7 +1216,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 return v,len(v)
             else:
                 return 0, 1
-            l = 1 if v <=256 else 2
+            l = 1 if v < 256 else 2
             return v,l
         
         if v.startswith('#'):
@@ -1270,9 +1272,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         l = len(v)
                     else:
                         v = operations[op](v0, v1)
-                        l = 1 if v <=256 else 2
+                        l = 1 if v < 256 else 2
                     #v = operations[op](getValue(v[0]), getValue(v[1]))
-                    #l = 1 if v <=256 else 2
+                    #l = 1 if v < 256 else 2
                     return v,l
         elif v.startswith('0x'):
             v = int(v[2:],16)
@@ -1287,7 +1289,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             l = 1
             v = int(v[1:],2)
         elif isNumber(v):
-            l = 1 if int(v,10) <=256 else 2
+            l = 1 if int(v,10) < 256 else 2
             v = int(v,10)
         elif nsSymbol(v) in symbols:
             v, l = getValueAndLength(symbols[nsSymbol(v)], mode=mode)
@@ -2868,6 +2870,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 print('{:05x}: {:02x}'.format(a,b))
                 out[a] = 0
     print('done.')
+    
+    if assembler.warnings > 0:
+        print('Warnings: {}'.format(assembler.warnings))
     
     if outputFilename:
         with open(outputFilename, "wb") as file:

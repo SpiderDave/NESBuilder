@@ -105,10 +105,19 @@ rem if %errorlevel% neq 0 goto error
 choice /c yn /m "Python not found.  Do you want to install it now?"
 if %errorlevel% neq 1 goto error
 
+echo When installing Python, make sure to select the
+echo "Add Python to path" option in the installer.
+echo.
+echo When finished, press any key to continue and install dependencies.
+echo Press any key to launch Python's download page in a browser.
+pause
+
 set errormessage=Please re-run after installing python.
 start https://www.python.org/downloads/
 
-goto error
+pause
+start "install dependencies.bat"
+goto theend
 
 :error
 echo.

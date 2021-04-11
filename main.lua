@@ -65,9 +65,6 @@ data.projectTypes = {
     {name = "dev", text = "NES Game", helpText="Create a new NES game."},
     {name = "romhack", text = "Rom Hack", helpText="Modify an existing NES Rom."},
 }
-data.templateTypes = {
-    {name = "smb", text = "SMB Romhack", helpText="Super Mario Bros. Romhack."},
-}
 
 -- Override print with something custom.
 _print = print
@@ -483,22 +480,41 @@ function init()
         control.height=20
     end
     
+    
     NESBuilder:setContainer(data.launchFrames.templates)
-    for i, item in ipairs(data.templateTypes) do
-        --recentData[i-1]={}
+    
+    local i = 1
+    local baseFilename
+    local name
+    for f in python.iter(NESBuilder:files(data.folders.templates..'*.template.zip')) do
+        baseFilename = pathSplit(f)[1]
+        name = nil
+        local templateConfig = NESBuilder:getTextFromArchive(f, 'template.ini')
+        if templateConfig then
+            name = NESBuilder:parseTemplateData(templateConfig, 'main', 'name')
+        end
+        if not name then
+            name = pathSplit(f)[1]
+            name = rsplit(name, '.template.zip')[0]
+        end
+        
         x = ((i-1) % columns)*(iconWidth+15) + pad
         y = math.floor((i-1)/columns)*130
         
-        control = NESBuilder:makeLauncherIcon{x=x,y=y,h=120, w=iconWidth, name="launcherTemplate", index=i-1}
-        control.helpText = item.helpText
+        control = NESBuilder:makeButtonQt{x=x,y=y,w=iconWidth, h=120, name="launcherTemplate",text=name, index=i-1, class="templateButton", filename=baseFilename}
+        --control.setIconFromArchive(data.folders.templates..'smb.template.zip', 'templateicon.png')
+        control.setIconFromArchive(f, 'templateicon.png')
+        
+        if templateConfig then
+            control.helpText = NESBuilder:parseTemplateData(templateConfig, 'main', 'helptext')
+        end
+
+        --control.helpText = item.helpText
 
         y=y+control.height-25
-        control = NESBuilder:makeLabelQt{x=x,y=y, name="launcherTemplateLabel", text=item.text, class="launcherText"}
-        control.autoSize = false
-        control.width = iconWidth
-        control.height=20
+        i=i+1
     end
-    
+
     NESBuilder:makeTab{name="Metatiles", text="Metatiles"}
     NESBuilder:setTabQt("Metatiles")
     
@@ -946,9 +962,7 @@ function launcherButtonTemplates_cmd()
 end
 
 function launcherTemplate_cmd(t)
-    local template = data.templateTypes[t.index+1]
-    local filename = template.filename or (template.name .. ".template")
-    loadTemplate(filename)
+    loadTemplate(t.filename)
 end
 
 function launcherProjectType_cmd(t)
@@ -961,23 +975,26 @@ function launcherProjectType_cmd(t)
 end
 
 function doTemplateActions()
-    for _, actions in ipairs(templateData('actions') or {}) do
-        for k, v in pairs(actions) do
-            if k == 'loadRom' then
-                -- wipe rom data here to make sure 
-                -- we're loading fresh when prompted.
-                data.project.rom = {}
-                loadRom()
-            end
-            if k == 'showInfo' then 
-                NESBuilder:showInfo(v.title or "Info", v.text)
-            end
-            if k == 'importCHR' then 
-                importAllChr() 
-            end
-            handlePluginCallback("onTemplateAction", {k, v})
+    local k,v
+    for action in python.iter(getTemplateData('actions')) do
+        k=action[0]
+        v=action[1] or ''
+
+        if k == 'loadRom' then
+            -- wipe rom data here to make sure 
+            -- we're loading fresh when prompted.
+            data.project.rom = {}
+            loadRom()
         end
+        if k == 'showInfo' then 
+            NESBuilder:showInfo(v.title or "Info", v)
+        end
+        if k == 'importCHR' then 
+            importAllChr() 
+        end
+        handlePluginCallback("onTemplateAction", {k, v})
     end
+    
     handlePluginCallback("onTemplateInit")
 end
 
@@ -1103,8 +1120,10 @@ function ppLoad()
                 value = boolNumber(value)
             end
             control = getControl(n)
-            control.setChecked(value)
-            control.setText(pluginName)
+            if control then
+                control.setChecked(value)
+                control.setText(pluginName)
+            end
         end
     end
     
@@ -1307,21 +1326,29 @@ function loadTemplate(templateFileName)
     
     data.projectID = n
     data.project.folder = n.."/"
-    LoadProject(templateFileName)
+    
+    
+    NESBuilder:setWorkingFolder()
+    -- make sure folders exist for this project
+    NESBuilder:makeDir(data.folders.projects..data.project.folder)
+    
+    -- exclude template files
+    local exclude = list('templateicon.png', 'template.ini')
+    NESBuilder:extractAll(data.folders.templates..templateFileName, data.folders.projects..data.project.folder, exclude)
+    
+    LoadProject()
     
     data.project.template = data.project.template or {}
-    data.project.template.actions = {
-        {showInfo = {text="Please select the original SMB rom in the following file dialog."}},
-        {loadRom = True},
-        {importCHR = True},
-        {initSMB = True},
-    }
+    
+    local templateConfig = NESBuilder:getTextFromArchive(data.folders.templates..templateFileName, 'template.ini')
+    if templateConfig then
+        print(templateConfig)
+        data.project.template.data = templateConfig
+    else
+        data.project.template.data = ''
+    end
     
     doTemplateActions()
-    
-    
-    -- need a way to set this to create templates
-    --data.project.template.code = "files/smb"
 end
 
 
@@ -1828,6 +1855,7 @@ function LoadProject(templateFilename)
     else
         filename = data.folders.projects..projectFolder.."project.dat"
     end
+    print('load project filename: '..filename)
     
     data.project = util.unserialize(util.getFileContents(filename))
     
@@ -1924,9 +1952,11 @@ function LoadProject(templateFilename)
     
     data.project.rom = data.project.rom or {}
     
-    if data.project.rom.filename and not data.project.rom.data then
-        loadRom(data.project.rom.filename)
-        print('loading rom data')
+    if not templateFilename then
+        if data.project.rom.filename and not data.project.rom.data then
+            loadRom(data.project.rom.filename)
+            print('loading rom data')
+        end
     end
     
     local t = {}
@@ -1972,7 +2002,6 @@ function LoadProject(templateFilename)
     
 --    f=data.folders.projects..projectFolder.."chr.png"
 --    NESBuilder:loadImageToCanvas(f)
-    
     ppLoad()
     
     updateTitle()
@@ -2912,6 +2941,13 @@ function templateData(k)
     return t
 end
 
+-- getTemplateData(section, key)     get single item from dict items of section
+-- getTemplateData(section, "list")  get list items of section
+-- getTemplateData(section, "dict")  get dict items of section
+-- getTemplateData()                 get entire template data structure
+function getTemplateData(section, key)
+    return NESBuilder:parseTemplateData(data.project.template.data, section, key)
+end
 
 pythonEval = function(s)
     out =    "try:\n"
@@ -2923,6 +2959,8 @@ pythonEval = function(s)
     return python.eval(s)
 end
 
+split = python.eval('str.split')
+rsplit = python.eval('str.rsplit')
 fixPath = python.eval('fixPath2')
 pathSplit = python.eval("lambda x:list(os.path.split(x))")
 int = python.eval("lambda x:int(x)")
@@ -3221,7 +3259,10 @@ end
 function importAllChr()
     local chrData, chrStart, nPrg, nChr
     local fileData = NESBuilder:tableToList(data.project.rom.data,0)
-    
+    if not fileData then
+        print('Could not import CHR data')
+        return
+    end
     nPrg = int(fileData[4])
     nChr = int(fileData[5])
     chrStart = 0x10 + nPrg * 0x4000

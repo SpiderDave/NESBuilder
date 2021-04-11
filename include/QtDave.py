@@ -5,6 +5,8 @@ import numpy as np
 
 import re
 
+from zipfile import ZipFile
+
 from PIL.ImageQt import ImageQt
 
 from PyQt5 import QtGui
@@ -389,6 +391,8 @@ class LineEdit(Base, QLineEdit):
 class TextEdit(Base, QPlainTextEdit):
     def print(self, txt=''):
         self.appendPlainText(str(txt))
+    def setText(self, txt=''):
+        self.setPlainText(str(txt))
     def save(self, filename):
         try:
             with open(filename, "w") as file:
@@ -456,7 +460,30 @@ class Button(Base, QPushButton):
             return True
         except:
             return False
-
+    def setIconFromArchive(self, zipFilename, filename):
+        try:
+            zip=ZipFile(zipFilename)
+            if filename in zip.namelist():
+                data = zip.read(filename)
+                pm = QtGui.QPixmap()
+                pm.loadFromData(data)
+                super().setIcon(QIcon(pm))
+                self.setIconSize(QSize(64, 64))
+                super().setProperty('hasIcon', True)
+                return True
+            return False
+        except:
+            return False
+    def setIconFromData(self, data):
+        try:
+            pm = QtGui.QPixmap
+            pm.loadFromData(data)
+            super.setIcon(pm.QIcon())
+            self.setIconSize(QSize(64, 64))
+            super().setProperty('hasIcon', True)
+            return True
+        except:
+            return False
 
 class Label(Base, QLabel):
     def __init__(self, *args, **kw):

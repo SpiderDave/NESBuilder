@@ -348,8 +348,8 @@ end
 
 function plugin.onTemplateAction(k, v)
     if k == 'initSMB' then
-        smbthingReload_cmd()
-        smbthingMtiles_cmd()
+        plugin.smbthingReload_cmd()
+        plugin.smbthingMtiles_cmd()
     end
 end
 
@@ -376,7 +376,7 @@ function smbthingLevelExtract_cmd()
     
 end
 
-function smbthingMtiles_cmd()
+function plugin.smbthingMtiles_cmd()
     local offset = 0x8B10 - 0x8000 + 0x10
     local mTilesPerPalette = {[0]=39,46,10,6}
     local tileNum = 0

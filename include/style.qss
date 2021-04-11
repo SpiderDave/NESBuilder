@@ -165,6 +165,14 @@ QMessageBox QPushButton {
     padding-left:4px;
 }
 
+.templateButton  {
+    padding-top:.5em;
+}
+.templateButton::icon {
+    border:1px solid red !important;
+}
+
+
 .sideSpinLabel {
     text-align:center;
     /*

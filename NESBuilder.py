@@ -11,6 +11,7 @@ ToDo:
 import os, sys, time
 
 import pathlib
+from glob import glob
 
 def badImport(m):
     print('Error: Could not import {0}.  Please run "install dependencies.bat".'.format(m))
@@ -25,13 +26,16 @@ lua = LuaRuntime(unpack_returned_tuples=True)
 try: import PyQt5
 except: badImport('PyQt5')
 
-try: import PyQt5.QtWidgets
-except: badImport('PyQt5.QtWidgets')
+try:
+    import PyQt5.QtWidgets
+except Exception as e:
+    print('Error: Could not import {0}.'.format('PyQt5.QtWidgets'))
+    print('***', str(e))
+    sys.exit(1)
 
 try: from PIL import ImageTk, Image, ImageDraw
 except: badImport('Pillow')
 from PIL import ImageOps
-from PIL import ImageGrab
 from collections import deque
 import re
 
@@ -446,6 +450,10 @@ class ForLua:
             print(repr(item))
         else:
             print(item)
+    def files(self, pattern=False):
+        if not pattern:
+            pattern = fixPath2('')+'*'
+        return glob(pattern)
     def findFile(self, filename, folderList=[]):
         # Search for files in this order:
         #   Exact match
@@ -487,14 +495,27 @@ class ForLua:
         os.chdir(workingFolder)
     def getWorkingFolder(self):
         return os.getcwd()
-    def extractAll(self, file, folder):
+    def getDataFromArchive(self, zipFilename, filename):
+        zip=ZipFile(zipFilename)
+        if filename in zip.namelist():
+            return zip.read(filename)
+    def getTextFromArchive(self, zipFilename, filename):
+        zip=ZipFile(zipFilename)
+        if filename in zip.namelist():
+            return zip.read(filename).decode()
+    def extractAll(self, file, folder, exclude=False):
         file = fixPath2(file)
         #if self.fileExists(self, file):
         if True:
             folder = fixPath2(folder)
             print(file, folder)
             with ZipFile(file, mode='r') as zip:
-                zip.extractall(folder)
+                #zip.extractall(folder)
+                members = zip.namelist()
+                if exclude:
+                    members = [x for x in members if x not in list(exclude)]
+                for z in members:
+                    zip.extract(z, folder)
             return True
         else:
             print("File does not exist: {}".format(file))
@@ -636,7 +657,7 @@ class ForLua:
         self.canvas = canvas
     def makeDir(self,dir):
         dir = fixPath(script_path + "/" + dir)
-        print(dir)
+        print('makedir:',dir)
         if not os.path.exists(dir):
             os.makedirs(dir)
     def openFolder(self, initial=None):
@@ -877,6 +898,32 @@ class ForLua:
         file.write(fileData)
         file.close()
         return True
+    def parseTemplateData(self, data, section=False, key=False):
+        if not data:
+            return
+        d = dict(main=dict(itemList=[],itemDict={}))
+        s = 'main'
+        for line in data.splitlines():
+            line = line.strip()
+            if line.startswith('[') and line.endswith(']'):
+                # create section if it doesn't exist
+                s = line.split('[',1)[1].split(']',1)[0].strip().lower()
+                d.update({s:d.get(s, dict(itemList=[],itemDict={}))})
+            elif line and not line.startswith((';','#','//')):
+                i = min((line+'= ').find('='), (line+'= ').find(' '))
+                if i == line.find('='):
+                    d.get(s).get('itemDict').update({line[:i]:line[i+1:]})
+                else:
+                    d.get(s).get('itemList').append([line[:i], line[i+1:]])
+        if section or key:
+            if key=='list' or not key:
+                return d.get(section, d.get('main')).get('itemList')
+            elif key=='dict':
+                return d.get(section, d.get('main')).get('itemDict')
+            elif key:
+                return d.get(section, d.get('main')).get('itemDict').get(key)
+        else:
+            return d
     def unHex(self, s):
         return unhexlify(str(s))
     def hexStringToList(self, s):
@@ -1217,10 +1264,13 @@ class ForLua:
         
         if t.image:
             folder, file = os.path.split(t.image)
-            d = os.path.dirname(sys.modules[folder].__file__)
-            filename = os.path.join(d, file)
-            ctrl.setIcon(filename)
-        
+            if sys.modules.get(folder):
+                d = os.path.dirname(sys.modules[folder].__file__)
+                filename = os.path.join(d, file)
+                ctrl.setIcon(filename)
+            else:
+                ctrl.setIcon(t.image)
+                
         ctrl.clicked.connect(makeCmdNew(t))
         #ctrl.onMouseRelease = makeCmdNew(t)
         controlsNew.update({ctrl.name:ctrl})

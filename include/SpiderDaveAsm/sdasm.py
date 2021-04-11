@@ -2230,7 +2230,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 filename = line.split(" ",1)[1].strip()
                 
                 filename = getValueAsString(filename) or getString(filename)
-                print(filename)
+                if passNum == lastPass:
+                    print(filename)
                 #filename = getString(filename)
                 filename = assembler.findFile(filename)
                 if filename:
@@ -2338,10 +2339,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         symbols.pop(assembler.lower(item))
                 
                 for item in mergeList(macros[k].params, params):
-                    symbols[assembler.lower(item[0])] = item[1]
+                    #symbols[assembler.lower(item[0])] = item[1]
+                    symbols[k + namespaceSymbol + assembler.lower(item[0])] = getValue(item[1])
                 
-                lines = lines[:i]+['']+macros[k].lines+lines[i+1:]
-            if kf:
+                assembler.namespace.push(k)
+                #lines = lines[:i]+['']+macros[k].lines+lines[i+1:]
+                lines = lines[:i]+['']+macros[k].lines+[assembler.hidePrefix+'namespace _pop_']+lines[i+1:]
+            if kf: # keyword function
 #                for item in functions[kf].params:
 #                    if assembler.lower(item) in symbols:
 #                        symbols.pop(assembler.lower(item))
@@ -2353,12 +2357,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 
                 assembler.namespace.push(kf)
                 symbols['return']=None
-                lines = lines[:i]+['']+functions[kf].lines+['namespace _pop_']+lines[i+1:]
+                lines = lines[:i]+['']+functions[kf].lines+[assembler.hidePrefix+'namespace _pop_']+lines[i+1:]
             if k == 'enum':
-                oldAddr = addr
-                addr = getValue(v)
-                currentAddress = addr
+                v = getValue(line.split(' ',1)[1])
+                currentAddress = getValue(v)
                 noOutput = True
+                
+                oldAddr = addr
+#                addr = getValue(v)
+#                currentAddress = addr
+#                noOutput = True
             elif k == 'ende' or k == 'endenum':
                 addr = oldAddr
                 currentAddress = addr
@@ -2793,7 +2801,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         elif fileOffset<len(out):
                             #out = out[:fileOffset]+b+out[fileOffset+len(b):]
                             out[fileOffset:fileOffset+len(b)] = b
-                addr = addr + len(b)
+                if noOutput==False:
+                    addr = addr + len(b)
                 currentAddress = currentAddress + len(b)
             
             if assembler.hideOutputLine:
@@ -2801,11 +2810,14 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             elif passNum == lastPass and not hide:
                 nBytes = cfg.getValue('main', 'list_nBytes')
                 
-                fileOffset = getValue('fileoffset')-len(b)
+                fileOffset = getValue('fileoffset')
+                
+                if noOutput==False:
+                    fileOffset -= len(b)
+                
                 outputText+="{:05X} ".format(fileOffset)
 
-                if startAddress:
-                    
+                if startAddress or noOutput == True:
                     outputText+="{:05X} ".format(currentAddress-len(b))
                 else:
                     outputText+=' '*6

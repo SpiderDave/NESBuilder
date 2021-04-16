@@ -718,7 +718,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     
     # number of bytes to show when generating list
     cfg.setDefault('main', 'list_nBytes', 8)
-    cfg.setDefault('main', 'metaCommandPrefix', ';!,//!')
+    cfg.setDefault('main', 'metaCommandPrefix', ';!,//!,;//!')
     cfg.setDefault('main', 'comment', ';,//')
     cfg.setDefault('main', 'commentBlockOpen', '/*')
     cfg.setDefault('main', 'commentBlockClose', '*/')

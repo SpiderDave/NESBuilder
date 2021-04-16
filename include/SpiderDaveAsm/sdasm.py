@@ -800,6 +800,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         return s
     def getSymbolInfo(symbol):
         symbol = symbol.strip()
+        symbol = assembler.lower(symbol)
         
         ns = assembler.namespace[-1]
         ret = Map()
@@ -1174,7 +1175,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
 #                    print(v)
 #                    for a in foundAddresses:
 #                        print('{:04x} {}'.format(a,a))
-                    return foundAddresses[-1], 2
+#                    print('using: ${:04x}'.format(foundAddresses[0]))
+                    #return foundAddresses[-1], 2
+                    return foundAddresses[0], 2
             # negative number?
             #print(aLabels)
             return int(v), 0

@@ -1170,23 +1170,28 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             if len(aLabels) > 0:
                 foundAddresses = sorted([x[1] for x in list(aLabels) if x[0]==label and x[1]<=currentAddress], reverse=True)
                 if len(foundAddresses) !=0:
-#                    print('\nfound addresses:')
-#                    print(line)
-#                    print(v)
-#                    for a in foundAddresses:
-#                        print('{:04x} {}'.format(a,a))
-#                    print('using: ${:04x}'.format(foundAddresses[0]))
-                    #return foundAddresses[-1], 2
                     return foundAddresses[0], 2
-            # negative number?
-            #print(aLabels)
             return int(v), 0
+            
         if v.startswith('+'):
+            if passNum == lastPass:
+                if not aLabelSearch.down.get(currentAddress, False):
+                    aLabelSearch.down.update({currentAddress:Map(label=v, address=currentAddress)})
+                
+                foundAddress = aLabelSearch.down.get(currentAddress).get('foundAddress', False)
+                if foundAddress and passNum==lastPass:
+                    return foundAddress, 2
             label = v.split(' ',1)[0]
             try:
                 return sorted([x[1] for x in aLabels if x[0]==label and x[1]>currentAddress])[0], 2
             except:
                 return 0,0
+#        if v.startswith('+'):
+#            label = v.split(' ',1)[0]
+#            if len(aLabels) > 0:
+#                foundAddresses = sorted([x[1] for x in list(aLabels) if x[0]==label and x[1]>currentAddress])
+#                if len(foundAddresses) !=0:
+#                    return foundAddresses[0], 2
         
         if v.startswith(tuple(assembler.localPrefix)):
             s = getSymbolInfo(v)
@@ -1402,6 +1407,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     macros = Map()
     functions = Map()
     blockComment = 0
+    aLabelSearch = Map(up=Map(), down=Map())
     
     if binFile:
         filename = assembler.findFile(binFile)
@@ -1528,6 +1534,17 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             
             # change tabs to spaces
             line = line.replace("\t"," ")
+            
+            
+            line = line.replace('+:','+ ').replace('-:','- ')
+            
+#            if '+:' in line or '-:' in line:
+#                pass
+#                print(line)
+#                line = line.replace('+:','+')
+#                line = line.replace('-:','-')
+#                print(line)            
+            #print(originalLine)
             
             if assembler.echoLine and passNum == lastPass:
                 if line.strip().lower() != 'echo off':
@@ -1678,7 +1695,46 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             # if this is a label without a suffix somehow.
             if k!='' and not (k.startswith('.') and k[1:] in directives) and not k.endswith(tuple(labelSuffix)) and ' equ ' not in line.lower() and '=' not in line and k not in list(directives)+list(macros)+list(opcodes)+opcodes2+list(functions):
                 if k.startswith('-') or k.startswith('+'):
+                    k0=k
+#                    if 'foobar' in originalLine  and passNum == lastPass:
+#                        print('line=',line)
+                    
+                    
+                    if k.startswith('+') and passNum == lastPass-1:
+                        for a in aLabelSearch.down:
+                            item = aLabelSearch.down[a]
+                            if item.get('foundAddress', False)==False and assembler.lower(item.label) == assembler.lower(k0) and currentAddress>a:
+                                aLabelSearch.down[a].update(foundAddress = currentAddress)
+                    
+                    
+                    
+#                    if k.startswith('+') and passNum == lastPass:
+#                        for a in aLabelSearch.down:
+#                            item = aLabelSearch.down[a]
+#                            if item.get('foundAddress', False)==False and assembler.lower(item.label) == assembler.lower(k0) and currentAddress>a:
+#                                aLabelSearch.down[a].update(foundAddress = currentAddress)
+                                
+#                                if 'foobar' in originalLine:
+#                                    print('line=',line)
+#                                    print(hex(a))
+#                                    print(hex(currentAddress))
+#                                    print((line+' ').split(' ',1)[1])
+#                                    print('k=',k)
+#                                    print('k0=',k0)
+                                #input('...')
+                    
+                    
                     aLabels.append([assembler.lower(k0), currentAddress])
+                    line = (line+' ').split(' ',1)[1].strip()
+                    k0 = line.split(" ",1)[0].strip()
+                    k = k0.lower()
+#                    if 'foobar' in originalLine  and passNum == lastPass:
+#                        print(hex(currentAddress))
+#                        print('originalLine=',originalLine)
+#                        print('line=',line)
+#                        print('k=',k)
+#                        print('k0=',k0)
+#                        input('...')
                 else:
                     if debug: print('label without suffix: {}'.format(k))
                     k += labelSuffix[0]
@@ -2408,10 +2464,21 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 if ',' in data:
                     fv = getValue(data.split(',')[1])
                 a = getValue(data.split(',')[0])
-                if currentAddress <= a:
-                    b.extend([fv] * (a-currentAddress))
-                else:
-                    b.extend(([fv] * (a-(addr+bank*bankSize))))
+                if a-currentAddress != 0:
+#                    print(hex(a))
+#                    print(hex(currentAddress))
+#                    print(data)
+#                    print(hex(addr))
+#                    print(hex(a-currentAddress))
+#                    print('---')
+                    
+                    if currentAddress <= a:
+                        b.extend([fv] * (a-currentAddress))
+                    else:
+                        if bank:
+                            b.extend(([fv] * (a-(addr+bank*bankSize))))
+                        else:
+                            pass
             elif k == 'fill':
                 data = line.split(' ',1)[1]
                 

@@ -72,3 +72,53 @@ def applyIps(ipsData, fileData):
             fileData[offset+i] = b
     
     return fileData
+
+def createIps(oldData, newData):
+
+    if type(oldData) == str:
+        oldData = list(oldData.encode())
+    if type(newData) == str:
+        newData = list(newData.encode())
+    
+    a = 0
+    out = list(bytearray("PATCH", 'utf8'))
+    
+    d1 = False
+    d2 = False
+    nRecords = 0
+    while True:
+        if a >= len(newData):
+            break
+        
+        d1 = oldData[a]
+        d2 = newData[a]
+        if d1==d2:
+            a=a+1
+        else:
+            length = 1
+            while True:
+                d1 = oldData[a+length]
+                d1 = newData[a+length]
+                
+                if (d1==d2) or length == 0xffff:
+                    break
+                else:
+                    length += 1
+            
+            
+            out.extend(int.to_bytes(a,3, byteorder='big'))
+            out.extend(int.to_bytes(length,2, byteorder='big'))
+            out.extend(newData[a:a+length])
+            
+            #printVerbose("address:%s length:%s", string.format("%06x",a), string.format("%04x",len))
+            
+            nRecords += 1
+            a=a+length
+            if a >= len(newData):
+                break
+    out.extend(bytearray("EOF", 'utf8'))
+    #out = out..hex2bin(string.format("%04x",#newData)) -- truncate
+    #printVerbose("%s records",nRecords)
+    return out
+
+

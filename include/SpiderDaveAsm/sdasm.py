@@ -44,6 +44,8 @@ import random
 from textwrap import dedent
 from collections import deque
 
+import traceback
+
 try:
     from PIL import Image, ImageOps
     PIL = True
@@ -288,6 +290,10 @@ class Assembler():
     lastLabel = ''
     localLabels = Map()
     localLabelKeys = {}
+    line = ''
+    lineNumber = 0
+    error = False               # used to determine if exit code 3 is needed
+    errorText = ''
     
     nesRegisters = Map(
         PPUCTRL = 0x2000, PPUMASK = 0x2001, PPUSTATUS = 0x2002,
@@ -705,6 +711,7 @@ specialSymbols+= timeSymbols
 specialSymbols+= [x.lower() for x in assembler.nesRegisters.keys()]
 
 def assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False):
+    assembler.error = False
     
     if not configFile:
         configFile = inScriptFolder('config.ini')
@@ -743,6 +750,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     cfg.setDefault('main', 'floorDiv', False)
     cfg.setDefault('main', 'xkasplusbranch', False)
     cfg.setDefault('main', 'showFileOffsetInListFile', True)
+    cfg.setDefault('main', 'fullTraceback', False)
     
     assembler.quotes = tuple(makeList(cfg.getValue('main', 'quotes')))
 
@@ -752,7 +760,40 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     assembler.cfg = cfg
 
     startTime = time.time()
-    _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile)
+    
+    try:
+        _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile)
+    except Exception as e:
+        tb = traceback.extract_tb(e.__traceback__)[-1]
+        
+        assembler.error = True
+        assembler.errorText = dedent("""
+        {dashes}
+        
+        Error: {}
+            {}:{}
+                {}
+            {}:{} in {}
+                {}
+        
+        {dashes}
+        """).format(
+            e,
+            assembler.currentFilename, assembler.lineNumber,
+            assembler.line,
+            tb.filename, tb.lineno, tb.name,
+            tb.line,
+            dashes = '-'*50,
+        )
+        #print(assembler.errorText)
+        
+        if assembler.cfg.isTrue(assembler.cfg.getValue('main', 'fullTraceback')):
+            raise e
+    
+    
+    #_assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile)
+    
+    
     endTime = time.time()-startTime
     if endTime >= 3:
         elapsed = time.strftime(' %H hours, %M minutes, %S seconds.',time.gmtime(endTime))
@@ -761,8 +802,11 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
         elapsed = elapsed.replace(' 0 minutes,','')
         elapsed = elapsed.strip()
         print(time.strftime('Finished in {}'.format(elapsed)))
-
+    
     #print(assembler.tokenize("$00,$42,5,10"))
+    if assembler.error:
+        return False, assembler.errorText
+    return True
 
 def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     
@@ -1449,7 +1493,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             print("Could not find file: {}".format(binFile))
             return
     
-    if fileData:
+    if (fileData is not None) and (fileData is not False):
         originalFileData = fileData[:]
     
     rndState = random.getstate()
@@ -1479,6 +1523,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         xkasplusbranch = cfg.isTrue(cfg.getValue('main', 'xkasplusbranch'))
         metaCommandPrefix = makeList(cfg.getValue('main', 'metaCommandPrefix'))
         showFileOffsetInListFile = cfg.isTrue(cfg.getValue('main', 'showFileOffsetInListFile'))
+        fullTraceback = cfg.isTrue(cfg.getValue('main', 'fullTraceback'))
         
         assembler.namespace = Stack([''])
         
@@ -1551,6 +1596,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             
             #currentAddress = addr
             originalLine = line
+            assembler.line = line
+            assembler.lineNumber = lineNumber
             errorText = False
             assembler.errorLinePos = False
             
@@ -3125,6 +3172,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     
     return True
     
+
 if __name__ == '__main__':
     # This stuff doesn't work because I need to get the relative
     # imports more organized.
@@ -3139,6 +3187,8 @@ if __name__ == '__main__':
                         help='Include binary file')
     parser.add_argument('-cfg', type=str, metavar="<file>",
                         help='Specify config file')
+    parser.add_argument('-fulltb', action='store_true',
+                        help='Show full traceback')
 #    parser.add_argument('-q', action='store_true',
 #                        help='Quiet mode')
 
@@ -3155,7 +3205,8 @@ if __name__ == '__main__':
     configFile = args.cfg
     binFile = args.bin
     
-    #print(args)
-    assemble(filename, outputFilename = outputFilename, listFilename = listFilename, configFile = configFile, binFile = binFile)
+    success, errorText = assemble(filename, outputFilename = outputFilename, listFilename = listFilename, configFile = configFile, binFile = binFile)
     
-
+    if not success:
+        print(errorText)
+        sys.exit(3)

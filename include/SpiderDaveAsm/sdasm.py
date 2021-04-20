@@ -1449,7 +1449,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             print("Could not find file: {}".format(binFile))
             return
     
-    originalFileData = fileData[:]
+    if fileData:
+        originalFileData = fileData[:]
     
     rndState = random.getstate()
     

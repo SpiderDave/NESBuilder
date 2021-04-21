@@ -710,7 +710,7 @@ timeSymbols = ['year','month','day','hour','minute','second']
 specialSymbols+= timeSymbols
 specialSymbols+= [x.lower() for x in assembler.nesRegisters.keys()]
 
-def assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False):
+def assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False, symbolsFile=False):
     assembler.error = False
     
     if not configFile:
@@ -762,7 +762,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     startTime = time.time()
     
     try:
-        _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile)
+        _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile, symbolsFile=symbolsFile)
     except Exception as e:
         tb = traceback.extract_tb(e.__traceback__)[-1]
         
@@ -771,8 +771,10 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
         {dashes}
         
         Error: {}
+            
             {}:{}
                 {}
+            
             {}:{} in {}
                 {}
         
@@ -785,13 +787,9 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
             tb.line,
             dashes = '-'*50,
         )
-        #print(assembler.errorText)
         
         if assembler.cfg.isTrue(assembler.cfg.getValue('main', 'fullTraceback')):
             raise e
-    
-    
-    #_assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile)
     
     
     endTime = time.time()-startTime
@@ -803,12 +801,17 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
         elapsed = elapsed.strip()
         print(time.strftime('Finished in {}'.format(elapsed)))
     
-    #print(assembler.tokenize("$00,$42,5,10"))
-    if assembler.error:
-        return False, assembler.errorText
-    return True
+    return not assembler.error, assembler.errorText
 
-def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
+def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, symbolsFile):
+    
+    def createHeader():
+        header = (list(out[:16]) + [0] * 16)[:16]
+        header[0:4] = list(bytearray("NES", 'utf8')) + [0x1a]
+        if header[4] == 0:
+            # Don't let it have zero prg
+            header[4] = 1
+        out[0:16] = header
     
     def bytesForNumber(n):
         if type(n) is float:
@@ -855,7 +858,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         if ns != '':
             ns = ns + namespaceSymbol
         
-        ret.update(key = assembler.lower(ns + symbol))
+#        if ns and symbol.startswith(ns):
+#            symbol = symbol.split(ns)[1]
+#        if namespaceSymbol in symbol:
+#            symbol = symbol.split(namespaceSymbol,1)[1]
+        
+        #ret.update(key = assembler.lower(ns + symbol))
+        ret.update(key = nsSymbol(symbol))
         ret.update(baseKey = assembler.lower(symbol))
         
         if symbol in assembler.localLabelKeys:
@@ -876,6 +885,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         ns = assembler.namespace[-1]
         if ns != '':
             ns = ns + namespaceSymbol
+        
         return assembler.lower(ns + s)
     def getSpecial(s):
         if s == 'sdasm':
@@ -1214,8 +1224,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         if v.startswith('-'):
             label = v.split(' ',1)[0]
             if passNum == lastPass:
-                l = [x for l, x in labels.anon[passNum-1].items() if x.label == assembler.lower(v) and l<=lineNumber][-1]
-                return l.address, 2
+                
+                if len(v)>1 and v[1] in '1234567890':
+                    v,l = getValueAndLength('0'+v)
+                    return v,l
+                
+                possible = [x for l, x in labels.anon[passNum-1].items() if x.label == assembler.lower(v) and l<=lineNumber]
+                if possible:
+                    l = possible[-1]
+                    return l.address, 2
             else:
                 return 0,2
 #            if len(aLabels) > 0:
@@ -1227,8 +1244,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         if v.startswith('+'):
             label = v.split(' ',1)[0]
             if passNum == lastPass:
-                l = [x for l, x in labels.anon[passNum-2].items() if x.label == assembler.lower(v) and l>lineNumber][0]
-                return l.address, 2
+
+                if len(v)>1 and v[1] in '1234567890':
+                    v,l = getValueAndLength('0'+v)
+                    return v,l
+
+                possible = [x for l, x in labels.anon[passNum-2].items() if x.label == assembler.lower(v) and l>lineNumber]
+                if possible:
+                    l = possible[0]
+                    return l.address, 2
             else:
                 return 0,2
         
@@ -1293,6 +1317,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
         if v.startswith('#'):
             v = getValue(v[1:])
             l = 1
+            #assembler.immediate = True
             return v,l
         
         if v.startswith("<"):
@@ -2328,7 +2353,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         print("Could not open file.")
                     
                     if b:
-                        fileList.append(filename)
+                        fileList.append(filename.replace('\\','/'))
                         lines = lines[:i]+['']+['setincludefolder '+assembler.currentFolder]+lines[i+1:]
                         
                         if importSymbol:
@@ -2538,13 +2563,14 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
             
             if k in macros:
                 params = (line.split(" ",1)+[''])[1].replace(',',' ').split()
-                
+                print(params)
                 for item in macros[k].params:
                     if getSymbolInfo(item):
                         symbols.pop(assembler.lower(item))
                 
                 for item in mergeList(macros[k].params, params):
-                    symbols[k + namespaceSymbol + assembler.lower(item[0])] = getValue(item[1])
+                    #symbols[k + namespaceSymbol + assembler.lower(item[0])] = getValue(item[1])
+                    symbols[k + namespaceSymbol + assembler.lower(item[0])] = item[1]
                 
                 assembler.namespace.push(k)
                 lines = lines[:i]+['']+macros[k].lines+[assembler.hidePrefix+'namespace _pop_']+lines[i+1:]
@@ -2726,7 +2752,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     if k != 'dl' and clampdb == False:
                         assembler.errorLinePos = len(line.split(' ',1)[0])+1
                         errorText = "invalid value"
-                    values = [max(0, x) % 256 for x in values]
+                    #values = [max(0, x) % 256 for x in values]
+                    values = [x % 256 for x in values]
                 
                 b = b + makeList(values)
             elif k == 'db' or k=='byte' or k == 'byt' or k == 'dc.b' or k == 'dl':
@@ -2740,7 +2767,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     if k != 'dl' and clampdb == False:
                         assembler.errorLinePos = len(line.split(' ',1)[0])+1
                         errorText = "invalid value"
-                    values = [max(0, x) % 256 for x in values]
+                    #values = [max(0, x) % 256 for x in values]
+                    values = [x % 256 for x in values]
                 
                 l = len(values)
                 
@@ -2810,6 +2838,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                     v = (line.split(" ",1)+[''])[1].strip()
                     oldv = v
                     v=v.replace(', ',',').replace(' ,',',')
+                    immediate = False
+                    
+                    sInfo = getSymbolInfo(nsSymbol(v))
+                    if sInfo and str(sInfo.get('value','')).startswith('#'):
+                        immediate = True
                     
                     if k == "jmp" and v.startswith("("):
                         op = getOpWithMode(k, 'Indirect')
@@ -2823,14 +2856,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                         
                     elif v.lower().endswith(',x)'):
                         op = getOpWithMode(k, '(Indirect, X)')
-#                        print(op)
 
                         length = setLength or getLength(v)
-#                        print(length)
-#                        if length==3:
-#                            errorText= 'value out of range: {}'.format(hex(v))
-#                        if length == 3 and getOpWithMode(k, 'Absolute, X'):
-#                            op = getOpWithMode(k, 'Absolute, X')
                     elif v.lower().endswith(',x'):
                         # split using whichever case
                         v = v.split(','+v[-1],1)[0]
@@ -2849,6 +2876,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                             op = getOpWithMode(k, 'Absolute, Y')
                     elif v.startswith("#"):
                         v = v[1:]
+                        op = getOpWithMode(k, 'Immediate')
+                    elif immediate:
                         op = getOpWithMode(k, 'Immediate')
                     else:
                         length = setLength or getLength(v)
@@ -3112,6 +3141,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
                 out[a] = 0
     print('done.')
     
+    assembler.currentFilename = None
+    assembler.line = ''
+    assembler.lineNumber = 0
+    
     if assembler.warnings > 0:
         print('Warnings: {}'.format(assembler.warnings))
     
@@ -3157,20 +3190,20 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile):
     else:
         print('No list file')
     
-    if debug:
-        f = 'debug_symbols.txt'
-        with open(f, "w") as file:
+    if debug and not symbolsFile:
+        symbolsFile = 'debug_symbols.txt'
+    
+    if symbolsFile:
+        with open(symbolsFile, "w") as file:
             for k,v in symbols.items():
                 print('{} = {}'.format(k,v), file=file)
         print('{} written.'.format(f))
     if debug:
         f = 'debug_files.txt'
         with open(f, "w") as file:
-            file.writelines(fileList)
+            file.write('\n'.join(fileList))
         print('{} written.'.format(f))
     print()
-    
-    return True
     
 
 if __name__ == '__main__':
@@ -3191,6 +3224,8 @@ if __name__ == '__main__':
                         help='Show full traceback')
 #    parser.add_argument('-q', action='store_true',
 #                        help='Quiet mode')
+    parser.add_argument('-symbols', type=str, metavar="<file>",
+                        help='Specify export symbols file')
 
     parser.add_argument('sourcefile', type=str,
                         help='The file to assemble')
@@ -3204,8 +3239,9 @@ if __name__ == '__main__':
     listFilename = args.l
     configFile = args.cfg
     binFile = args.bin
+    symbolsFile = args.symbols
     
-    success, errorText = assemble(filename, outputFilename = outputFilename, listFilename = listFilename, configFile = configFile, binFile = binFile)
+    success, errorText = assemble(filename, outputFilename = outputFilename, listFilename = listFilename, configFile = configFile, binFile = binFile, symbolsFile = symbolsFile)
     
     if not success:
         print(errorText)

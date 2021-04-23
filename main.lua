@@ -380,8 +380,11 @@ function init()
     left = pad*2
     top = pad*2
     x,y,pad = left,top,8
-    control = NESBuilder:makeTable{x=x,y=y,w=buttonWidth*4,h=buttonHeight*20, name="symbolsTable1",rows=100, columns=3}
+    control = NESBuilder:makeTable{x=x,y=y,w=buttonWidth*5,h=buttonHeight*20, name="symbolsTable1",rows=100, columns=3}
     control.setHorizontalHeaderLabels("Symbol", "Value", "Comment")
+    control.setColumnWidth(0,buttonWidth)
+    control.setColumnWidth(1,buttonWidth)
+    control.horizontalHeader().setStretchLastSection(true)
     y = y + control.height + pad
     
     NESBuilder:setTabQt("Launcher")
@@ -522,13 +525,14 @@ function init()
     
     push(y)
     control = NESBuilder:makeCanvasQt{x=x,y=y,w=128,h=128,name="tsaCanvasQt", scale=2}
+    control.helpText = "Click to select a tile"
     push(x+control.width+pad)
     
     x = left
     y=y + control.height + pad
     
     control = NESBuilder:makeCanvasQt{x=x,y=y,w=8,h=8,name="tsaTileCanvasQt", scale=8, columns=1, rows=1}
-    
+    control.helpText = "Selected tile"
     y=y + control.height + pad
     
     x = pop()
@@ -536,11 +540,13 @@ function init()
     
     push(y)
     control = NESBuilder:makeList{x=x,y=y,w=buttonWidth,h=buttonHeight*12, name="mTileList", list = list()}
+    control.helpText = "Select a metatile set"
     y = y + control.height + pad
     
     local newX = x + control.width + pad
     
     control = NESBuilder:makeButtonQt{x=x,y=y,w=30,name="addMTile",text="+"}
+    control.helpText = 'Create a new metatile set'
     --x = x + control.width + pad
     y = y + control.height + pad
     
@@ -550,6 +556,7 @@ function init()
     x = x + control.width + pad
     
     control = NESBuilder:makeLineEdit{x=x,y=y,w=buttonWidth/2,h=inputHeight, name="MTileAddress"}
+    control.helpText = "Address for metatile set (optional)"
     y = y + control.height + pad
 
     
@@ -560,24 +567,29 @@ function init()
     
     push(y)
     control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="metatilePrev",text="<"}
+    control.helpText = "Previous metatile"
     y=pop()
     x = x + control.width+pad
     
     push(y)
     control=NESBuilder:makeLineEdit{x=x,y=y,w=20,h=buttonHeight, name="metatileNumber",text="0"}
+    control.helpText = "Current metatile index"
     y=pop()
     x= x + control.width+pad
     
     control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="metatileNext",text=">"}
+    control.helpText = "Next metatile"
     x=x+control.width+pad
     
     control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="metatileNew",text="+"}
+    control.helpText = "Create a new metatile (WIP)"
     y = y + control.height + pad
     
     x=pop()
     
     
     control = NESBuilder:makeCanvasQt{x=x,y=y,w=16,h=16,name="tsaCanvas2Qt", scale=6}
+    control.helpText = "Left-click: apply tile, right-click: select tile"
     y = y + control.height + pad
     x = x + control.width + pad
     
@@ -686,14 +698,20 @@ end
 
 function loadSettings()
     data.projectID = NESBuilder:cfgGetValue("main", "project", data.projectID)
-
+    
+    
+    local dupCheck = {}
+    
     -- load recent projects list
     local k,v
     for i=1, config.nRecentFiles do
         k = string.format("recentproject%d", i)
         v = NESBuilder:cfgGetValue("main", k, false)
         if not v then break end
-        recentProjects.push(v)
+        if not dupCheck[v] then
+            recentProjects.push(v)
+            dupCheck[v] = True
+        end
     end
 end
 
@@ -1043,6 +1061,8 @@ function ppInit()
     
     control = NESBuilder:makeTable{x=x,y=y,w=buttonWidth*5,h=buttonHeight*5, name="ppSettingsTable", rows=30, columns=3}
     control.setHorizontalHeaderLabels("Setting", "Value", "Comment")
+    control.setColumnWidth(0,buttonWidth)
+    control.setColumnWidth(1,buttonWidth)
     control.horizontalHeader().setStretchLastSection(true)
     
     control.onChange = function() ppUpdate(control) end
@@ -1407,6 +1427,13 @@ function BuildProject()
         exportAllChr()
     end
     
+    
+    if ppGet('exportPalettes', 'bool') then
+        -- Will use default if not defined
+        exportPalettes(ppGet('exportPaletteFile'))
+    end
+    
+    
     -- build_sdasm
     NESBuilder:setWorkingFolder()
     
@@ -1445,47 +1472,70 @@ function BuildProject()
         util.writeToFile(filename,0, out, true)
     end
     
-    -- Make metatilesXX.asm
-    for tileSet=0, #data.project.mTileSets do
-        if #data.project.mTileSets[tileSet] > 0 then
-            filename = data.folders.projects..data.project.folder..string.format("code/metatiles%02x.asm",tileSet)
-            
-            n = data.project.mTileSets[tileSet].name or string.format("Metatiles%02x",tileSet)
-            out = string.format("    ; %s\n",n)
-            --for tileNum in ipairs_sparse(data.project.mTileSets[tileSet]) do
-            for tileNum=0, #data.project.mTileSets[tileSet] do
-                local tile = data.project.mTileSets[tileSet][tileNum]
-                if tile then
-                    for i,v in ipairs_sparse(tile) do
-                        if i==0 then
-                            out=out..'    .db '
-                        else
-                            out=out..', '
+    if ppGet('exportMetatiles', 'bool') then
+    
+        if iLength(data.project.mTileSets) > 0 then
+            print('exporting metatiles...')
+        end
+        -- Make metatilesXX.asm
+        for tileSet in ipairs_sparse(data.project.mTileSets) do
+        --for tileSet=0, #data.project.mTileSets do
+            if iLength(data.project.mTileSets[tileSet]) > 0 then
+            --if #data.project.mTileSets[tileSet] > 0 then
+                filename = data.folders.projects..data.project.folder..string.format("code/metatiles%02x.asm",tileSet)
+                
+                n = data.project.mTileSets[tileSet].name or string.format("Metatiles%02x",tileSet)
+                out = string.format("    ; %s\n",n)
+                --for tileNum in ipairs_sparse(data.project.mTileSets[tileSet]) do
+                for tileNum=0, #data.project.mTileSets[tileSet] do
+                    local tile = data.project.mTileSets[tileSet][tileNum]
+                    local mTileSet = data.project.mTileSets[tileSet]
+                    local mtileOffsets = tile.map or mTileSet.map or {[0]=0,2,1,3}
+                    
+                    if tile then
+                        for i,v in ipairs_sparse(tile) do
+                            v = tile[mtileOffsets[i]]
+--                            print(i)
+--                            print(v)
+--                            print(mtileOffsets)
+                            
+                            if i==0 then
+                                out=out..'    .db '
+                            else
+                                out=out..', '
+                            end
+                            out=out..string.format('$%02x',v)
                         end
-                        out=out..string.format('$%02x',v)
+                        out=out..'\n'
                     end
-                    out=out..'\n'
                 end
+                util.writeToFile(filename,0, out, true)
             end
+        end
+        
+        local makeLabel = python.eval("lambda x:x.replace(' ','_')")
+        
+        -- Make metatiles.asm
+        out = ''
+        filename = data.folders.projects..data.project.folder.."code/metatiles.asm"
+        for tileSet=0, #data.project.mTileSets do
+            if #data.project.mTileSets[tileSet] > 0 then
+                n = data.project.mTileSets[tileSet].name or string.format("Metatiles%02x",tileSet)
+                n = makeLabel(n)
+                
+                if data.project.mTileSets[tileSet].org then
+                    out = out .. string.format("org $%04x\n", data.project.mTileSets[tileSet].org)
+                end
+                
+                out = out .. string.format("%s:\n",n)
+                out = out .. string.format('include "code/metatiles%02x.asm"\n\n',tileSet)
+            end
+        end
+        if out ~= '' then
+            print(string.format('%s created.',filename))
             util.writeToFile(filename,0, out, true)
         end
     end
-    
-    -- Make metatiles.asm
-    out = ''
-    filename = data.folders.projects..data.project.folder.."code/metatiles.asm"
-    for tileSet=0, #data.project.mTileSets do
-        if #data.project.mTileSets[tileSet] > 0 then
-            n = data.project.mTileSets[tileSet].name or string.format("Metatiles%02x",tileSet)
-            if data.project.mTileSets[tileSet].org then
-                out = out .. string.format("org $%04x\n", data.project.mTileSets[tileSet].org)
-            end
-            
-            out = out .. string.format("%s:\n",n)
-            out = out .. string.format('include "code/metatiles%02x.asm"\n\n',tileSet)
-        end
-    end
-    if out ~= '' then util.writeToFile(filename,0, out, true) end
     
     NESBuilder:setWorkingFolder(folder)
     
@@ -1529,7 +1579,8 @@ function BuildProject()
         -- Start assembling with sdasm
         print("Assembling with sdasm...")
         
-        sdasm.assemble('project.asm', data.project.binaryFilename, 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'), romData)
+        local success, errorText = sdasm.assemble('project.asm', data.project.binaryFilename, 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'), romData)
+        if not success then print(errorText) end
     else
         handlePluginCallback("onAssemble", data.project.assembler)
         --print('invalid assembler '..data.project.assembler)
@@ -1554,11 +1605,13 @@ function saveChr()
         if data.project.chr[i] then
             local f = data.folders.projects..data.project.folder..string.format("chr/chr%02x.chr",i)
             print("File created "..f)
-            print(data.project.chr[i][0])
+            --print(data.project.chr[i][0])
             NESBuilder:saveArrayToFile(f, data.project.chr[i])
             out = out..string.format('    incbin "chr%02x.chr"  ; %s\n',i, data.project.chrNames[i])
         end
     end
+    
+    
     util.writeToFile(filename,0, out, true)
 end
 
@@ -1901,7 +1954,6 @@ function LoadProject(templateFilename)
     data.project.chrNames = data.project.chrNames or {}
     
     local converted = false
-    local makeNp = python.eval("lambda x: np.array(x)")
     
     for i in ipairs_sparse(data.project.chr) do
         if type(data.project.chr[i]) == "table" then
@@ -2144,6 +2196,8 @@ function Quit_cmd()
 end
 
 function refreshCHR()
+    --if not maxTableIndex(data.project.chr) then return end
+
     --print('refreshCHR()')
     local w,h
     local c = NESBuilder:getControl('CHRNumLabelQt')
@@ -2524,15 +2578,13 @@ function metatileNext_cmd()
 end
 
 function metatileNew_cmd()
-    if not devMode() then notImplemented() end
-    
     local m = {}
     m.map = {}
     m.w = 2
     m.h = 2
     m.palette = data.project.palettes.index
     m.chrIndex = data.project.chr.index
-    for i=0,m.w * m.h do
+    for i=0,m.w * m.h-1 do
         m[i] = 0
         m.map[i] = i
     end
@@ -2868,21 +2920,30 @@ function tsaCanvas2Qt_cmd(t)
     local m = currentMetatile()
     if not m then return end
     
+    local mTileSet = currentMetatileSet()
+    
+    local mtileOffsets = m.map or mTileSet.map or {[0]=0,2,1,3}
+    
     if event.button == 1 then
         t.control.drawTile(tileX*8,tileY*8, data.selectedTile, currentChr(), currentPalette(), t.control.columns, t.control.rows)
         t.control.update()
         
+        m[mtileOffsets[tileY*t.control.columns+tileX]] = data.selectedTile
+        print(tileY*t.control.columns+tileX)
+        print(mtileOffsets)
+        
         --local m = currentMetatile()
         --local mtileOffsets = {[0]=0,2,1,3}
-        m[tileX*t.control.columns+tileY] = data.selectedTile
+        --m[tileX*t.control.columns+tileY] = data.selectedTile
         m.palette = data.project.palettes.index
         m.chrIndex = data.project.chr.index
         setMetatileData(m)
-        print(data.project.mTileSets[data.project.mTileSets.index])
+        --print(data.project.mTileSets[data.project.mTileSets.index])
     elseif event.button == 2 then
         --local m = currentMetatile()
         --local mtileOffsets = {[0]=0,2,1,3}
-        data.selectedTile = m[tileX*t.control.columns+tileY]
+        --data.selectedTile = m[tileX*t.control.columns+tileY]
+        data.selectedTile = m[mtileOffsets[tileY*t.control.columns+tileX]]
         data.project.palettes.index = m.palette
 
         local control = NESBuilder:getControlNew('tsaTileCanvasQt')
@@ -2925,7 +2986,20 @@ end
 function currentPalette(n) return data.project.palettes[n or data.project.palettes.index] end
 function currentChr(n) return data.project.chr[n or data.project.chr.index] end
 function setChr(n) data.project.chr.index = n end
-function loadChr(f, n) data.project.chr[n or data.project.chr.index] = NESBuilder:getFileContents(f) end
+function loadChr(f, n)
+    data.project.chr[n or data.project.chr.index] = makeNp(NESBuilder:getFileContents(f))
+    print(len(data.project.chr[n or data.project.chr.index]))
+--    print(type(data.project.chr[n or data.project.chr.index]))
+    
+--    for i in ipairs_sparse(data.project.chr) do
+--        if type(data.project.chr[i]) == "table" then
+--            data.project.chr[i] = NESBuilder:tableToList(data.project.chr[i], 0)
+--            data.project.chr[i] = makeNp(data.project.chr[i])
+--            converted = true
+--        end
+--    end
+    
+end
 function getChrData(n) return data.project.chr[n or data.project.chr.index] end
 function setChrData(chrData, n) data.project.chr[n or data.project.chr.index]=chrData end
 function boolNumber(v) if v then return 1 else return 0 end end
@@ -2933,6 +3007,8 @@ function devMode() return (cfgGet('dev')==1) end
 function type(item) return NESBuilder:type(item) end
 --function currentMetatile() return data.project.mTileSets[data.project.mTileSets.index][n or data.project.mTileSets[data.project.mTileSets.index].index] or {[0]=0,0,0,0} end
 function currentMetatile() return data.project.mTileSets[data.project.mTileSets.index][n or data.project.mTileSets[data.project.mTileSets.index].index] or false end
+function currentMetatileSet() return data.project.mTileSets[data.project.mTileSets.index] or false end
+
 function setMetatileData(mTileData, n) data.project.mTileSets[data.project.mTileSets.index][n or data.project.mTileSets[data.project.mTileSets.index].index]=mTileData end
 function getControl(n) return NESBuilder:getControl(n) end
 function templateData(k)
@@ -2973,6 +3049,8 @@ list = python.eval("lambda *x:[item for item in x]")
 listAppend = python.eval("lambda x,y:x.append(y)")
 tableAppend = function(...) util.tableAppendSparse(...) end
 maxTableIndex = function(...) util.maxTableIndex(...) end
+
+makeNp = python.eval("lambda x: np.array(x)")
 
 strip = python.eval("lambda x:x.strip()")
 lstrip = python.eval("lambda x:x.lstrip()")
@@ -3035,10 +3113,23 @@ function cfgGet(section, key)
     return NESBuilder:cfgGetValue(section, key)
 end
 
-function ppGet(keyword)
+function ppGet(keyword, mode)
+    local ret
     for i, row in ipairs_sparse(data.project.properties) do
-        if row.k == keyword then return row.v end
+        if string.lower(row.k) == string.lower(keyword) then
+            ret = row.v
+            break
+        end
     end
+    
+    if mode == "bool" then
+        ret = strip(string.lower(ret or ''))
+        if (not bool(ret)) or (ret == 'false') or (ret == 'none') or (ret == '0') then
+            return false
+        end
+    end
+    
+    return ret
 end
 
 -- Close a tab in current window
@@ -3466,4 +3557,49 @@ end
 function testError_cmd(t)
     --doesntexist()
     print(reverseByte('potato'))
+end
+
+
+function exportPalettes(filename)
+    local c = NESBuilder:getControl('PaletteList')
+    
+    filename = filename or "code/palettes.asm"
+    filename = data.folders.projects..data.project.folder..filename
+    local out=""
+    
+    local lowHigh = {{"low","<"},{"high",">"}}
+    for i = 1,2 do
+        out=out..string.format("Palettes_%s:\n",lowHigh[i][1])
+        for palNum=0, #data.project.palettes do
+            if palNum == 0 then
+                out=out.."    .db "
+            elseif palNum % 4 == 0 then
+                out=out.."\n    .db "
+            --elseif palNum~=#data.project.palettes then
+            else
+                out=out..", "
+            end
+            out=out..string.format("%sPalette%02x",lowHigh[i][2], palNum)
+            if palNum==#data.project.palettes then
+                out=out.."\n"
+            end
+        end
+        out=out.."\n"
+    end
+    
+    for palNum=0, #data.project.palettes do
+        local pal = data.project.palettes[palNum]
+        out=out..string.format("Palette%02x: .db ",palNum)
+        for i=1,4 do
+            out=out..string.format("$%02x",pal[i])
+            if i==4 then
+                out=out.."\n"
+            else
+                out=out..", "
+            end
+        end
+    end
+    
+    print("File created "..filename)
+    util.writeToFile(filename,0, out, true)
 end

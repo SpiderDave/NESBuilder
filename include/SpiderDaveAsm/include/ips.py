@@ -98,7 +98,7 @@ def createIps(oldData, newData):
             length = 1
             while True:
                 d1 = oldData[a+length]
-                d1 = newData[a+length]
+                d2 = newData[a+length]
                 
                 if (d1==d2) or length == 0xffff:
                     break

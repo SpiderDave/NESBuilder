@@ -31,7 +31,7 @@ Cfg = include.Cfg
 ips = include.ips
 GG = include.GG
 import time
-from datetime import date
+from datetime import date, datetime
 
 import re
 
@@ -292,6 +292,7 @@ class Assembler():
     localLabelKeys = {}
     line = ''
     lineNumber = 0
+    fileLineNumber = 0
     error = False               # used to determine if exit code 3 is needed
     errorText = ''
     
@@ -747,7 +748,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     cfg.setDefault('main', 'lineContinueComma', True)
     cfg.setDefault('main', 'quotes', '\',","""')
     cfg.setDefault('main', 'suppressErrorPrefix', '-E-,-e-')
-    cfg.setDefault('main', 'floorDiv', False)
+    cfg.setDefault('main', 'floorDiv', True)
     cfg.setDefault('main', 'xkasplusbranch', False)
     cfg.setDefault('main', 'showFileOffsetInListFile', True)
     cfg.setDefault('main', 'fullTraceback', False)
@@ -781,7 +782,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
         {dashes}
         """).format(
             e,
-            assembler.currentFilename, assembler.lineNumber,
+            assembler.currentFilename, assembler.fileLineNumber,
             assembler.line,
             tb.filename, tb.lineno, tb.name,
             tb.line,
@@ -916,7 +917,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             return str(assembler.warnings)
         elif s == 'fileoffset':
             if bank != None:
-                return str(addr + bank * bankSize + headerSize)
+                #return str(addr + bank * bankSize + headerSize)
+                return str(addr + headerSize)
             else:
                 #return str(addr + headerSize)
                 return str(addr)
@@ -941,7 +943,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             fileOffset = 0xfffe - 0x8000 - (currentAddress-startAddress) + bank * bankSize + headerSize
             return '${:02x}{:02x}'.format(out[fileOffset+1], out[fileOffset])
         elif s in timeSymbols:
-            v = list(datetime.now().timetuple())[timeSymbols.index(s)]
+            return str(list(datetime.now().timetuple())[timeSymbols.index(s)])
+            #v = list(datetime.now().timetuple())[timeSymbols.index(s)]
         elif s in assembler.nesRegisters:
             v = assembler.nesRegisters[s]
             return '${:04x}'.format(v)
@@ -1623,6 +1626,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             originalLine = line
             assembler.line = line
             assembler.lineNumber = lineNumber
+            assembler.fileLineNumber +=1
             errorText = False
             assembler.errorLinePos = False
             
@@ -2465,7 +2469,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 
                 filename = getValueAsString(filename) or getString(filename)
                 if passNum == lastPass:
-                    print(filename)
+                    print(filename.replace("\\","/"))
                 filename = assembler.findFile(filename)
                 if filename:
                     newLines = False
@@ -2479,17 +2483,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         fileList.append(filename)
                         folder = os.path.split(filename)[0]
                         
-#                        if lineSep:
-#                            for s in lineSep:
-#                                newLines = [l.split(s) for l in newLines]
-#                            newLines = flattenList(newLines)
-                        
                         newLines = ['setincludefolder '+folder]+newLines+['setincludefolder '+assembler.currentFolder]
                         newLines.append(assembler.hidePrefix + 'setCurrentFile "{}"'.format(assembler.currentFilename))
                         assembler.currentFolder = folder
                         assembler.currentFilename = filename
                         
                         lines = lines[:i]+['']+newLines+lines[i+1:]
+                        assembler.fileLineNumber = 0
                 else:
                     if k == 'include?':
                         pass
@@ -2525,7 +2525,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 data = line.split(' ',1)[1]
                 findData = list(bytes.fromhex(''.join(['0'*(len(x)%2) + x for x in data.split()])))
                 #b = b + list(bytes.fromhex(''.join(['0'*(len(x)%2) + x for x in data.split()])))
-                
                 
                 out2 = list(out)
                 lenFindData = len(findData)
@@ -2563,15 +2562,22 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             
             if k in macros:
                 params = (line.split(" ",1)+[''])[1].replace(',',' ').split()
-                print(params)
+                
                 for item in macros[k].params:
                     if getSymbolInfo(item):
                         symbols.pop(assembler.lower(item))
                 
                 for item in mergeList(macros[k].params, params):
-                    #symbols[k + namespaceSymbol + assembler.lower(item[0])] = getValue(item[1])
-                    symbols[k + namespaceSymbol + assembler.lower(item[0])] = item[1]
-                
+                    
+                    v = item[1]
+                    
+                    if v.startswith('#'):
+                        v = '#'+str(getValue(v))
+                    else:
+                        v = getValue(v)
+                    
+                    symbols[k + namespaceSymbol + assembler.lower(item[0])] = v
+                    
                 assembler.namespace.push(k)
                 lines = lines[:i]+['']+macros[k].lines+[assembler.hidePrefix+'namespace _pop_']+lines[i+1:]
             if kf: # keyword function
@@ -2615,8 +2621,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     addr = addr + (v-currentAddress)
                     currentAddress += (v-currentAddress)
                     
-                    if bank != None:
-                        addr = addr % bankSize
+#                    if bank != None:
+#                        addr = addr % bankSize
                     
                     if startAddress==False:
                         startAddress = addr
@@ -2877,6 +2883,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     elif v.startswith("#"):
                         v = v[1:]
                         op = getOpWithMode(k, 'Immediate')
+                        immediate = True
                     elif immediate:
                         op = getOpWithMode(k, 'Immediate')
                     else:
@@ -3041,11 +3048,18 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
 #                        fileOffset = addr + headerSize
                         #fileOffset = addr
                         fileOffset = addr + bank * bankSize + headerSize
+                        
+                        fileOffset = addr + headerSize
+                        fileOffset = getValue('fileoffset')
+                        
+                        
 #                        print('*', originalLine)
-#                        print('addr=',hex(addr))
-#                        print('bank=',bank)
-#                        print('bankSize=',hex(bankSize))
-#                        print('fileOffset=',hex(fileOffset))
+                        if bank == 1:
+                            print('currentAddress=',hex(currentAddress))
+                            print('addr=',hex(addr))
+                            print('bank=',bank)
+                            print('bankSize=',hex(bankSize))
+                            print('fileOffset=',hex(fileOffset))
                         
                         if fileOffset == len(out):
                             # We're in the right spot, just append
@@ -3144,6 +3158,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
     assembler.currentFilename = None
     assembler.line = ''
     assembler.lineNumber = 0
+    assembler.fileLineNumber = 0
     
     if assembler.warnings > 0:
         print('Warnings: {}'.format(assembler.warnings))
@@ -3197,7 +3212,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         with open(symbolsFile, "w") as file:
             for k,v in symbols.items():
                 print('{} = {}'.format(k,v), file=file)
-        print('{} written.'.format(f))
+        print('{} written.'.format(symbolsFile))
     if debug:
         f = 'debug_files.txt'
         with open(f, "w") as file:

@@ -173,6 +173,36 @@ for k,v in cursorData.items():
 
 QtDave.loadCursors(cursorData)
 
+# getKeyPress function (renamed from getChar)
+#    https://stackoverflow.com/questions/510357/how-to-read-a-single-character-from-the-user
+def getKeyPress():
+    # figure out which function to use once, and store it in _func
+    if "_func" not in getKeyPress.__dict__:
+        try:
+            # for Windows-based systems
+            import msvcrt # If successful, we are on Windows
+            getKeyPress._func=msvcrt.getch
+
+        except ImportError:
+            # for POSIX-based systems (with termios & tty support)
+            import tty, sys, termios # raises ImportError if unsupported
+
+            def _ttyRead():
+                fd = sys.stdin.fileno()
+                oldSettings = termios.tcgetattr(fd)
+
+                try:
+                    tty.setcbreak(fd)
+                    answer = sys.stdin.read(1)
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, oldSettings)
+
+                return answer
+
+            getKeyPress._func=_ttyRead
+
+    return getKeyPress._func()
+
 def fancy(text):
     return "*"*60+"\n"+text+"\n"+"*"*60
 
@@ -481,6 +511,8 @@ class ForLua:
                 return os.path.abspath(f)
                 
         return None
+    def getKeyPress(self):
+        return getKeyPress()
     def fileExists(self, f):
         #f = fixPath(script_path+"/"+f)
         f = fixPath2(f)
@@ -883,7 +915,11 @@ class ForLua:
         fileData = self.tableToList(self, fileData, base=0)
         f = fixPath2(f)
         file=open(f,"wb")
-        file.write(bytes(fileData))
+        
+        if type(fileData) == np.ndarray:
+            file.write(bytes(list(fileData)))
+        else:
+            file.write(bytes(fileData))
         file.close()
         return True
     def writeToFile(self, f, fileData):

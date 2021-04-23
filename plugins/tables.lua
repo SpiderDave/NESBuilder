@@ -122,8 +122,13 @@ function updateSineTables()
         control.print(string.format('    ; Table size: %d (half cycle)', v.points*2))
         control.print(string.format('    ; Amplitude: %d', v.amp))
         
-        control.print(makeTableData(t.q1))
-        control.print(makeTableData(t.q2))
+        if devMode() then
+            control.print(makeTableData(t.q1Diff))
+            --control.print(makeTableData(t.q2))
+        else
+            control.print(makeTableData(t.q1))
+            control.print(makeTableData(t.q2))
+        end
     end
 end
 

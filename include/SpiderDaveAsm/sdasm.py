@@ -56,6 +56,10 @@ except Exception as e:
 try: import numpy as np
 except: np = False
 
+# for detecting pyinstaller
+frozen = (getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'))
+initialFolder = os.getcwd()
+
 if np:
     usenp =True
 # need better code for slicing with numpy.
@@ -715,7 +719,10 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     assembler.error = False
     
     if not configFile:
-        configFile = inScriptFolder('config.ini')
+        if frozen:
+            configFile = 'sdasm.ini'
+        else:
+            configFile = inScriptFolder('config.ini')
     
     cfg = False
     # create our config parser

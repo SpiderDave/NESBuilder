@@ -9,15 +9,19 @@ ToDo:
 '''
 
 import os, sys, time
+frozen = (getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'))
 
 # if the first argument is -asm, run sdasm with 
 # everything after it as arguments.
-if sys.argv[1].lower() == '-asm':
+if len(sys.argv) > 1 and sys.argv[1].lower() == '-asm':
+    if frozen:
+        logFile = open('log.txt', 'w')
+        sys.stdout =logFile
+        sys.stderr =logFile
+
     print('running sdasm\n')
-    
     # sdasm will detect this rewritten sys.argv[0]
     sys.argv = ['NESBuilder:asm'] + sys.argv[2:]
-    
     from include import sdasm
     sys.exit()
 
@@ -29,6 +33,10 @@ parser.add_argument('mainfile', nargs='?', type=str,
 parser.add_argument('-asm', action='store_true',
                     help='Assemble file with sdasm and exit')
 cmdArgs = parser.parse_args()
+
+if cmdArgs.asm:
+    print('Error: -asm must be the first argument.  Everything after it will be passed as arguments to sdasm.')
+    sys.exit()
 
 import pathlib
 from glob import glob
@@ -114,8 +122,6 @@ true, false = True, False
 script_path = os.path.dirname(os.path.abspath( __file__ ))
 initialFolder = os.getcwd()
 
-frozen = (getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'))
-
 application_path = False
 if frozen:
     application_path = sys._MEIPASS
@@ -153,7 +159,7 @@ def fixPath(p):
     return p.replace("/",os.sep).replace('\\',os.sep)
 
 # create our config parser
-cfg = Cfg(filename=fixPath2("config.ini"))
+cfg = Cfg(filename=fixPath2("NESBuilder.ini"))
 
 # read config file if it exists
 cfg.load()
@@ -374,7 +380,7 @@ class ForLua:
                     setattr(self, method_name, wrapped)
     # can't figure out item access from lua with cfg,
     # so we'll define some methods here too.
-    def cfgLoad(self, filename = "config.ini"):
+    def cfgLoad(self, filename = "NESBuilder.ini"):
         return cfg.load(filename)
     def cfgSave(self):
         return cfg.save()

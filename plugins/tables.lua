@@ -49,6 +49,9 @@ function plugin.onInit()
     control = NESBuilder:makeLineEdit{x=x,y=y,w=32,h=inputHeight, name="sineAmplitude", text='100'}
     y = y + control.height + pad
     
+    control = NESBuilder:makeCheckbox{x=x,y=y,name="sine16Bit", text="Use 16-bit", value=0}
+    y = y + control.height + pad
+    
     x = pop()
     control = NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="buttonSineTable",text="Generate"}
     push(x)
@@ -75,6 +78,7 @@ end
 function plugin.buttonSineTable_cmd(t)
     local control
     local points, amp, label
+    
     
     if not pcall(function()
         label = NESBuilder:getControl('sineLabel').text
@@ -110,25 +114,52 @@ function updateSineTables()
     control.clear()
     
     for i,v in ipairs(data.project.sineTables) do
-        local t = generateSineTable(v.points, v.amp)
+        local t = generateSineTable(v.points, v.amp, 2)
         
         if i>1 then control.print() end
         
-        if v.i >1 then
-            control.print(string.format('%s%d:', v.label, v.i))
-        else
-            control.print(string.format('%s:', v.label))
-        end
-        control.print(string.format('    ; Table size: %d (half cycle)', v.points*2))
-        control.print(string.format('    ; Amplitude: %d', v.amp))
         
-        if devMode() then
-            control.print(makeTableData(t.q1Diff))
+        local labelBase = string.format('%s%s', v.label, v.i>1 and v.i or '')
+        
+        control.print(labelBase..'_low:')
+        control.print(makeTableData(t.q1Low))
+        control.print()
+        control.print(makeTableData(t.q2Low))
+        control.print()
+        control.print(makeTableData(t.q3Low))
+        control.print()
+        control.print(makeTableData(t.q4Low))
+        control.print()
+        control.print(labelBase..'_high:')
+        control.print(makeTableData(t.q1High))
+        control.print()
+        control.print(makeTableData(t.q2High))
+        control.print()
+        control.print(makeTableData(t.q3High))
+        control.print()
+        control.print(makeTableData(t.q4High))
+        control.print()
+        
+--        control.print(labelBase..':')
+--        control.print(string.format('    ; Table size: %d (half cycle)', v.points*2))
+--        control.print(string.format('    ; Amplitude: %d', v.amp))
+        
+--        control.print(makeTableData(t.q1, 2))
+--        control.print()
+--        control.print(makeTableData(t.q2, 2))
+        
+        
+
+--        if devMode() then
+--            if v.i >1 then
+--                control.print(string.format('%s%dDiff:', v.label, v.i))
+--            else
+--                control.print(string.format('%sDiff:', v.label))
+--            end
+
+--            control.print(makeTableData(t.q1Diff))
             --control.print(makeTableData(t.q2))
-        else
-            control.print(makeTableData(t.q1))
-            control.print(makeTableData(t.q2))
-        end
+--        end
     end
 end
 

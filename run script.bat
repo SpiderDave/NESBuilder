@@ -25,14 +25,16 @@ cls
 %pycmd% %script%
 if %errorlevel% NEQ 0 set errormessage=script error&goto error
 
-goto theend
+goto success
 
 :error
 echo.
 echo.ERROR: %errormessage%
 echo.
 pause
-exit
+goto theend
+
+:success
+if %dopause% NEQ 0 pause
 
 :theend
-if %dopause% NEQ 0 pause

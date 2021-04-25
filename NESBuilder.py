@@ -10,6 +10,26 @@ ToDo:
 
 import os, sys, time
 
+# if the first argument is -asm, run sdasm with 
+# everything after it as arguments.
+if sys.argv[1].lower() == '-asm':
+    print('running sdasm\n')
+    
+    # sdasm will detect this rewritten sys.argv[0]
+    sys.argv = ['NESBuilder:asm'] + sys.argv[2:]
+    
+    from include import sdasm
+    sys.exit()
+
+# From here we'll use argparse
+import argparse
+parser = argparse.ArgumentParser(description='NESBuilder')
+parser.add_argument('mainfile', nargs='?', type=str,
+                    help='use external main file')
+parser.add_argument('-asm', action='store_true',
+                    help='Assemble file with sdasm and exit')
+cmdArgs = parser.parse_args()
+
 import pathlib
 from glob import glob
 
@@ -1778,9 +1798,9 @@ lua.execute("len = function(item) return NESBuilder:getLen(item) end")
 gotError = False
 
 try:
-    if len(sys.argv)>1:
+    if cmdArgs.mainfile:
         # use file specified in argument
-        f = open(sys.argv[1],"r")
+        f = open(cmdArgs.mainfile,"r")
         lua.execute(f.read())
         f.close()
     elif frozen:

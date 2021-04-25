@@ -3220,8 +3220,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         print('{} written.'.format(f))
     print()
     
-
-if __name__ == '__main__':
+if __name__ == '__main__' or sys.argv[0] == 'NESBuilder:asm':
     # This stuff doesn't work because I need to get the relative
     # imports more organized.
     

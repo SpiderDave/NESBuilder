@@ -189,6 +189,7 @@ class Base():
         self.onMouseHover = False
         self.onMousePress = False
         self.onMouseRelease = False
+        self.onContextMenu = False
         self.onClick = False
         self.onChange = False
         self.helpText = False
@@ -204,6 +205,8 @@ class Base():
         self.resize(t.w, t.h)
         self.text = t.text
         self.scale = t.scale or 1
+        self.contextMenuItems = t.contextMenuItems or False
+ 
         if t['class']:
             self.addCssClass(t['class'])
     def keyPressEvent(self, event):
@@ -359,6 +362,31 @@ class Base():
             screenshot = screen.grabWindow( self.winId() )
             screenshot.save('shot.jpg', 'jpg')
         except: pass
+    def contextMenuEvent(self, event):
+        contextMenu = QMenu(self)
+        if self.contextMenuItems:
+            d = {}
+            for k,v in self.contextMenuItems.items():
+                if isinstance(v, str):
+                    contextMenu.addAction(v)
+                    d.update({v: {}})
+                else:
+                    contextMenu.addAction(v.name)
+                    d.update({v.name: dict(action=v.action)})
+            action = contextMenu.exec_(self.mapToGlobal(event.pos()))
+            if action:
+                func = d[action.text()].get('action', False)
+                if self.onContextMenu:
+                    if not self.onContextMenu(action.text(), func):
+                        # a specific function exists, and the onContextMenu
+                        # handler didn't return True (meaning cancel)
+                        if func:
+                            func()
+                else:
+                    if func:
+                        func()
+
+
 
 class ComboBox(Base, QComboBox):
     def __getattribute__(self, key):

@@ -539,17 +539,35 @@ function init()
     y = pop()
     
     push(y)
-    control = NESBuilder:makeList{x=x,y=y,w=buttonWidth,h=buttonHeight*12, name="mTileList", list = list()}
-    control.helpText = "Select a metatile set"
+    local menu = {
+        {name='add new', action = addMTile_cmd},
+        {name='rename', action = mTileSetName_cmd},
+    }
+    control = NESBuilder:makeList{x=x,y=y,w=buttonWidth,h=buttonHeight*12, name="mTileList", list = list(), contextMenuItems = menu}
+    control.helpText = "left-click: Select a metatile set, right-click: context menu"
     y = y + control.height + pad
     
     local newX = x + control.width + pad
     
+    push(x)
     control = NESBuilder:makeButtonQt{x=x,y=y,w=30,name="addMTile",text="+"}
     control.helpText = 'Create a new metatile set'
-    --x = x + control.width + pad
-    y = y + control.height + pad
+    x = x + control.width + pad
+
+    control = NESBuilder:makeButtonQt{x=x,y=y,w=60,name="mTileSetName",text="Rename"}
+    control.helpText = 'Rename metatile set'
     
+--    control.onContextMenu = function(action, func)
+--        print('test!')
+--        print(action)
+--        if action == 'test' then
+--            func()
+--            return true
+--        end
+--    end
+    
+    y = y + control.height + pad
+    x = pop()
     
     control = NESBuilder:makeLabelQt{x=x,y=y, clear=true, text="Address:"}
     control.setFont("Verdana", 11)
@@ -586,6 +604,14 @@ function init()
     y = y + control.height + pad
     
     x=pop()
+    
+    control = NESBuilder:makeLabelQt{x=x,y=y, name="metatileName", text="name"}
+    control.setFont("Verdana", 10)
+    control.autoSize = false
+    control.width = buttonWidth*2
+--    control.height=20
+    
+    y = y + control.height + pad
     
     
     control = NESBuilder:makeCanvasQt{x=x,y=y,w=16,h=16,name="tsaCanvas2Qt", scale=6}
@@ -830,7 +856,6 @@ function PaletteEntryUpdate()
     
     c = NESBuilder:getControlNew('PaletteEntryLabelQt')
     c.text = string.format("Palette%02x",data.project.palettes.index)
-    --c.setText('blah')
     
     handlePluginCallback("onPaletteChange")
 
@@ -1506,6 +1531,11 @@ function BuildProject()
                             end
                             out=out..string.format('$%02x',v)
                         end
+
+                        if tile.desc then
+                            out = out .. '  ; '..tile.desc
+                        end
+
                         out=out..'\n'
                     end
                 end
@@ -2424,8 +2454,23 @@ function addMTile_cmd()
     local control = NESBuilder:getControl('mTileList')
     
     local n = "New MTile Set"
-    data.project.mTileSets[len(data.project.mTileSets)+1] = {index=0, name=n}
+    local index = len(data.project.mTileSets)+1
+    data.project.mTileSets[index] = {index=0, name=n}
     control.addItem(n)
+    control.setCurrentRow(index)
+end
+
+function mTileSetName_cmd()
+    local control = NESBuilder:getControlNew("mTileList")
+    if control.count() == 0 then return end
+
+    local n = askText('Rename Metatile Set', 'Enter a new name for the metatile set.')
+    local index = data.project.mTileSets.index
+    if n then
+        data.project.mTileSets[index].name = n
+        control.item(index).setText(n)
+    end
+    
 end
 
 function CHRList_keyPress_cmd(t,test)
@@ -2565,7 +2610,6 @@ function tsaCanvas2_cmd(t)
     end
 end
 
-
 function metatilePrev_cmd()
     data.project.mTileSets[data.project.mTileSets.index].index = math.max(0, data.project.mTileSets[data.project.mTileSets.index].index - 1)
     print(string.format("%d %d",data.project.mTileSets.index, data.project.mTileSets[data.project.mTileSets.index].index))
@@ -2595,9 +2639,13 @@ function metatileNew_cmd()
 end
 
 function metatileNumber_cmd(t)
-    if t.event and t.event.type == "KeyPress" and t.event.event.keycode==13 then
-        data.project.mTileSets[data.project.mTileSets.index].index = tonumber(NESBuilder:getControl("metatileNumber").getText())
-    end
+    --print(t)
+--    if t.event and t.event.type == "KeyPress" and t.event.event.keycode==13 then
+--        data.project.mTileSets[data.project.mTileSets.index].index = tonumber(NESBuilder:getControl("metatileNumber").getText())
+--    end
+--    local index = tonumber(t.text)
+--    data.project.mTileSets[data.project.mTileSets.index].index = math.min(255, math.max(0, index))
+--    updateSquareoid()
 end
 
 function updateSquareoid()
@@ -2609,12 +2657,18 @@ function updateSquareoid()
     local controlTo = NESBuilder:getControlNew("tsaCanvas2Qt")
     
     local control = NESBuilder:getControlNew("mTileList")
+    
+    getControl('metatileName').clear()
+    
     if control.count() == 0 then return end
     
     if data.project.mTileSets.index == -1 then
         data.project.mTileSets.index = 0
         control.setCurrentRow(0)
     end
+    
+    -- make sure current item is selected in list
+    control.setCurrentRow(data.project.mTileSets.index)
     
     local mTileSet = data.project.mTileSets[data.project.mTileSets.index]
     
@@ -2682,6 +2736,20 @@ function updateSquareoid()
         control.setText("")
     end
     
+    local txt = data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].desc
+    getControl('metatileName').setText(txt)
+end
+
+function metatileName_cmd(t)
+    if not currentMetatile() then return end
+    
+    local control = getControl('metatileName')
+    local txt = askText('Metatile Description', 'Enter a new description for this metatile.')
+    local index = data.project.mTileSets.index
+    if txt then
+        control.setText(txt)
+        data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].desc = txt
+    end
 end
 
 
@@ -3602,4 +3670,13 @@ function exportPalettes(filename)
     
     print("File created "..filename)
     util.writeToFile(filename,0, out, true)
+end
+
+function askText(title, text)
+    local t = NESBuilder:askText(title or "Text Entry", text)
+    if (not t) or t=='' then
+        print('cancelled')
+        return
+    end
+    return t
 end

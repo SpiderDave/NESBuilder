@@ -351,7 +351,7 @@ class ForLua:
                 # these are control creation functions
                 # makedir
                 makers = ['makeCanvas', 'makeEntry', 'makeLabel', "makeTree",
-                          'makeMenu', 'makePaletteControl', 'makePopupMenu',
+                          'makeMenu', 'makePaletteControl',
                           'makeText', 'makeWindow', 'makeSpinBox',
                           ]
                 QtWidgets = ['makeButton', 'makeButtonQt', 'makeLabelQt', 'makeTabQt', 'makeTab', 'makeCanvasQt', 'makeSideSpin', 'makeCheckbox', 'makeLink', 'makeTextEdit', 'makeConsole', 'makeList']

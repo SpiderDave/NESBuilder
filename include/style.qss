@@ -139,17 +139,14 @@ QMessageBox QPushButton, QInputDialog QPushButton {
     padding:.5em;
     padding-left:2em;
     padding-right:2em;
+    margin-left:.4em;
+    margin-right:.4em;
 }
 
-QInputDialog QPushButton {
-    margin-left:.5em;
-    margin-right:.5em;
+QMessageBox QFrame {
+    padding-bottom:2em;
+    padding-top:.5em;
 }
-
-QMessageBox QPushButton {
-    margin:0 auto;
-}
-
 
 .launcherIcon {
     padding-top:.5em;
@@ -279,6 +276,18 @@ QComboBox {
     font-size:12pt;
 }
 
+.link {
+    color:_link_;
+    text-decoration:underline;
+}
+.link:hover {
+    color:_linkHover_;
+    /* cursor: cursor('PointingHand'); */
+}
+
 * {
     selection-background-color: _bkHighlight_;
 }
+
+
+

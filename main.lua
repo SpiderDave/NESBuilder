@@ -1,3 +1,4 @@
+main = {}
 config = {
     title="NESBuilder",
     width=850,
@@ -8,6 +9,7 @@ config = {
     buttonHeight=26,
     buttonWidthSmall=4,
     aboutURL = "https://github.com/SpiderDave/NESBuilder#readme",
+    bitcoinURL = "bitcoin:1ZdyKcXeqbbBp9yFxpEdpCMwSwccR2Cey",
     colors = {
         bk='#202036',
         bk2='#303046',
@@ -19,8 +21,8 @@ config = {
         bk_menu_highlight='#606080',
         bk_highlight='#404060',
         tkDefault='#656570',
-        link='#88f',
-        linkHover='white',
+        link='white',
+        linkHover='#88f',
         borderLight='#56565a',
         borderDark='#101020',
         textInputBorder='#99a',
@@ -162,10 +164,8 @@ function init()
         control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Warning",text="Warning"}
     end
     
-    control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Log",text="Log"}
-    
+    control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="tabLog",text="Log"}
     control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Launcher",text="Launcher"}
-    launchTab = control
     control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Palette",text="Palette"}
     control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Image",text="CHR"}
     control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Symbols",text="Symbols"}
@@ -230,7 +230,7 @@ function init()
     control = NESBuilder:makeMenuQt{name="menuView",text="View", menuItems=items}
     
     
-    NESBuilder:setTabQt("Log")
+    NESBuilder:setTabQt("tabLog")
     x,y = left, top
     control = NESBuilder:makeConsole{x=x,y=y,w=750,h=600,name="log", text=""}
     console = control
@@ -278,6 +278,7 @@ function init()
     x,y=left,top
     
     p = {[0]=0x0f,0x21,0x11,0x01}
+    
     control=NESBuilder:makePaletteControlQt{x=pad*1.5,y=pad*1.5,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="PaletteQt", palette=nespalette, upperHex=cfgGet('upperhex')}
     control.helpText = "Click to select a color"
     
@@ -318,6 +319,31 @@ function init()
     x=left
     y=pop()
     
+--    for i=0,#p do
+--        palette[i] = nespalette[p[i]]
+--    end
+    
+    y=y+pad
+    
+    paletteControl = {}
+    for i = 0,15 do
+        paletteControl[i] = {}
+        control=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name=string.format('Palette%02x',i), palette=palette}
+        paletteControl[i].control = control
+        paletteControl[i].index = i
+        x = x + control.width + pad
+        c = NESBuilder:makeLabelQt{x=x,y=y+pad,clear=true,text=string.format("Palette %02x", i)}
+        c.setFont("Verdana", 10)
+        paletteControl[i].labelControl = c
+        y=y + control.height
+        x = left
+        
+        main[control.name..'_cmd'] = function(t)
+            local f = main.Palette_cmd or Palette_cmd
+            if f then return f(t, i) end
+        end
+    end
+    
     NESBuilder:setTabQt("Image")
     p = {[0]=0x0f,0x21,0x11,0x01}
     palette = {}
@@ -328,7 +354,7 @@ function init()
     x=pad
     y=pad+128*3+pad*1.5
     placeY = y
-    c=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="CHRPaletteQt", palette=palette}
+    c=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="CHRPalette", palette=palette}
     
     x=left + 120
     y=placeY
@@ -540,34 +566,14 @@ function init()
     
     push(y)
     local menu = {
-        {name='add new', action = addMTile_cmd},
-        {name='rename', action = mTileSetName_cmd},
+        {name='add new', action = addMTileSet},
+        {name='rename', action = renameMTileSet},
     }
     control = NESBuilder:makeList{x=x,y=y,w=buttonWidth,h=buttonHeight*12, name="mTileList", list = list(), contextMenuItems = menu}
     control.helpText = "left-click: Select a metatile set, right-click: context menu"
     y = y + control.height + pad
     
     local newX = x + control.width + pad
-    
-    push(x)
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=30,name="addMTile",text="+"}
-    control.helpText = 'Create a new metatile set'
-    x = x + control.width + pad
-
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=60,name="mTileSetName",text="Rename"}
-    control.helpText = 'Rename metatile set'
-    
---    control.onContextMenu = function(action, func)
---        print('test!')
---        print(action)
---        if action == 'test' then
---            func()
---            return true
---        end
---    end
-    
-    y = y + control.height + pad
-    x = pop()
     
     control = NESBuilder:makeLabelQt{x=x,y=y, clear=true, text="Address:"}
     control.setFont("Verdana", 11)
@@ -608,7 +614,7 @@ function init()
     control = NESBuilder:makeLabelQt{x=x,y=y, name="metatileName", text="name"}
     control.setFont("Verdana", 10)
     control.autoSize = false
-    control.width = buttonWidth*2
+    control.width = buttonWidth * 2
 --    control.height=20
     
     y = y + control.height + pad
@@ -617,9 +623,23 @@ function init()
     control = NESBuilder:makeCanvasQt{x=x,y=y,w=16,h=16,name="tsaCanvas2Qt", scale=6}
     control.helpText = "Left-click: apply tile, right-click: select tile"
     y = y + control.height + pad
-    x = x + control.width + pad
+    --x = x + control.width + pad
+    
+    control = NESBuilder:makeLabelQt{x=x,y=y, name="metatileOffset", text="offset: (0, 0)"}
+    control.setFont("Verdana", 10)
+    control.autoSize = false
+    control.width = buttonWidth * 2
+    
+    y = y + control.height + pad
+    
+    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall*3, name="metatileOffsetTest",text="set offset"}
+    --control.helpText = "Create a new metatile (WIP)"
+    
+    y = y + control.height + pad
+
     
     ppInit()
+    createAboutTab()
     
     data.launchFrames.set('recent')
     
@@ -673,10 +693,12 @@ function onReady()
         main.setTimer(math.max(cfgGet('autosaveinterval'), 1000*45), autoSave, true)
     end
     
-    -- Just remove Metatiles tab since it's broken.
-    --if not devMode() then closeTab('Metatiles') end
+    if getControl(data.project.savedTab) then
+        NESBuilder:switchTab(data.project.savedTab)
+    else
+        NESBuilder:switchTab("Launcher")
+    end
 
-    NESBuilder:switchTab("Launcher")
 end
 
 function toggleTab(n, visible, switchTo)
@@ -736,7 +758,7 @@ function loadSettings()
         if not v then break end
         if not dupCheck[v] then
             recentProjects.push(v)
-            dupCheck[v] = True
+            dupCheck[v] = true
         end
     end
 end
@@ -758,21 +780,26 @@ function doCommand(t)
     else
         if t.anonymous then return false end
         
-        local functionName = t.functionName or t.name
+        local functionName = t.functionName or t.name or false
         
         pcall(function()
             t.event.button = t.event.event.button()
         end)
         
-        if t.event and (t.event.type == "ButtonPress" or t.event.type=="") then
-            print("doCommand "..functionName)
-        else
+        if not t.anonymous then
             print("doCommand "..functionName)
         end
-        if t.plugin then
-            if t.plugin[functionName.."_cmd"] then
-                t.plugin[functionName.."_cmd"](t)
-                return false
+        if functionName then
+            if t.plugin then
+                if t.plugin[functionName.."_cmd"] then
+                    t.plugin[functionName.."_cmd"](t)
+                    return false
+                end
+            elseif functionName then
+                if main[functionName.."_cmd"] then
+                    main[functionName.."_cmd"](t)
+                    return false
+                end
             end
         end
     end
@@ -781,9 +808,16 @@ end
 
 function PaletteQt_cmd(t)
     local event = t.cell.event
+    
+    
+    local badColor = {}
+    for _,v in pairs({0x0d,0x0e,0x1d,0x1e,0x1f,0x2e,0x2f,0x3e,0x3f}) do
+        badColor[v] = 0x0f
+    end
+    
     if event.button == 1 or event.button == 2 then
-        print(string.format("Selected palette %02x",t.cellNum))
-        data.selectedColor = t.cellNum
+        data.selectedColor = badColor[t.cellNum] or t.cellNum
+        print(string.format("Selected palette %02x", data.selectedColor))
     end
 end
 
@@ -804,8 +838,6 @@ function CHRPalette_cmd(t)
 --        end
     end
 end
-
-CHRPaletteQt_cmd = CHRPalette_cmd
 
 function ButtonMakeCHR_cmd()
     local f = NESBuilder:openFile{filetypes={{"Images", ".png"}}}
@@ -831,11 +863,64 @@ function ButtonAddPalette_cmd()
     local control = NESBuilder:getControlNew('SpinChangePalette')
     control.max = #data.project.palettes
 
+    PaletteEntryUpdate()
     dataChanged()
 end
 
+function Palette_cmd(t, index)
+    if not t.cell then return end -- border clicked
+    local event = t.cell.event
+    local p
+    if event.button == 2 then
+        print(string.format("Selected palette %02x",t.cellNum))
+        p=currentPalette(index + data.project.palettes.index or 0) or {0x0f, 0x0f, 0x0f, 0x0f}
+        p = {p[1], p[2], p[3], p[4]}
+        data.selectedColor = p[t.cellNum+1]
+    elseif event.button == 1 then
+        print(string.format("Set palette %02x",data.selectedColor or 0x0f))
+        p=data.project.palettes[index + data.project.palettes.index or 0]
+        print(p)
+        if not p then
+            p = {0x0f, 0x0f, 0x0f, 0x0f}
+            for i = #data.project.palettes+1, index + data.project.palettes.index do
+                print(i)
+                data.project.palettes[i] = p
+            end
+            updatePaletteLabels()
+        end
+        p = {p[1], p[2], p[3], p[4]}
+        p[t.cellNum+1] = data.selectedColor
+        t.setAll(p)
+        data.project.palettes[index + data.project.palettes.index or 0] = p
+        print(index + data.project.palettes.index or 0)
+        if index == 0 then
+            getControl('PaletteEntryQt').setAll(p)
+            --refreshCHR()
+        end
+        dataChanged()
+    end
+
+--    print('test 3!')
+--    print(t)
+--    print(index)
+--    print(index)
+end
+
+
+function updatePaletteLabels()
+    for i = 0, #paletteControl do
+        v = paletteControl[i]
+        c = v.control
+        if data.project.palettes[i+data.project.palettes.index] then
+            v.labelControl.setText(string.format('%02x', i+data.project.palettes.index))
+        else
+            v.labelControl.setText('')
+        end
+    end
+end
+
+
 function PaletteEntryUpdate()
-    --print('PeltteEntryUpdate()')
     local control = NESBuilder:getControlNew('SpinChangePalette')
     control.max = #data.project.palettes
     control.value = data.project.palettes.index
@@ -849,15 +934,42 @@ function PaletteEntryUpdate()
 
 --    c = NESBuilder:getControl('CHRPalette')
 --    c.setAll(p)
-    NESBuilder:getControlNew('CHRPaletteQt').setAll(p)
+    NESBuilder:getControlNew('CHRPalette').setAll(p)
     
---    c = NESBuilder:getControl('PaletteEntryLabel')
---    c.control.text = string.format("Palette%02x",data.project.palettes.index)
+    local index = data.project.palettes.index or 0
+    
+    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
+    
+    for i = 0, #paletteControl do
+        v = paletteControl[i]
+        c = v.control
+        
+        --if data.project.palettes[i+index] then
+        if pSet or 1 then pSet.index = index end
+        if pSet and pSet.paletteIndex[i+pSet.index+1] then
+            
+            c.setAll(data.project.palettes[pSet.paletteIndex[i+pSet.index+1]])
+            
+            
+            --c.setAll(data.project.palettes[pSet[i+pSet.index+1].paletteIndex])
+            
+            --c.setAll(currentPalette(i+index))
+            v.labelControl.setText(string.format('%02x', i+index))
+        else
+            c.setAll({[0]=0x0f,0x0f,0x0f,0x0f})
+            v.labelControl.setText('')
+        end
+    end
     
     c = NESBuilder:getControlNew('PaletteEntryLabelQt')
     c.text = string.format("Palette%02x",data.project.palettes.index)
     
     handlePluginCallback("onPaletteChange")
+    
+    
+    --data.project.palettes[n or data.project.palettes.index]
+    
+    
 
     refreshCHR()
 end
@@ -1274,15 +1386,21 @@ function prefEnablePlugin_cmd(t)
     NESBuilder:cfgSetValue("plugins", t.file, boolNumber(t.isChecked()))
 end
 
-function launcherButtonInfo_cmd()
+--function launcherButtonInfo_cmd()
+function createAboutTab()
     local x,y,left,top,pad
     pad = 6
     left = pad*2
     top = pad*2
     x,y = left,top
+    local control
 
-    NESBuilder:makeTab{name="infoTab", text="Info"}
-    NESBuilder:setTabQt("infoTab")
+    -- make a closure for help text of links
+    local linkHelpText = python.eval("lambda x: lambda: x.getUrl()")
+
+    --NESBuilder:makeTab{name="tabAbout", text="About"}
+    makeTab{name="tabAbout", text="About"}
+    NESBuilder:setTabQt("tabAbout")
 
 --    NESBuilder:makeWindow{x=0,y=0,w=760,h=600, name="infoWindow",title="Info"}
 --    NESBuilder:setWindow("infoWindow")
@@ -1296,13 +1414,20 @@ function launcherButtonInfo_cmd()
     control.setFont("Verdana", 12)
     
     y = y + control.height + pad
-    control = NESBuilder:makeLink{x=x,y=y,name="launcherLink",clear=true,text="NESBuilder on GitHub", url=config.aboutURL}
+    control = NESBuilder:makeLink{x=x,y=y,name="linkAbout",clear=true,text="NESBuilder on GitHub", url=config.aboutURL}
     control.setFont("Verdana", 12)
+    control.helpText = linkHelpText(control)
+    
+    y = y + control.height + pad
+    control = NESBuilder:makeLink{x=x,y=y,name="linkDonate",clear=true,text="Donate Bitcoin", url=config.bitcoinURL}
+    control.setFont("Verdana", 12)
+    control.helpText = linkHelpText(control)
     
     y = y + control.height + pad*8
-    b=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="buttonInfoClose",text="close"}
+    b=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="buttonAboutClose",text="close"}
     
-    NESBuilder:switchTab("infoTab")
+    --NESBuilder:switchTab("tabAbout")
+    
 end
 
 function New_cmd()
@@ -1418,6 +1543,7 @@ end
 
 function BuildProject()
     local n
+    local out, out2
     local folder = data.folders.projects..data.project.folder
     
     --ppUpdate()
@@ -1510,7 +1636,9 @@ function BuildProject()
                 filename = data.folders.projects..data.project.folder..string.format("code/metatiles%02x.asm",tileSet)
                 
                 n = data.project.mTileSets[tileSet].name or string.format("Metatiles%02x",tileSet)
-                out = string.format("    ; %s\n",n)
+                n = makeLabel(n)
+                out = string.format("    %s:\n",n)
+                out2 = string.format("    %s_offset:\n",n)
                 --for tileNum in ipairs_sparse(data.project.mTileSets[tileSet]) do
                 for tileNum=0, #data.project.mTileSets[tileSet] do
                     local tile = data.project.mTileSets[tileSet][tileNum]
@@ -1520,9 +1648,6 @@ function BuildProject()
                     if tile then
                         for i,v in ipairs_sparse(tile) do
                             v = tile[mtileOffsets[i]]
---                            print(i)
---                            print(v)
---                            print(mtileOffsets)
                             
                             if i==0 then
                                 out=out..'    .db '
@@ -1537,27 +1662,34 @@ function BuildProject()
                         end
 
                         out=out..'\n'
+                        
+                        local offset = tile.offset or mTileSet.offset or {x=0, y=0}
+                        out2=out2..string.format('    .db $%02x, $%02x', offset.x, offset.y)
+                        if tile.desc then
+                            out2 = out2 .. '            ; '..tile.desc
+                        end
+
                     end
+                    out2=out2..'\n'
                 end
+                out = out .. '\n'..out2
                 util.writeToFile(filename,0, out, true)
             end
         end
-        
-        local makeLabel = python.eval("lambda x:x.replace(' ','_')")
         
         -- Make metatiles.asm
         out = ''
         filename = data.folders.projects..data.project.folder.."code/metatiles.asm"
         for tileSet=0, #data.project.mTileSets do
             if #data.project.mTileSets[tileSet] > 0 then
-                n = data.project.mTileSets[tileSet].name or string.format("Metatiles%02x",tileSet)
-                n = makeLabel(n)
+--                n = data.project.mTileSets[tileSet].name or string.format("Metatiles%02x",tileSet)
+--                n = makeLabel(n)
                 
                 if data.project.mTileSets[tileSet].org then
                     out = out .. string.format("org $%04x\n", data.project.mTileSets[tileSet].org)
                 end
                 
-                out = out .. string.format("%s:\n",n)
+                --out = out .. string.format("%s:\n",n)
                 out = out .. string.format('include "code/metatiles%02x.asm"\n\n',tileSet)
             end
         end
@@ -1900,7 +2032,8 @@ function closePluginTabs()
     toggleTab('Image', false)
     toggleTab('Symbols', false)
     toggleTab('Metatiles', false)
-    toggleTab('Log', false)
+    toggleTab('tabLog', false)
+    toggleTab('tabAbout', false)
     
     toggleTab('tabProjectProperties', false)
 
@@ -1949,6 +2082,8 @@ function LoadProject(templateFilename)
     end
     data.project.const = data.project.const or {}
     
+    data.project.savedTab = data.project.currentTab
+    
     -- Adjust project properties as needed
     local prop = {}
     for i, row in ipairs_sparse(data.project.properties or {}) do
@@ -1970,6 +2105,17 @@ function LoadProject(templateFilename)
     
     -- use default palettes if not found
     data.project.palettes = data.project.palettes or util.deepCopy(data.palettes)
+    
+    --data.project.paletteSets = data.project.paletteSets or {}
+    
+    data.project.paletteSets = {
+        index=0,
+        {
+            name = "set name", 
+            paletteIndex = {0,0,1,2,4},
+            index = 0
+        },
+    }
     
     if not data.project.mTileSets then
         data.project.mTileSets = {index=0}
@@ -2218,7 +2364,11 @@ end
 
 function About_cmd()
     --NESBuilder:exec(string.format("webbrowser.get('windows-default').open('%s')",config.aboutURL))
-    launcherButtonInfo_cmd()
+    --launcherButtonInfo_cmd()
+    --toggleTab('tabAbout', true)
+    toggleTab('tabAbout', true)
+    NESBuilder:switchTab("tabAbout")
+
 end
 
 function Quit_cmd()
@@ -2449,7 +2599,7 @@ function mTileList_cmd(t)
     updateSquareoid()
 end
 
-function addMTile_cmd()
+function addMTileSet()
     local tileIndex = 0
     local control = NESBuilder:getControl('mTileList')
     
@@ -2460,7 +2610,7 @@ function addMTile_cmd()
     control.setCurrentRow(index)
 end
 
-function mTileSetName_cmd()
+function renameMTileSet()
     local control = NESBuilder:getControlNew("mTileList")
     if control.count() == 0 then return end
 
@@ -2659,6 +2809,7 @@ function updateSquareoid()
     local control = NESBuilder:getControlNew("mTileList")
     
     getControl('metatileName').clear()
+    getControl('metatileOffset').clear()
     
     if control.count() == 0 then return end
     
@@ -2736,9 +2887,68 @@ function updateSquareoid()
         control.setText("")
     end
     
+    local tile = mTileSet[mTileSet.index]
     local txt = data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].desc
     getControl('metatileName').setText(txt)
+    
+    local offset = tile.offset or mTileSet.offset or {x=0, y=0}
+    getControl('metatileOffset').setText(string.format('offset: (%s, %s)', offset.x, offset.y))
+    
+    
+    if data.metatileCursorMode == 'offset' and m.offset then
+        drawTargetCrosshairs(controlTo, m.offset.x, m.offset.y)
+    end
+    
 end
+
+function drawTargetCrosshairs(control, x,y)
+    local centerPad = 1
+    if x-centerPad >= 0 then
+        control.drawLine2(x-centerPad,y or 0,-1,y or 0)
+    end
+    if x+centerPad <= control.width then
+        control.drawLine2(x+centerPad, y or 0,control.width+1,y or 0)
+    end
+    if y-centerPad >=0 then
+        control.drawLine2(x, y-centerPad,x,-1)
+    end
+    if y+centerPad <= control.height then
+        control.drawLine2(x, y+centerPad,x,control.height+1)
+    end
+end
+
+
+function metatileOffsetTest_cmd(t)
+    local mTile = currentMetatile()
+    if not mTile then return end
+    
+    local control = getControl('tsaCanvas2Qt')
+    
+    print(tostring(not data.metatileCursorMode and "offset"))
+    -- toggle mode
+    setMetatileMode(not data.metatileCursorMode and "offset", true)
+end
+
+function setMetatileMode(mode, update)
+    local control
+    
+    data.metatileCursorMode = mode or false
+    
+    control = getControl('tsaCanvas2Qt')
+    
+    if data.metatileCursorMode == "offset" then
+        control.helpText = "Left-click: set offset, right-click: cancel"
+        data.metatileCursorMode = "offset"
+        control.setCursor('crosshair')
+    else
+        control.helpText = "Left-click: apply tile, right-click: select tile"
+        data.metatileCursorMode = false
+        control.setCursor()
+    end
+    
+    if update then updateSquareoid() end
+end
+
 
 function metatileName_cmd(t)
     if not currentMetatile() then return end
@@ -2813,16 +3023,24 @@ function launcherRecentIcon_cmd(t)
 end
 
 function MainQttabs_cmd(t,a)
+    local tab = t.control.widget(t.control.currentIndex())
+    if not tab then return end
+    
     if t.event and t.event.button == 4 then
         print('middle click')
         --closeTab('tabPreferences', 'Launcher')
-        print(t.control.currentWidget().name)
     elseif t.event and t.event.button == 2 then
         print('right click')
     else
-        print('click')
+        --print('click')
+        --print(tab.widget(tab.currentIndex()))
+        --local dir = python.eval('lambda x:dir(x)')
+        --print(dir(tab.name))
+        print(tab)
+        data.project.currentTab = tab.name
         handlePluginCallback("onTabChanged", t.control.currentWidget())
     end
+    
 end
 
 function hFlip_cmd()
@@ -2971,6 +3189,9 @@ function tsaCanvasQt_cmd(t)
     local control = NESBuilder:getControlNew('tsaTileCanvasQt')
     control.drawTile(0,0, tile, currentChr(), currentPalette(), control.columns, control.rows)
     control.update()
+    
+    -- turn off metatile offset mode
+    setMetatileMode(false, true)
 end
 
 function tsaCanvas2Qt_cmd(t)
@@ -2991,6 +3212,22 @@ function tsaCanvas2Qt_cmd(t)
     local mTileSet = currentMetatileSet()
     
     local mtileOffsets = m.map or mTileSet.map or {[0]=0,2,1,3}
+    
+    if data.metatileCursorMode == 'offset' then
+        control = t.control
+        if event.button == 1 then
+            m.offset = {x=x, y=y}
+            updateSquareoid()
+            drawTargetCrosshairs(control, x, y)
+--            control.drawLine2(0,m.offset.y,control.width,m.offset.y)
+--            control.drawLine2(m.offset.x,0,m.offset.x,control.height)
+        elseif event.button == 2 then
+            -- turn off offset mode
+            setMetatileMode(false, true)
+        end
+        
+        return
+    end
     
     if event.button == 1 then
         t.control.drawTile(tileX*8,tileY*8, data.selectedTile, currentChr(), currentPalette(), t.control.columns, t.control.rows)
@@ -3019,12 +3256,17 @@ function tsaCanvas2Qt_cmd(t)
         control.update()
     end
 end
---tsaTileCanvasQt_cmd = canvasQt_cmd
+
+function tsaTileCanvasQt_cmd()
+    -- turn off metatile offset mode
+    setMetatileMode(false, true)
+end
 
 --function buttonWarningClose_cmd() closeTab('Warning', 'Launcher') end
 function buttonWarningClose_cmd() toggleTab('Warning', false) end
 function buttonPreferencesClose_cmd() closeTab('tabPreferences', 'Launcher') end
-function buttonInfoClose_cmd() closeTab('infoTab', 'Launcher') end
+--function buttonAboutClose_cmd() closeTab('tabAbout', 'Launcher') end
+function buttonAboutClose_cmd() toggleTab('tabAbout', false) end
 function ppClose_cmd()
     toggleTab('tabProjectProperties', false)
 end
@@ -3085,6 +3327,7 @@ function templateData(k)
     return t
 end
 
+
 -- getTemplateData(section, key)     get single item from dict items of section
 -- getTemplateData(section, "list")  get list items of section
 -- getTemplateData(section, "dict")  get dict items of section
@@ -3103,24 +3346,23 @@ pythonEval = function(s)
     return python.eval(s)
 end
 
-split = python.eval('str.split')
-rsplit = python.eval('str.rsplit')
-fixPath = python.eval('fixPath2')
-pathSplit = python.eval("lambda x:list(os.path.split(x))")
-int = python.eval("lambda x:int(x)")
-sliceList = python.eval("lambda x,y,z:x[y:z]")
-joinList = python.eval("lambda x,y:x+y")
---reverseByte = python.eval("lambda x:int(('{:08b}'.format(x))[::-1],2)")
+split = pythonEval('str.split')
+rsplit = pythonEval('str.rsplit')
+fixPath = pythonEval('fixPath2')
+pathSplit = pythonEval("lambda x:list(os.path.split(x))")
+int = pythonEval("lambda x:int(x)")
+sliceList = pythonEval("lambda x,y,z:x[y:z]")
+joinList = pythonEval("lambda x,y:x+y")
 reverseByte = pythonEval("lambda x:int(('{:08b}'.format(x))[::-1],2)")
-replace = python.eval("lambda x,y,z:x.replace(y,z)")
-list = python.eval("lambda *x:[item for item in x]")
-listAppend = python.eval("lambda x,y:x.append(y)")
+replace = pythonEval("lambda x,y,z:x.replace(y,z)")
+list = pythonEval("lambda *x:[item for item in x]")
+listAppend = pythonEval("lambda x,y:x.append(y)")
 tableAppend = function(...) util.tableAppendSparse(...) end
 maxTableIndex = function(...) util.maxTableIndex(...) end
+makeLabel = pythonEval("lambda x:x.replace(' ','_')")
+makeNp = pythonEval("lambda x: np.array(x)")
 
-makeNp = python.eval("lambda x: np.array(x)")
-
-strip = python.eval("lambda x:x.strip()")
+strip = pythonEval("lambda x:x.strip()")
 lstrip = python.eval("lambda x:x.lstrip()")
 rstrip = python.eval("lambda x:x.rstrip()")
 
@@ -3162,7 +3404,7 @@ iLength = function(t)
 end
 
 function makeTab(t)
-    NESBuilder:makeTabQt{name=t.name, text=t.text}
+    NESBuilder:makeTab{name=t.name, text=t.text}
     
     -- Keep track of which plugin generated a tab
     local p = _getPlugin and plugins[_getPlugin().name]
@@ -3252,7 +3494,14 @@ end
 
 
 function onHover(control)
-    pcall(function() statusBar.text = control.helpText or "" end)
+    --print(control.name)
+    --pcall(function()
+        if type(control.helpText) == 'function' then
+            statusBar.text = control.helpText() or ""
+        else
+            statusBar.text = control.helpText or ""
+        end
+    --end)
 end
 
 function addCHR_cmd()

@@ -79,7 +79,6 @@ function plugin.buttonSineTable_cmd(t)
     local control
     local points, amp, label
     
-    
     if not pcall(function()
         label = NESBuilder:getControl('sineLabel').text
         points = int(NESBuilder:getControl('sinePoints').text)
@@ -116,12 +115,11 @@ function updateSineTables()
     for i,v in ipairs(data.project.sineTables) do
         local t = generateSineTable(v.points, v.amp, 2)
         
-        if i>1 then control.print() end
-        
-        
         local labelBase = string.format('%s%s', v.label, v.i>1 and v.i or '')
         
         control.print(labelBase..'_low:')
+        control.print(string.format('    ; Points per quarter cycle: %d', v.points))
+        control.print(string.format('    ; Amplitude: %d', v.amp))
         control.print(makeTableData(t.q1Low))
         control.print()
         control.print(makeTableData(t.q2Low))
@@ -139,27 +137,6 @@ function updateSineTables()
         control.print()
         control.print(makeTableData(t.q4High))
         control.print()
-        
---        control.print(labelBase..':')
---        control.print(string.format('    ; Table size: %d (half cycle)', v.points*2))
---        control.print(string.format('    ; Amplitude: %d', v.amp))
-        
---        control.print(makeTableData(t.q1, 2))
---        control.print()
---        control.print(makeTableData(t.q2, 2))
-        
-        
-
---        if devMode() then
---            if v.i >1 then
---                control.print(string.format('%s%dDiff:', v.label, v.i))
---            else
---                control.print(string.format('%sDiff:', v.label))
---            end
-
---            control.print(makeTableData(t.q1Diff))
-            --control.print(makeTableData(t.q2))
---        end
     end
 end
 

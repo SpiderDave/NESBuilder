@@ -3,6 +3,7 @@ import math
 from random import randrange
 import numpy as np
 
+import webbrowser
 import re
 
 from zipfile import ZipFile
@@ -22,6 +23,24 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
         )
 
 from PyQt5.Qsci import QsciScintilla, QsciLexerCustom
+
+
+#Warning: QT_DEVICE_PIXEL_RATIO is deprecated. Instead use:
+#   QT_AUTO_SCREEN_SCALE_FACTOR to enable platform plugin controlled per-screen f
+#actors.
+#   QT_SCREEN_SCALE_FACTORS to set per-screen DPI.
+#   QT_SCALE_FACTOR to set the application global scale factor.
+
+#QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+#os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "3"
+#QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, False)
+#os.environ["QT_DEVICE_PIXEL_RATIO"] = "2"
+#qputenv("QT_DEVICE_PIXEL_RATIO",QByteArray("2"));
+
+#os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "2"
+#os.environ["QT_SCREEN_SCALE_FACTORS"] = "1.5"
+#os.environ["QT_SCALE_FACTOR"] = "1.5"
+
 
 opcodes = [
     'adc', 'and', 'asl', 'bcc', 'bcs', 'beq', 'bit', 'bmi', 'bne', 'bpl', 'brk', 'bvc', 'bvs', 'clc',
@@ -151,6 +170,8 @@ class Base_Light():
         self.onClick = False
         self.onChange = False
         self.helpText = False
+        self.action = False
+        self.functionName = False
         try: self.setMouseTracking(True)
         except: pass
     def init(self, t):
@@ -160,6 +181,7 @@ class Base_Light():
         self.resize(t.w, t.h)
         self.text = t.text
         self.scale = t.scale or 1
+        self.functionName = t.functionName or False
     def __getattribute__(self, key):
         if key == 'tooltip':
             return self.toolTip()
@@ -195,6 +217,8 @@ class Base():
         self.helpText = False
         self.keyEvent = False
         self.closable = True
+        self.action = False
+        self.functionName = False
         try: self.setMouseTracking(True)
         except: pass
         
@@ -206,6 +230,7 @@ class Base():
         self.text = t.text
         self.scale = t.scale or 1
         self.contextMenuItems = t.contextMenuItems or False
+        self.functionName = t.functionName or False
  
         if t['class']:
             self.addCssClass(t['class'])
@@ -303,6 +328,10 @@ class Base():
             h = self.sizeHint().height()*1.2
         super().resize(int(w),int(h))
     def setCursor(self,cursor=None):
+        if not cursor:
+            super().setCursor(QCursor())
+            return
+        
         if not cursors:
             print('no cursors.')
             return
@@ -371,6 +400,7 @@ class Base():
                     contextMenu.addAction(v)
                     d.update({v: {}})
                 else:
+                    # assumes a mapping
                     contextMenu.addAction(v.name)
                     d.update({v.name: dict(action=v.action)})
             action = contextMenu.exec_(self.mapToGlobal(event.pos()))
@@ -534,17 +564,30 @@ class Label(Base, QLabel):
 class Link(Label):
     def init(self, t):
         super().init(t)
-        # There's no reason for a font tag in 2020, except it just doesn't
-        # let me style this properly with the qss or even setStyleSheet.
-        self.setText('<a href="{0}"><font color="white">{1}</font></a>'.format(t.url,t.text))
         self.addCssClass("link")
         self.setOpenExternalLinks(True)
         self.linkHovered.connect(self._linkHovered)
         self.linkActivated.connect(self._linkClicked)
+        self._cancel = False
+        self.url = t.url
+        t.url = None
+        
+        self.setCursor('PointingHandCursor')
     def _linkHovered(self):
         pass
     def _linkClicked(self):
         pass
+    def cancel(self, c=True):
+        self._cancel = c
+    def getUrl(self):
+        return self.url
+    def setUrl(self, url):
+        self.url = url
+    def openUrl(self, url = False):
+        if not url:
+            url = self.url
+        webbrowser.open(url)
+        
 
 class CheckBox(Base, QCheckBox): pass
 
@@ -842,6 +885,20 @@ class Canvas(ClipOperations, Base, QLabel):
         painter.setPen(QPen(Qt.white,  5, Qt.DotLine))
         painter.drawLine(x,y,x2,y2)
         painter.end()
+    def drawLine2(self, x,y,x2,y2):
+        # needs work
+        painter = Painter(self.pixmap())
+        #painter.scale(self.scale, self.scale)
+        lineWidth = 4
+        c = QColor(255,255,255,150)
+        pen = QPen(c, lineWidth, Qt.DotLine)
+        #pen.setDashOffset(1)
+        #painter.setPen(QPen(Qt.white,  1, Qt.DotLine))
+        painter.setPen(pen)
+        #painter.drawLine(x,y,x2,y2)
+        #painter.drawLine(x*self.scale-self.scale*.5,y*self.scale-self.scale*.5,x2*self.scale-self.scale*.5,y2*self.scale-self.scale*.5)
+        painter.drawLine(x*self.scale+self.scale*.5,y*self.scale+self.scale*.5,x2*self.scale+self.scale*.5,y2*self.scale+self.scale*.5)
+        painter.end()
     def horizontalLine(self, y):
         painter = Painter(self.pixmap())
         painter.scale(self.scale, self.scale)
@@ -965,6 +1022,8 @@ class PaletteControl(Base, QFrame):
                 
                 self.cells.append(ctrl)
     def setAll(self, colors):
+        if not colors:
+            return
         colors = [x for _,x in colors.items()]
         for i, c in enumerate(colors):
             self.set(index=i, c=c)

@@ -715,8 +715,9 @@ timeSymbols = ['year','month','day','hour','minute','second']
 specialSymbols+= timeSymbols
 specialSymbols+= [x.lower() for x in assembler.nesRegisters.keys()]
 
-def assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False, symbolsFile=False):
+def assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False, symbolsFile=False, quiet=False):
     assembler.error = False
+    #quiet=True
     
     if not configFile:
         if frozen:
@@ -770,7 +771,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     startTime = time.time()
     
     try:
-        _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile, symbolsFile=symbolsFile)
+        _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile, symbolsFile=symbolsFile, quiet=quiet)
     except Exception as e:
         tb = traceback.extract_tb(e.__traceback__)[-1]
         
@@ -811,7 +812,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     
     return not assembler.error, assembler.errorText
 
-def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, symbolsFile):
+def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, symbolsFile, quiet):
     
     def createHeader():
         header = (list(out[:16]) + [0] * 16)[:16]
@@ -2090,7 +2091,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             elif k == 'ineschr':
                 out[5] = getValue(line.split(" ")[1].strip())
             elif k == 'inesmir':
-                v = getValue(line.split(" ")[1].strip())
+                v = line.split(" ")[1].strip()
+                
+                if v.lower() in('v', 'vertical', 'vert'):
+                    v = 1
+                elif v.lower() in('h', 'horizontal', 'vert'):
+                    v = 0
+                else:
+                    v = getValue(v)
+                
                 out[6] = (out[6] & 0xfe) | v
             elif k == 'inesbattery':
                 if k.strip() == line.strip().lower():
@@ -2128,12 +2137,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 if type(v) == list:
                     fv = v[1]
                     v = v[0]
+                
                 fileOffset = addr + bank * bankSize + headerSize
+                fileOffset = int(getSpecial('fileoffset'))
+                print(f'addr={hex(addr)}, bank={hex(bank)}, bankSize={hex(bankSize)}, headerSize={headerSize}, fileOffset={hex(fileOffset)}')
                 #out = out[:fileOffset]+([fv] * v)+out[fileOffset:]
                 
                 out[fileOffset:fileOffset] = [fv] * v
                 
-                if debug:
+                if debug or True:
                     print('insert', v, 'bytes.')
             elif k == 'truncate':
                 fileOffset = addr + bank * bankSize + headerSize
@@ -2170,16 +2182,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     else:
                         assembler.setTextMapData(data[0], data[1])
             elif k == 'outputfile':
-                #filename = getString(line.split(" ",1)[1].strip())
-                
                 data = (line.split(" ",1)+[''])[1].strip()
                 filename = getValueAsString(data) or getString(data)
                 
                 if filename:
                     outputFilename = filename
             elif k == 'listfile':
-                #filename = getString(line.split(" ",1)[1].strip())
-
                 data = (line.split(" ",1)+[''])[1].strip()
                 filename = getValueAsString(data) or getString(data)
 
@@ -2347,9 +2355,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     filename = l
                 
                 filename = getValueAsString(filename) or getString(filename)
-                
-                #filename = getString(filename)
-                
                 filename = assembler.findFile(filename)
                 
                 if errorText:
@@ -2475,7 +2480,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 filename = line.split(" ",1)[1].strip()
                 
                 filename = getValueAsString(filename) or getString(filename)
-                if passNum == lastPass:
+                if passNum == lastPass and not quiet:
                     print(filename.replace("\\","/"))
                 filename = assembler.findFile(filename)
                 if filename:
@@ -2548,7 +2553,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         
                         a = (a-headerSize)
                         resultBank = math.floor(a/bankSize)
-                        a=a-resultBank*bankSize+0x8000
+                        a=a-resultBank * bankSize + 0x8000
                         
                         a=a+currentAddress-startAddress
                         
@@ -2607,12 +2612,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 addr = oldAddr
                 currentAddress = addr
                 noOutput = False
-            
-#            elif k == '_base':
-#                addr = getValue(line.split(' ',1)[1])
-#                if startAddress == False:
-#                    startAddress = addr
-#                currentAddress = addr
             elif k == 'base' or (k == 'org' and startAddress==False):
                 v = getValue(line.split(' ',1)[1])
                 if startAddress == False:
@@ -2644,14 +2643,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     fv = getValue(data.split(',')[1])
                 a = getValue(data.split(',')[0])
                 if a-currentAddress != 0:
-#                    print(hex(a))
-#                    print(hex(currentAddress))
-#                    print(data)
-#                    print(hex(addr))
-#                    print(hex(a-currentAddress))
-#                    print('---')
-                    
-                    
                     if currentAddress <= a:
                         if ',' not in data and padOrg == 1 and k!='org pad':
                             # pad with original data (asm6n behaviour)
@@ -2685,11 +2676,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 b = b + ([fv] * ((a-currentAddress%a)%a))
             elif k in ('fillvalue','fillbyte','padbyte'):
                 fillValue = getValue(line.split(' ',1)[1])
-            
             elif k == 'hex':
                 data = line.split(' ',1)[1]
                 b = b + list(bytes.fromhex(''.join(['0'*(len(x)%2) + x for x in data.split()])))
-            
             elif k == 'dsb' or k == 'ds.b':
                 data = line.split(' ',1)[1]
                 n = getValue(data.split(",")[0])
@@ -2826,7 +2815,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     setLength = 2
                     k = k.rsplit('.w',1)[0]
                 
-                # Special handling for pseudo opcode
+                # Special handling for pseudo opcode (nop nBytes)
                 # Example:
                 # nop 6 ; 6 nop instructions
                 if k == 'nop':
@@ -2865,7 +2854,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         length = setLength or getLength(v)
                         if length == 2 and getOpWithMode(k, 'Absolute, Y'):
                             op = getOpWithMode(k, 'Absolute, Y')
-                        
                         
                     elif v.lower().endswith(',x)'):
                         op = getOpWithMode(k, '(Indirect, X)')
@@ -2940,7 +2928,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         b = [op.byte] + [0] * (op.length-1)
                         assembler.errorLinePos = len(line)
                         errorText= 'missing value'
-                    #elif (op.length>1) and l>op.length-1:
                     elif (op.length>1) and l>op.length:
                         b = [op.byte] + [0] * (op.length-1)
                         assembler.errorLinePos = line.find(oldv)
@@ -3061,12 +3048,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         
                         
 #                        print('*', originalLine)
-                        if bank == 1:
-                            print('currentAddress=',hex(currentAddress))
-                            print('addr=',hex(addr))
-                            print('bank=',bank)
-                            print('bankSize=',hex(bankSize))
-                            print('fileOffset=',hex(fileOffset))
+#                        if bank == 1 and not quiet:
+#                            print('currentAddress=',hex(currentAddress))
+#                            print('addr=',hex(addr))
+#                            print('bank=',bank)
+#                            print('bankSize=',hex(bankSize))
+#                            print('fileOffset=',hex(fileOffset))
                         
                         if fileOffset == len(out):
                             # We're in the right spot, just append
@@ -3228,9 +3215,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
     print()
     
 if __name__ == '__main__' or sys.argv[0] == 'NESBuilder:asm':
-    # This stuff doesn't work because I need to get the relative
-    # imports more organized.
-    
     import argparse
 
     parser = argparse.ArgumentParser(description='ASM 6502 Assembler made in Python')
@@ -3243,8 +3227,8 @@ if __name__ == '__main__' or sys.argv[0] == 'NESBuilder:asm':
                         help='Specify config file')
     parser.add_argument('-fulltb', action='store_true',
                         help='Show full traceback')
-#    parser.add_argument('-q', action='store_true',
-#                        help='Quiet mode')
+    parser.add_argument('-q', action='store_true',
+                        help='Quiet mode')
     parser.add_argument('-symbols', type=str, metavar="<file>",
                         help='Specify export symbols file')
 
@@ -3261,8 +3245,9 @@ if __name__ == '__main__' or sys.argv[0] == 'NESBuilder:asm':
     configFile = args.cfg
     binFile = args.bin
     symbolsFile = args.symbols
+    quiet = args.q
     
-    success, errorText = assemble(filename, outputFilename = outputFilename, listFilename = listFilename, configFile = configFile, binFile = binFile, symbolsFile = symbolsFile)
+    success, errorText = assemble(filename, outputFilename = outputFilename, listFilename = listFilename, configFile = configFile, binFile = binFile, symbolsFile = symbolsFile, quiet=quiet)
     
     if not success:
         print(errorText)

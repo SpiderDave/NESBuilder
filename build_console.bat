@@ -52,6 +52,7 @@ pyinstaller --onefile --noupx -%parameter% -i icons\icon.ico -n NESBuilder%suffi
             --add-binary "include\util.lua;include" ^
             --add-binary "include\style.qss;include" ^
             --add-binary "cursors\pencil.cur;cursors" ^
+            --add-binary "cursors\crosshair.cur;cursors" ^
             --add-binary "cursors\LinkSelect.cur;cursors" ^
             --hidden-import "lupa._lupa" ^
             --hidden-import PyQt5.QtPrintSupport ^

@@ -687,6 +687,7 @@ function onReady()
     handlePluginCallback("onReady")
     LoadProject()
     
+    
     if cfgGet('autosave')==1 then
         local main = NESBuilder:getWindowQt()
         -- minimum auto save interval is 45 seconds
@@ -3273,6 +3274,7 @@ end
 
 function ppUpdate()
     local control
+    local k,v, comment
     
     -- update patches from table
     data.project.patches = {}
@@ -3289,6 +3291,9 @@ function ppUpdate()
             data.project.properties[i] = {k=k,v=v,comment=comment}
         end
     end
+    
+    data.project.binaryFilename = ppGet('binaryFilename') or data.project.binaryFilename
+    
     print('ppUpdate')
 end
 

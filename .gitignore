@@ -1,0 +1,6 @@
+projects/*
+**/__pycache__
+build/**/*.zip
+NESBuilder.exe.spec
+NESBuilder.ini
+version.py

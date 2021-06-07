@@ -2232,11 +2232,9 @@ function LoadProject(templateFilename)
     
 --    f=data.folders.projects..projectFolder.."chr.png"
 --    NESBuilder:loadImageToCanvas(f)
-    print(data.project.assembler)
-    ppLoad()
-    print(data.project.assembler)
     
-
+    ppLoad()
+    
     updateTitle()
 end
 

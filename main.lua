@@ -1237,9 +1237,11 @@ function ppLoad()
     control = getControl('ppAssembler')
     control.itemList = data.assemblers
     control.clear()
+    
     for i, item in ipairs_sparse(data.assemblers) do
         control.addItem(item)
     end
+    
     control.setByText(data.project.assembler)
     
     control = getControl('ppRomFile')
@@ -2075,7 +2077,6 @@ function LoadProject(templateFilename)
     print('load project filename: '..filename)
     
     data.project = util.unserialize(util.getFileContents(filename))
-    
     data.projectID = projectID
     
     if not data.project then
@@ -2179,8 +2180,8 @@ function LoadProject(templateFilename)
 --    end
 --    NESBuilder:setWorkingFolder()
     
+    -- temporary fix
     data.project.rom = data.project.rom or {}
-    
     if not templateFilename then
         if data.project.rom.filename and not data.project.rom.data then
             loadRom(data.project.rom.filename)
@@ -2231,8 +2232,11 @@ function LoadProject(templateFilename)
     
 --    f=data.folders.projects..projectFolder.."chr.png"
 --    NESBuilder:loadImageToCanvas(f)
+    print(data.project.assembler)
     ppLoad()
+    print(data.project.assembler)
     
+
     updateTitle()
 end
 

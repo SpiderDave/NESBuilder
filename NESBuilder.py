@@ -183,8 +183,6 @@ os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = str(cfg.getValue("main","QT_AUTO_SCR
 os.environ["QT_SCREEN_SCALE_FACTORS"] = str(cfg.getValue("main","QT_SCREEN_SCALE_FACTORS"))
 os.environ["QT_SCALE_FACTOR"] = str(cfg.getValue("main","QT_SCALE_FACTOR"))
 
-print(str(cfg.getValue("main","QT_SCALE_FACTOR")))
-
 app = QtDave.App()
 main = QtDave.MainWindow()
 
@@ -1409,8 +1407,7 @@ class ForLua:
         t.control = ctrl
         ctrl.init(t)
         
-        ctrl.currentIndexChanged.connect(makeCmdNoEvent(t))
-        
+        ctrl.activated.connect(makeCmdNoEvent(t))
         
         #ctrl.textChanged.connect(makeCmdNoEvent(t))
         controlsNew.update({ctrl.name:ctrl})

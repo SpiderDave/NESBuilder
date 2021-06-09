@@ -874,6 +874,7 @@ class Canvas(ClipOperations, Base, QLabel):
         painter.brushColor = QColor(Qt.black)
         painter.fillRect(0,0,self.width,self.height,QBrush(Qt.black))
         painter.end()
+        self.repaint()
     def paintTest(self):
         painter = Painter(self.pixmap())
         painter.test3()

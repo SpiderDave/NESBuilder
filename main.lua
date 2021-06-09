@@ -262,10 +262,12 @@ function init()
     NESBuilder:setTabQt("Image")
     x,y=8,8
     control=NESBuilder:makeCanvasQt{x=x,y=y,w=128,h=128,name="canvasQt", scale=3}
+    control.helpText = "Click to select a tile"
     
     x=x+control.width
     y=y+control.height+pad
     control = NESBuilder:makeCanvasQt{x=x,y=y,w=8,h=8,name="canvasTile", scale=8}
+    control.helpText = "Left-click: apply color, right-click: select color"
     control.setCursor('pencil')
     
     -- right align it with the above canvas
@@ -391,7 +393,13 @@ function init()
     --  Yes, we're cheating with Python here.
     local l = python.eval('["CHR {0:02n}".format(x) for x in range(8)]')
     
-    control = NESBuilder:makeList{x=x,y=y,w=buttonWidth,h=buttonHeight*12, name="CHRList",list = l}
+    local menu = {
+        {name='add new', action = addCHR_cmd},
+        {name='rename', action = notImplemented},
+        {name='delete', action = delCHR},
+    }
+    control = NESBuilder:makeList{x=x,y=y,w=buttonWidth,h=buttonHeight*12, name="CHRList",list = l, contextMenuItems = menu}
+    control.helpText = "left-click: Select a CHR set, right-click: context menu"
     push(y + control.height + pad, x)
     
     x=x + control.width + pad*.5
@@ -970,8 +978,6 @@ function PaletteEntryUpdate()
     
     --data.project.palettes[n or data.project.palettes.index]
     
-    
-
     refreshCHR()
 end
 
@@ -2379,13 +2385,18 @@ function Quit_cmd()
 end
 
 function refreshCHR()
+    --if not currentChr() then return end
+    
     --if not maxTableIndex(data.project.chr) then return end
 
     --print('refreshCHR()')
     local w,h
     local c = NESBuilder:getControl('CHRNumLabelQt')
-    c.text = string.format("%02x", data.project.chr.index)
-    
+    if currentChr() then
+        c.text = string.format("%02x", data.project.chr.index)
+    else
+        c.text = ''
+    end
     
     if currentChr() then
         local nTiles = NESBuilder:getLen(currentChr())/16
@@ -2411,23 +2422,28 @@ function refreshCHR()
     -- paste the surface on our canvas (it will be sized to fit)
     control.paste(surface)
     
-    
-    control = NESBuilder:getControlNew("canvasTile")
-    control.chrData = currentChr()
-    control.drawTile(0,0, data.selectedTile, currentChr(), currentPalette(), control.columns, control.rows)
-    control.update()
-    control.copy()
-    
-    control = NESBuilder:getControl("tsaCanvasQt")
-    if control then
-        control.paste(surface)
+    if currentChr() then
+        control = NESBuilder:getControlNew("canvasTile")
+        control.chrData = currentChr()
+        control.drawTile(0,0, data.selectedTile, currentChr(), currentPalette(), control.columns, control.rows)
+        control.update()
+        control.copy()
+        
+        control = NESBuilder:getControl("tsaCanvasQt")
+        if control then
+            control.paste(surface)
+        end
+    else
+        getControl('canvasTile').clear()
+        getControl('tsaCanvasQt').clear()
     end
-    
     
     handlePluginCallback("onCHRRefresh", surface)
 end
 
 function LoadCHRImage_cmd()
+    if not currentChr() then return end
+    
     local CHRData
     local f = NESBuilder:openFile{filetypes={{"Images", ".png"}}}
     if f == "" then
@@ -2446,6 +2462,8 @@ function LoadCHRImage_cmd()
 end
 
 function LoadCHRNESmaker_cmd()
+    if not currentChr() then return end
+    
     local CHRData
     local f = NESBuilder:openFile{filetypes={{"Bitmap (NESMaker)", ".bmp"}}}
     if f == "" then
@@ -2480,6 +2498,8 @@ function LoadCHRNESmaker_cmd()
 end
 
 function ExportCHR_cmd()
+    if not currentChr() then return end
+    
     local filename = string.format("chr_%02x_export.png",data.project.chr.index)
     local f, ext, filter = NESBuilder:saveFileAs{filetypes={{"PNG", ".png"},{"Bitmap", ".bmp"}, {"Bitmap (NESMaker)", ".bmp"}, {"Raw CHR Data", ".chr"}}, initial=filename}
     if f == "" then
@@ -2525,6 +2545,8 @@ function ExportCHR_cmd()
 end
 
 function LoadCHR_cmd()
+    if not currentChr() then return end
+    
     local f = NESBuilder:openFile{filetypes={{"CHR", ".chr"}}}
     if f == "" then
         print("Open cancelled.")
@@ -2626,24 +2648,61 @@ function renameMTileSet()
     
 end
 
-function CHRList_keyPress_cmd(t,test)
-    local key = t.control.event.key
-    local index = t.getIndex()
-    if key == "Delete" then
-        local chr = {}
-        local chrNames = {}
+-- Why does this exist?  table.remove does not handle
+-- a list index of 0.
+-- This function does not return the removed item.
+function tableRemove(t, index)
+    if type(index) == 'number' then
+        if index == 0 and #t == 0 and t[0] then
+            t[0] = nil
+            return
+        end
         
-        -- ToDo: handle removing of only chr (make blank?)
-        
-        table.remove(data.project.chr, index)
-        table.remove(data.project.chrNames, index)
-        local control = NESBuilder:getControl('CHRList')
-        --control.takeItem(index)
-        control.removeItem(index)
-        
-        CHRList_cmd(t)
+        for i=0, #t-1 do
+            print(string.format('i = %s',i))
+            if i >= index then
+                t[i] = t[i+1]
+            end
+        end
+        if #t > 0 then table.remove(t, #t) end
     end
-    --print(key)
+end
+
+function delCHR(index)
+    index = index or data.project.chr.index
+    
+    local chr = {}
+    local chrNames = {}
+    
+    -- ToDo: handle removing of only chr (make blank?)
+    
+    tableRemove(data.project.chr, index)
+    tableRemove(data.project.chrNames, index)
+    
+    local control = NESBuilder:getControl('CHRList')
+    
+    if index == 0 then getControl('canvasQt').clear() end
+    
+    -- Setting this to -1 avoids refreshing things too soon
+    control.setCurrentRow(-1)
+    control.removeItem(index)
+    
+    index = math.min(#data.project.chr, index - 0)
+    data.project.chr.index = index
+    
+    if not currentChr() then
+        getControl('CHRNumLabelQt').text = ''
+        getControl('CHRName').clear()
+    end
+    
+    -- This will trigger the callback, and refresh the chr
+    control.setCurrentRow(index)
+end
+
+
+function CHRList_keyPress_cmd(t)
+    local key = t.control.event.key
+    if key == "Delete" then delCHR(t.getIndex()) end
 end
 
 function CHRList_cmd(t)
@@ -2659,6 +2718,11 @@ function CHRList_cmd(t)
 end
 
 function CHRName_cmd(t)
+    if not currentChr() then
+        t.control.clear()
+        return
+    end
+    
     local control = NESBuilder:getControl('CHRList')
     
     if control.getIndex() == -1 then return end
@@ -3084,6 +3148,8 @@ function vFlip_cmd()
 end
 
 function canvasTile_cmd(t)
+    if not currentChr() then return end
+    
     local event = t.control.event
     local x = math.floor(event.x/t.scale)
     local y = math.floor(event.y/t.scale)
@@ -3128,6 +3194,8 @@ function canvasTile_cmd(t)
 end
 
 function canvasQt_cmd(t)
+    if not currentChr() then return end
+    
     local event = t.control.event
     local x = math.floor(event.x/t.scale)
     local y = math.floor(event.y/t.scale)
@@ -3175,6 +3243,8 @@ function canvasQt_cmd(t)
 end
 
 function tsaCanvasQt_cmd(t)
+    if not currentChr() then return end
+    
     local control
     local event = t.control.event
     local x = math.floor(event.x/t.scale)

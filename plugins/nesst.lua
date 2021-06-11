@@ -1,7 +1,5 @@
 -- NESBuilder plugin
 -- nesst.lua
---
--- To enable this plugin, remove the "_" from the start of the filename.
 
 local plugin = {
     author = "SpiderDave",
@@ -28,11 +26,11 @@ function plugin.onInit()
     makeTab{name="nesst", text="Screen Tool"}
     NESBuilder:setTabQt("nesst")
     
-    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth, name="nesstLoad",text="Open Session"}
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth*7.5, name="nesstLoad",text="Open Session"}
     control.helpText = "Load a .nss file created with Shiru's NES Screen tool."
     push(x, y+control.height+pad)
     x = x + control.width + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth,h=buttonHeight, name="testRefresh",text="refresh"}
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="testRefresh",text="refresh"}
     y,x=pop(2)
     
     
@@ -51,9 +49,9 @@ function plugin.onInit()
     push(x)
     control=NESBuilder:makeLabelQt{x=x,y=y+3,clear=true,text="Pattern table"}
     x = x + control.width + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=30,h=buttonHeight, name="nesstCHR0",text="A", toggle=1, toggleSet = "chrAB"}
+    control = NESBuilder:makeButton{x=x,y=y,w=30,h=buttonHeight, name="nesstCHR0",text="A", toggle=1, toggleSet = "chrAB"}
     x = x + control.width + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=30,h=buttonHeight, name="nesstCHR1",text="B", toggle=1, toggleSet = "chrAB"}
+    control = NESBuilder:makeButton{x=x,y=y,w=30,h=buttonHeight, name="nesstCHR1",text="B", toggle=1, toggleSet = "chrAB"}
     --control.setValue(1)
     y = y + control.height + pad
     x=pop()
@@ -95,7 +93,7 @@ function plugin.onInit()
     y = y + control.height+pad
     
 --    push(x)
---    control = NESBuilder:makeButtonQt{x=x,y=y,w=6*7.5,h=buttonHeight, name="testHand",text="split"}
+--    control = NESBuilder:makeButton{x=x,y=y,w=6*7.5,h=buttonHeight, name="testHand",text="split"}
 --    y = y + control.height+pad
     
 --    control=NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="splitNum", index=i}

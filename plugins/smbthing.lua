@@ -126,13 +126,13 @@ function plugin.onInit()
     --y = y + control.height + pad
     x = x + control.width + pad
     
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text="tools", name="smbSwitchFrame4", functionName = 'smbthingRemodeller', value='tools'}
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth, text="tools", name="smbSwitchFrame4", functionName = 'smbthingRemodeller', value='tools'}
     x = x + control.width + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text="palette", name="smbSwitchFrame4", functionName = 'smbthingRemodeller', value='palette'}
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth, text="palette", name="smbSwitchFrame4", functionName = 'smbthingRemodeller', value='palette'}
     x = x + control.width + pad
 --    for i,item in pairs(smbData) do
 --        if item.category then
---            control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text=item.category, name="smbSwitchFrame", functionName = 'smbthingSwitchFrame', value=item.category}
+--            control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth, text=item.category, name="smbSwitchFrame", functionName = 'smbthingSwitchFrame', value=item.category}
 --            x = x + control.width + pad
 --        end
 --    end
@@ -167,7 +167,7 @@ function plugin.onInit()
     
     for i,item in pairs(smbData) do
         if item.category then
-            control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, text=item.category, name="smbSwitchFrame", functionName = 'smbthingSwitchFrame', value=item.category}
+            control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth, text=item.category, name="smbSwitchFrame", functionName = 'smbthingSwitchFrame', value=item.category}
             x = x + control.width + pad
         end
     end
@@ -197,10 +197,10 @@ function plugin.onInit()
     
     push(y)
     
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingReload",text="Reload"}
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth, name="smbthingReload",text="Reload"}
     control.helpText = "Load palette from current project rom."
     y = y + control.height + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingImport",text="Import"}
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth, name="smbthingImport",text="Import"}
     control.helpText = "Import palette from another file."
     y = y + control.height + pad
     
@@ -293,10 +293,10 @@ function plugin.onInit()
     x,y = left,top
     --control = NESBuilder:makeLabelQt{x=x,y=y,w=buttonWidth, text='tools'}
     
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingLevelExtract",text="Extract Level"}
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth, name="smbthingLevelExtract",text="Extract Level"}
     control.helpText = "Extract level from a .nes file."
     y = y + control.height + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=buttonWidth, name="smbthingMtiles",text="Generate MTiles"}
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth, name="smbthingMtiles",text="Generate MTiles"}
     control.helpText = "Generate Metatiles for use in the Metatiles tab."
     y = y + control.height + pad
 

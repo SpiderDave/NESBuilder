@@ -32,6 +32,10 @@ config = {
     defaultAssembler = 'sdasm',
 }
 
+config.buttonWidthNew = 20*7.5
+config.buttonHeightNew = 26*7.5
+
+
 config.pad = 6
 config.left = config.pad*1.5
 config.top = config.pad*1.5
@@ -222,7 +226,7 @@ function init()
         
         x=left+pad*8
         y = y + control.height + pad*8
-        b=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="buttonWarningClose",text="close"}
+        b=NESBuilder:makeButton{x=x,y=y,w=100,h=buttonHeight,name="buttonWarningClose",text="close"}
 
     end
     
@@ -257,7 +261,7 @@ function init()
     end
     
     
-    --control=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="testError",text="Test"}
+    --control=NESBuilder:makeButton{x=x,y=y,w=100,h=buttonHeight,name="testError",text="Test"}
     
     NESBuilder:setTabQt("Image")
     x,y=8,8
@@ -299,7 +303,7 @@ function init()
     control = NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="SpinChangePalette"}
     
     x = x + control.width + pad
-    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall*1.5,name="ButtonAddPalette",text="Add"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall*7.5*1.5,name="ButtonAddPalette",text="Add"}
     
     x = left
     y = y + b.height + pad
@@ -360,26 +364,26 @@ function init()
     
     x=left + 120
     y=placeY
-    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall,name="ButtonPrevPaletteCHR",text="<"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall*7.5,name="ButtonPrevPaletteCHR",text="<"}
 
     x=x+b.width+pad
     y=placeY
-    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall,name="ButtonNextPaletteCHR",text=">"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall*7.5,name="ButtonNextPaletteCHR",text=">"}
 
     x=left
     
     y = y + 32 + pad
-    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="LoadCHRImage",text="Load Image"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthNew,name="LoadCHRImage",text="Load Image"}
 
     y = y + b.height + pad
-    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="LoadCHRNESmaker",text="Load NESmaker Image"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthNew,name="LoadCHRNESmaker",text="Load NESmaker Image"}
 
     y = y + b.height + pad
     
-    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="LoadCHR",text="Load .chr"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthNew,name="LoadCHR",text="Load .chr"}
     y = y + b.height + pad
     
-    b=NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth,name="ExportCHR",text="Export"}
+    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthNew,name="ExportCHR",text="Export"}
     y = y + b.height + pad
     
     x=128*3+pad*3
@@ -403,7 +407,7 @@ function init()
     push(y + control.height + pad, x)
     
     x=x + control.width + pad*.5
-    b=NESBuilder:makeButtonQt{x=x,y=y,w=30,name="addCHR",text="+"}
+    b=NESBuilder:makeButton{x=x,y=y,w=30,name="addCHR",text="+"}
     
     x,y = pop(2)
     
@@ -441,17 +445,17 @@ function init()
     --y = y + control.height + pad
     push(y)
     
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonRecent",text="Recent Projects", image="icons/clock32.png", iconMod=true}
+    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonRecent",text="Recent Projects", image="icons/clock32.png", iconMod=true}
     y = y + control.height + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonOpen",text="Open Project", image="icons/folder32.png", iconMod=true}
+    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonOpen",text="Open Project", image="icons/folder32.png", iconMod=true}
     y = y + control.height + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonNew",text="New Project", image="icons/folderplus32.png", iconMod=true}
+    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonNew",text="New Project", image="icons/folderplus32.png", iconMod=true}
     y = y + control.height + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonTemplates",text="Templates", image="icons/folder32.png", iconMod=true}
+    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonTemplates",text="Templates", image="icons/folder32.png", iconMod=true}
     y = y + control.height + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonPreferences",text="Preferences", image="icons/gear32.png", iconMod=true}
+    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonPreferences",text="Preferences", image="icons/gear32.png", iconMod=true}
     y = y + control.height + pad
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=190,h=64, name="launcherButtonInfo",text="About", image="icons/note32.png", iconMod=true}
+    control = NESBuilder:makeButton{x=x,y=y,w=190,h=64, name="launcherButtonInfo",text="About", image="icons/note32.png", iconMod=true}
     y = y + control.height + pad
     
     x=x+control.width+pad*2
@@ -494,7 +498,6 @@ function init()
         
         y=y+control.height-25
         control = NESBuilder:makeLabelQt{x=x,y=y, name="launcherRecentLabel",text="", class="launcherText"}
-        control.autoSize = false
         control.width = iconWidth
         control.height=20
         
@@ -512,7 +515,6 @@ function init()
 
         y=y+control.height-25
         control = NESBuilder:makeLabelQt{x=x,y=y, name="launcherRecentLabel", text=item.text, class="launcherText"}
-        control.autoSize = false
         control.width = iconWidth
         control.height=20
     end
@@ -538,7 +540,7 @@ function init()
         x = ((i-1) % columns)*(iconWidth+15) + pad
         y = math.floor((i-1)/columns)*130
         
-        control = NESBuilder:makeButtonQt{x=x,y=y,w=iconWidth, h=120, name="launcherTemplate",text=name, index=i-1, class="templateButton", filename=baseFilename}
+        control = NESBuilder:makeButton{x=x,y=y,w=iconWidth, h=120, name="launcherTemplate",text=name, index=i-1, class="templateButton", filename=baseFilename}
         --control.setIconFromArchive(data.folders.templates..'smb.template.zip', 'templateicon.png')
         control.setIconFromArchive(f, 'templateicon.png')
         
@@ -598,7 +600,7 @@ function init()
     push(x)
     
     push(y)
-    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="metatilePrev",text="<"}
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall*7.5, name="metatilePrev",text="<"}
     control.helpText = "Previous metatile"
     y=pop()
     x = x + control.width+pad
@@ -609,11 +611,11 @@ function init()
     y=pop()
     x= x + control.width+pad
     
-    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="metatileNext",text=">"}
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall*7.5, name="metatileNext",text=">"}
     control.helpText = "Next metatile"
     x=x+control.width+pad
     
-    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall, name="metatileNew",text="+"}
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall*7.5, name="metatileNew",text="+"}
     control.helpText = "Create a new metatile (WIP)"
     y = y + control.height + pad
     
@@ -640,7 +642,7 @@ function init()
     
     y = y + control.height + pad
     
-    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidthSmall*3, name="metatileOffsetTest",text="set offset"}
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall*7.5*3, name="metatileOffsetTest",text="set offset"}
     --control.helpText = "Create a new metatile (WIP)"
     
     y = y + control.height + pad
@@ -1174,7 +1176,7 @@ function ppInit()
     NESBuilder:makeTab{name="tabProjectProperties",text="Project Properties"}
     setTab("tabProjectProperties")
     
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight, name="ppLoadRom",text="Load ROM"}
+    control = NESBuilder:makeButton{x=x,y=y,w=100,h=buttonHeight, name="ppLoadRom",text="Load ROM"}
     x = x + control.width + pad
     push(y + control.height + pad)
     control = NESBuilder:makeLabelQt{x=x,y=y, name = "ppRomFile", clear=true, text="filename"}
@@ -1213,7 +1215,7 @@ function ppInit()
     
     y = y + control.height + pad
     
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight, name="ppLoadIPS",text="Load IPS Patch"}
+    control = NESBuilder:makeButton{x=x,y=y,w=100,h=buttonHeight, name="ppLoadIPS",text="Load IPS Patch"}
     y = y + control.height + pad
     
     control = NESBuilder:makeTable{x=x,y=y,w=buttonWidth*5,h=buttonHeight*5, name="patchesTable",rows=30, columns=1}
@@ -1234,7 +1236,7 @@ function ppInit()
     
     
     y = y + pad*7
-    b=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="ppClose",text="close"}
+    b=NESBuilder:makeButton{x=x,y=y,w=100,h=buttonHeight,name="ppClose",text="close"}
 end
 
 function ppLoad()
@@ -1370,7 +1372,7 @@ function launcherButtonPreferences_cmd()
     y = y + pad * 8
     control = NESBuilder:makeLabelQt{x=x,y=y, clear=true,text="Note: Some preferences may require a restart."}
     y = y + control.height + pad
-    b=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="buttonPreferencesClose",text="close"}
+    b=NESBuilder:makeButton{x=x,y=y,w=100,h=buttonHeight,name="buttonPreferencesClose",text="close"}
     
     NESBuilder:switchTab("tabPreferences")
 end
@@ -1395,7 +1397,8 @@ function prefEnablePlugin_cmd(t)
     NESBuilder:cfgSetValue("plugins", t.file, boolNumber(t.isChecked()))
 end
 
---function launcherButtonInfo_cmd()
+function launcherButtonInfo_cmd() About_cmd() end
+
 function createAboutTab()
     local x,y,left,top,pad
     pad = 6
@@ -1433,7 +1436,7 @@ function createAboutTab()
     control.helpText = linkHelpText(control)
     
     y = y + control.height + pad*8
-    b=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="buttonAboutClose",text="close"}
+    b=NESBuilder:makeButton{x=x,y=y,w=100,h=buttonHeight,name="buttonAboutClose",text="close"}
     
     --NESBuilder:switchTab("tabAbout")
     
@@ -2373,11 +2376,8 @@ end
 
 function About_cmd()
     --NESBuilder:exec(string.format("webbrowser.get('windows-default').open('%s')",config.aboutURL))
-    --launcherButtonInfo_cmd()
-    --toggleTab('tabAbout', true)
     toggleTab('tabAbout', true)
     NESBuilder:switchTab("tabAbout")
-
 end
 
 function Quit_cmd()
@@ -2385,11 +2385,6 @@ function Quit_cmd()
 end
 
 function refreshCHR()
-    --if not currentChr() then return end
-    
-    --if not maxTableIndex(data.project.chr) then return end
-
-    --print('refreshCHR()')
     local w,h
     local c = NESBuilder:getControl('CHRNumLabelQt')
     if currentChr() then
@@ -2478,8 +2473,6 @@ function LoadCHRNESmaker_cmd()
         
         --refreshCHR()
         --dataChanged()
-
-
 
         -- create a surface
         local surface = NESBuilder:makeNESPixmap(128,128)
@@ -2601,9 +2594,6 @@ function onExit(cancel)
     saveSettings()
 end
 
-
-
-
 function updateMTileList()
     local control = NESBuilder:getControl('mTileList')
     control.clear()
@@ -2622,6 +2612,31 @@ function mTileList_cmd(t)
     data.project.mTileSets.index = index
     data.project.mTileSets[data.project.mTileSets.index] = data.project.mTileSets[data.project.mTileSets.index] or {index=0}
     updateSquareoid()
+end
+
+function delMTileSet(index)
+    index = index or data.project.mTileSets.index
+    
+    tableRemove(data.project.mTileSets, data.project.mTileSets.index)
+
+    local control = NESBuilder:getControl('mTileList')
+    
+    -- Setting this to -1 avoids refreshing things too soon
+    control.setCurrentRow(-1)
+    control.removeItem(index)
+    
+    index = math.min(#data.project.mTileSets, index - 0)
+    data.project.mTileSets.index = index
+    
+    -- This will trigger the callback, and refresh the chr
+    control.setCurrentRow(index)
+end
+
+function mTileList_keyPress_cmd(t)
+    local key = t.control.event.key
+    if key == "Delete" then
+        delMTileSet(t.getIndex())
+    end
 end
 
 function addMTileSet()

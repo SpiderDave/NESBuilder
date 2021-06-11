@@ -547,7 +547,17 @@ class Label(Base, QLabel):
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
         self.autoSize = True
+    def init(self, t):
+        self.addCssClass("label")
+        self.addCssClass("defaultfont")
+        super().init(t)
+        
+    def setFont(self, *args, **kw):
+        self.removeCssClass("defaultfont")
+        super().setFont(*args, **kw)
+        
     def setText(self, txt, autoSize = False):
+        
         super().setText(txt)
         if autoSize or self.autoSize:
             self.adjustSize()
@@ -560,6 +570,10 @@ class Label(Base, QLabel):
             self.setText(v, autoSize=self.autoSize)
         else:
             super().__setattr__(key,v)
+    def showEvent(self, event: QtGui.QShowEvent):
+        if self.autoSize:
+            self.adjustSize()
+
 
 class Link(Label):
     def init(self, t):
@@ -603,6 +617,8 @@ class LauncherIcon(Frame):
         self.addCssClass("launcherFrame")
         
         ctrl = Label("", self)
+        ctrl.autoSize = False
+        ctrl.removeCssClass("label")
         t.text = ""
         ctrl.init(t)
         ctrl.resize(self.width, self.height)

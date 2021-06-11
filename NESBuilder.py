@@ -281,6 +281,15 @@ def depreciated(func):
         func(*args, **kwargs)
     return wrapper
 
+def depreciated2(func, alternate):
+    plugin = lua.eval("_getPlugin and _getPlugin().name or 'main'")
+    print('(Plugin {}): Depreciated function {}()'.format(plugin, func.__name__), end='')
+    if alternate:
+        print(f' Use {alternate} instead.')
+    else:
+        print()
+
+
 class Stack(deque):
     def push(self, *args):
         for arg in args:
@@ -1320,9 +1329,11 @@ class ForLua:
         return ctrl
     @lupa.unpacks_lua_table
     def makeButtonQt(self, t):
+        depreciated2(self.makeButtonQt, 'makeButton()')
         return self.makeButton(self, t)
     @lupa.unpacks_lua_table
     def makeButton2(self, t):
+        depreciated2(self.makeButton2, 'makeButton() using w * 7.5, h * 7.5')
         
         if t.w:
             t.w=t.w*7.5
@@ -1330,7 +1341,7 @@ class ForLua:
         if t.h:
             t.h=t.h*7.5
         
-        return self.makeButtonQt(self, t)
+        return self.makeButton(self, t)
     @lupa.unpacks_lua_table
     def makeTable(self, t):
         ctrl = QtDave.Table(self.tabQt)
@@ -1540,6 +1551,7 @@ class ForLua:
         ctrl.onMousePress = makeCmdNew(t)
         ctrl.onMouseRelease = makeCmdNew(t)
         controlsNew.update({ctrl.name:ctrl})
+        ctrl.update()
         return ctrl
     @lupa.unpacks_lua_table
     def makeMenuQt(self, t):

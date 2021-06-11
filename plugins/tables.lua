@@ -53,11 +53,11 @@ function plugin.onInit()
     y = y + control.height + pad
     
     x = pop()
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="buttonSineTable",text="Generate"}
+    control = NESBuilder:makeButton{x=x,y=y,w=100,h=buttonHeight,name="buttonSineTable",text="Generate"}
     push(x)
     x = x + control.width + pad
     
-    control = NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="buttonSineTableClear",text="Clear"}
+    control = NESBuilder:makeButton{x=x,y=y,w=100,h=buttonHeight,name="buttonSineTableClear",text="Clear"}
     x=pop()
     y = y + control.height + pad
     

@@ -1,7 +1,5 @@
 -- NESBuilder plugin
 -- rominfo.lua
---
--- To enable this plugin, remove the "_" from the start of the filename.
 
 local plugin = {
     author = "SpiderDave",

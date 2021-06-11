@@ -1,3 +1,12 @@
+/*
+  The class "defaultfont" is removed from labels
+  when setFont is used.
+*/
+.label.defaultfont {
+    font-size:10pt;
+    font-family: Verdana;
+}
+
 QWidget {
     background:_bk_;
     color:_fg_;
@@ -252,9 +261,6 @@ QHeaderView:section, QHeaderView  {
     background-color:_bk2_;
 }
 
-.test {background-color:red;}
-
-
 .launcherIcon {
     background: _bk2_ url('icons/project.png') center top no-repeat;
 }
@@ -288,6 +294,7 @@ QComboBox {
 * {
     selection-background-color: _bkHighlight_;
 }
+
 
 
 

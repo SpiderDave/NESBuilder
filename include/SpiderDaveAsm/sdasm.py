@@ -510,6 +510,7 @@ directives = [
     'rept','endr','endrept','sprite8x16','export','diff',
     'assemble', 'exportchr', 'ips','makeips', 'gg','echo','function','endf', 'endfunction',
     'return','namespace','break','expected',
+    'findtext', 'lastpass', 
 ]
 
 filters = [
@@ -1094,6 +1095,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 random.shuffle(v)
             return v,len(v)
         
+        if type(v) is bool:
+            return v, 0
+        
         if type(v) is str and '??' in v:
             v = v.split('??',1)
             
@@ -1535,6 +1539,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
     rndState = random.getstate()
     
     for passNum in range(1,lastPass+1):
+        if passNum>lastPass:
+            break
+        
         passTime = time.time()
         
         commentSep = makeList(cfg.getValue('main', 'comment'))
@@ -2132,6 +2139,43 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 orgPad = getValue(line.split(" ")[1].strip())
             elif k == 'padorg':
                 padOrg = getValue(line.split(" ")[1].strip())
+            elif k == 'lastpass':
+                print('Skipping to final pass')
+                lastPass = passNum
+            elif k == 'findtext':
+                txt = line.split(" ", 1)[1]
+                txt = getString(getValue(txt), strip = False) or getString(txt)
+                findValue = assembler.mapText(txt)
+                
+#                if passNum == lastPass:
+                
+                fileOffset = int(getSpecial('fileoffset'))
+                
+                index = fileOffset - 1
+                while True:
+                    try:
+                        index = out.index(findValue[0], index+1)
+                        if out[index:index+len(findValue)] == findValue:
+                            break
+                    except:
+                        index = False
+                        break
+                
+                symbols['resultbank'] = False
+                symbols['resultaddress'] = False
+                if passNum == lastPass:
+                    print(f'\nSearching for text: "{txt}"')
+                    if index:
+                        a = (index-headerSize)
+                        resultBank = math.floor(a/bankSize)
+                        a = a % bankSize + 0x8000
+                        print('Found at: {:02x}:{:05x}'.format(resultBank, a))
+                        symbols['resultbank'] = resultBank
+                        symbols['resultaddress'] = a
+                    else:
+                        print('Not found')
+                    print()
+            
             elif k == 'insert':
                 v = getValue(line.split(" ", 1)[1].strip())
                 fv = fillValue

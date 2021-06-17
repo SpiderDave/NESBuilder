@@ -780,3 +780,23 @@ endr / endrept
         print This is rept loop {reptindex}.
     endr
 ```
+
+findtext
+
+    Search for text using the current textmap, starting at the current position.
+    If found, the resulting bank and address will be printed, and the symbols
+    "resultbank" and "resultaddress" will be filled.  If not found, the symbols
+    will be false.
+    
+```
+    lastpass        ; skip to final pass
+```
+
+lastpass
+
+    Skip to final pass.  This will likely cause issues, but can be useful if you
+    know the result will be ok.
+    
+```
+    lastpass        ; skip to final pass
+```

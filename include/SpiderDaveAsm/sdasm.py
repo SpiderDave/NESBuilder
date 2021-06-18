@@ -346,13 +346,17 @@ class Assembler():
         txt = tokens[-1]
         
         if not any(q in txt for q in self.quotes):
-            return tokens[:-1] + [x.strip() for x in txt.split(splitter)]
+            if not any(q in txt for q in "[]"):
+                return tokens[:-1] + [x.strip() for x in txt.split(splitter)]
         
         q = False
         for quote in self.quotes:
             if txt.startswith(quote):
                 q = quote
                 break
+        
+        if txt.startswith('['):
+            q = ']'
         
         n1=0
         if q:
@@ -510,7 +514,7 @@ directives = [
     'rept','endr','endrept','sprite8x16','export','diff',
     'assemble', 'exportchr', 'ips','makeips', 'gg','echo','function','endf', 'endfunction',
     'return','namespace','break','expected',
-    'findtext', 'lastpass', 
+    'findtext', 'lastpass', 'endoffunction',
 ]
 
 filters = [
@@ -1805,7 +1809,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             if '(' in line and line.split('(')[0].lower() in functions:
                 kf = line.split('(')[0].lower()
                 kfdata = line.split('(',1)[1].rsplit(')',1)[0].strip()
-                kfdata = [x.strip() for x in kfdata.split(',')]
+                #kfdata = [x.strip() for x in kfdata.split(',')]
+                
+                kfdata = [x.strip() for x in assembler.tokenize(kfdata)]
+                
                 k = ''
             
             if k.startswith(('-','+')):
@@ -2327,6 +2334,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     l = line.split(" ",1)[1].strip()
                     l = l.split(',')
                     exportSymbol = l[0].strip()
+                    print(getValue(exportSymbol))
                     filename = getString(l[1].strip())
                     try:
                         makeSurePathExists(os.path.dirname(filename))
@@ -2449,11 +2457,28 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 functions[function].lines = []
                 noOutput = True
             elif k == 'endf' or k == 'endfunction':
+                #functions[function].lines.append( '{}endoffunction'.format(assembler.hidePrefix))
                 function = False
                 noOutput = False
+            elif k == 'endoffunction':
+                # Hidden directive used as a marker for return
+                # The argument is the ifLevel
+                ifLevel = getValue(line.split(" ", 1)[1].strip())
             elif k == 'return':
                 v = (line.split(" ", 1)+[''])[1].strip()
                 symbols['return'] = getValue(v)
+#                for j in range(i+1, len(lines)):
+#                    l = lines[j]
+#                    k = l.strip().split(" ",1)[0].strip().lower()
+                    
+#                    if k in 'endrept':
+#                        depth = 0
+#                    if k in ('endoffunction'):
+#                        function = False
+#                        noOutput = False
+#                        lines[i+1:j] = []
+#                        break
+                        
             elif k == 'rept':
                 reptCount = getValue(line.split(" ",1)[1].strip())
                 startIndex = i
@@ -2643,7 +2668,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 
                 assembler.namespace.push(kf)
                 symbols['return']=None
-                lines = lines[:i]+['']+functions[kf].lines+[assembler.hidePrefix+'namespace _pop_']+lines[i+1:]
+                lines = lines[:i]+['']+functions[kf].lines+[assembler.hidePrefix+'namespace _pop_']+lines[i+1:]+ ['{}endoffunction {}'.format(assembler.hidePrefix, ifLevel)]
+                
             if k == 'enum':
                 v = getValue(line.split(' ',1)[1])
                 currentAddress = getValue(v)

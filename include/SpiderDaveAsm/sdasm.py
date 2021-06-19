@@ -1,9 +1,8 @@
 """
-Bugs/Issues:
+ToDo/Issues:
     * changing output on first pass affects second pass
         for example, using inesprg
     * diff can give wrong addresses depending on bank
-ToDo:
     * create large test .asm
     * text mapping
         - named textmaps, alternate formats
@@ -18,6 +17,8 @@ ToDo:
     * implement Asar's stddefines.txt
     * handle relative unlabeled jumps
         ex: bcc $79
+    * allow some awkward lack of spaces: "bne+"
+    * handle expressions in macro arguments
 """
 
 from array import array
@@ -514,7 +515,7 @@ directives = [
     'rept','endr','endrept','sprite8x16','export','diff',
     'assemble', 'exportchr', 'ips','makeips', 'gg','echo','function','endf', 'endfunction',
     'return','namespace','break','expected',
-    'findtext', 'lastpass', 'endoffunction',
+    'findtext', 'lastpass', 'endoffunction', '_wipe',
 ]
 
 filters = [
@@ -525,9 +526,12 @@ filters = [
     'concat',
 ]
 
+def clamp(n, smallest, largest): return max(smallest, min(n, largest))
+
 autoFilters = {
     'floor':math.floor,
     'ceil':math.ceil,
+    'clamp':clamp,
 }
 
 filters = filters + list(autoFilters.keys())
@@ -776,7 +780,19 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     startTime = time.time()
     
     try:
-        _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile, symbolsFile=symbolsFile, quiet=quiet)
+        ret = _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile, symbolsFile=symbolsFile, quiet=quiet)
+        if type(ret) is tuple:
+            success, errorText = ret
+            
+            errorText = dedent("""
+            {dashes}
+            {}
+            {dashes}
+            """).format(errorText, dashes='-'*50)
+            
+            
+            if not success:
+                return False, errorText
     except Exception as e:
         tb = traceback.extract_tb(e.__traceback__)[-1]
         
@@ -1509,6 +1525,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
     originalLines = lines
     
     symbols = Map()
+    symbols.sdasm = 1
     equ = Map()
     
     lastPass = 3
@@ -2202,6 +2219,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             elif k == 'truncate':
                 fileOffset = addr + bank * bankSize + headerSize
                 del out[fileOffset:]
+            elif k == '_wipe':
+                out = []
             elif k == 'delete':
                 v = getValue(line.split(" ", 1)[1].strip())
                 fileOffset = addr + bank * bankSize + headerSize
@@ -2237,7 +2256,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 data = (line.split(" ",1)+[''])[1].strip()
                 filename = getValueAsString(data) or getString(data)
                 
-                if filename:
+                if filename.lower() in ('false','0','none', ''):
+                    outputFilename = False
+                else:
                     outputFilename = filename
             elif k == 'listfile':
                 data = (line.split(" ",1)+[''])[1].strip()
@@ -2600,8 +2621,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 print('Warning: ' + v)
             elif k == 'error' and passNum == lastPass:
                 v = line.split(" ",1)[1].strip()
-                print('Error: ' + v)
-                exit()
+                raise ValueError(v)
             
             elif k == '_find' and passNum == lastPass:
                 data = line.split(' ',1)[1]
@@ -2653,7 +2673,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     
                     v = item[1]
                     
-                    if v.startswith('#'):
+                    immediate = False
+                    sInfo = getSymbolInfo(nsSymbol(v))
+                    if sInfo and str(sInfo.get('value','')).startswith('#'):
+                        immediate = True
+                    
+                    if v.startswith('#') or immediate:
                         v = '#'+str(getValue(v))
                     else:
                         v = getValue(v)
@@ -2915,9 +2940,23 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     v=v.replace(', ',',').replace(' ,',',')
                     immediate = False
                     
+                    if v.startswith("#"):
+                        if v.lower().endswith((',x)',',y)',',x',',y')) or (getValue(v) > 255):
+                            v = v[1:]
+                            immediate = False
+
                     sInfo = getSymbolInfo(nsSymbol(v))
                     if sInfo and str(sInfo.get('value','')).startswith('#'):
                         immediate = True
+                    
+                    # Helps ignore the # when you do this dumb stuff:
+                    # lda #$1234
+                    # lda #$1234, x
+                    # asm6 does this.  should make it a setting
+                    if v.startswith("#"):
+                        if v.lower().endswith((',x)',',y)',',x',',y')) or (getLength(v) > 1):
+                            v = v[1:]
+                            immediate = False
                     
                     if k == "jmp" and v.startswith("("):
                         op = getOpWithMode(k, 'Indirect')

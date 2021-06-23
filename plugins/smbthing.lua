@@ -3,6 +3,7 @@
 
 local plugin = {
     author = "SpiderDave",
+    default = false,
 }
 
 local smbPaletteData = {

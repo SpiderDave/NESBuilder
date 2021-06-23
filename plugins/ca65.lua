@@ -5,6 +5,7 @@ local plugin = {
     author = "CluckFox",
     name = "ca65",
     _loaded = false,
+    default = true,
 }
 
 function plugin.onInit()

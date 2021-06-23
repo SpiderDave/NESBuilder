@@ -3,6 +3,7 @@
 
 local plugin = {
     author = "SpiderDave",
+    default = true,
 }
 
 function plugin.onInit()

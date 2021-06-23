@@ -4,6 +4,7 @@
 local plugin = {
     author = "SpiderDave",
     name = "nesst",
+    default = false,
 }
 
 plugin.splits = {}

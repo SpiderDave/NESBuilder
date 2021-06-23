@@ -587,12 +587,17 @@ function init()
     
     control = NESBuilder:makeLabelQt{x=x,y=y, clear=true, text="Address:"}
     control.setFont("Verdana", 11)
+    push(x)
     x = x + control.width + pad
     
     control = NESBuilder:makeLineEdit{x=x,y=y,w=buttonWidth/2,h=inputHeight, name="MTileAddress"}
     control.helpText = "Address for metatile set (optional)"
     y = y + control.height + pad
-
+    
+    x = pop()
+    --control = NESBuilder:makeCheckbox{x=x,y=y,name="mTileIncludePointers", text="Include pointers", value=bool(0)}
+    control = NESBuilder:makeCheckbox{x=x,y=y,name="mTileIncludePointers", text="Include pointers"}
+    control.helpText="Include a table of pointers to metatiles for this set"
     
     y = pop()
     x = newX
@@ -1298,8 +1303,18 @@ function ppLoad()
             n = 'ppPlugin_'.. replace(replace(file, '.','_'), '_lua', '')
             value = data.project.plugins[pluginName]
             if value == nil then
-                value = 1
+                if plugins[pluginName].default == true then
+                    -- Plugin indicates it should default to on
+                    value = 1
+                elseif plugins[pluginName].default == false then
+                    -- Plugin indicates it should default to off
+                    value = 0
+                else
+                    -- Default value for plugin that doesn't specify
+                    value = 1
+                end
             else
+                -- Use saved value from project properties
                 value = boolNumber(value)
             end
             control = getControl(n)
@@ -1662,16 +1677,22 @@ function BuildProject()
         end
         -- Make metatilesXX.asm
         for tileSet in ipairs_sparse(data.project.mTileSets) do
-        --for tileSet=0, #data.project.mTileSets do
             if iLength(data.project.mTileSets[tileSet]) > 0 then
-            --if #data.project.mTileSets[tileSet] > 0 then
                 filename = data.folders.projects..data.project.folder..string.format("code/metatiles%02x.asm",tileSet)
                 
                 n = data.project.mTileSets[tileSet].name or string.format("Metatiles%02x",tileSet)
+                out = string.format('; Tile Set: %s\n\n', n)
                 n = makeLabel(n)
-                out = string.format("    %s:\n",n)
-                out2 = string.format("    %s_offset:\n",n)
-                --for tileNum in ipairs_sparse(data.project.mTileSets[tileSet]) do
+                
+                local subLabel = string.format('mTile%02x_', tileSet)
+                
+                if data.project.mTileSets[tileSet].includePointers then
+                    out = out .. makePointerTable(n, subLabel, iLength(data.project.mTileSets[tileSet]))
+                end
+                
+                out = out .. string.format("%s:\n",n)
+                out2 = string.format("%s_offset:\n",n)
+                
                 for tileNum=0, #data.project.mTileSets[tileSet] do
                     local tile = data.project.mTileSets[tileSet][tileNum]
                     local mTileSet = data.project.mTileSets[tileSet]
@@ -1682,7 +1703,11 @@ function BuildProject()
                             v = tile[mtileOffsets[i]]
                             
                             if i==0 then
-                                out=out..'    .db '
+                                if mTileSet.includePointers then
+                                    out=out..string.format('%s_%02x: .db ', subLabel, tileNum)
+                                else
+                                    out=out..'    .db '
+                                end
                             else
                                 out=out..', '
                             end
@@ -2238,6 +2263,7 @@ function LoadProject(templateFilename)
     end
     
     data.project.plugins = data.project.plugins or {}
+    
     for k,v in pairs(data.project.plugins) do
         if v then showPlugin(k) else hidePlugin(k) end
     end
@@ -2630,11 +2656,24 @@ function updateMTileList()
     end
 end
 
+function mTileIncludePointers_cmd(t)
+    local mTileSet = currentMetatileSet()
+    if mTileSet then
+        mTileSet.includePointers = t.isChecked()
+        getControl('mTileIncludePointers').setChecked(mTileSet.includePointers)
+    end
+end
+
 function mTileList_cmd(t)
     local index = t.getIndex()
     data.project.mTileSets.index = index
     data.project.mTileSets[data.project.mTileSets.index] = data.project.mTileSets[data.project.mTileSets.index] or {index=0}
     updateSquareoid()
+
+    local mTileSet = currentMetatileSet()
+    if mTileSet then
+        getControl('mTileIncludePointers').setChecked(bool(mTileSet.includePointers))
+    end
 end
 
 function delMTileSet(index)
@@ -4055,25 +4094,26 @@ function exportPalettes(filename)
     filename = data.folders.projects..data.project.folder..filename
     local out=""
     
-    local lowHigh = {{"low","<"},{"high",">"}}
-    for i = 1,2 do
-        out=out..string.format("Palettes_%s:\n",lowHigh[i][1])
-        for palNum=0, #data.project.palettes do
-            if palNum == 0 then
-                out=out.."    .db "
-            elseif palNum % 4 == 0 then
-                out=out.."\n    .db "
-            --elseif palNum~=#data.project.palettes then
-            else
-                out=out..", "
-            end
-            out=out..string.format("%sPalette%02x",lowHigh[i][2], palNum)
-            if palNum==#data.project.palettes then
-                out=out.."\n"
-            end
-        end
-        out=out.."\n"
-    end
+    out = out .. makePointerTable('Palettes', 'Palette', iLength(data.project.palettes))
+    
+--    local lowHigh = {{"low","<"},{"high",">"}}
+--    for i = 1,2 do
+--        out=out..string.format("Palettes_%s:\n",lowHigh[i][1])
+--        for palNum=0, #data.project.palettes do
+--            if palNum == 0 then
+--                out=out.."    .db "
+--            elseif palNum % 4 == 0 then
+--                out=out.."\n    .db "
+--            else
+--                out=out..", "
+--            end
+--            out=out..string.format("%sPalette%02x",lowHigh[i][2], palNum)
+--            if palNum==#data.project.palettes then
+--                out=out.."\n"
+--            end
+--        end
+--        out=out.."\n"
+--    end
     
     for palNum=0, #data.project.palettes do
         local pal = data.project.palettes[palNum]
@@ -4100,3 +4140,34 @@ function askText(title, text)
     end
     return t
 end
+
+function makePointerTable(mainLabel, subLabel, nItems)
+    local out = ''
+    local lowHigh = {{"low","<"},{"high",">"}}
+    
+    subLabel = subLabel or mainLabel
+    
+    for i = 1,2 do
+        out=out..string.format("%s_%s:\n",mainLabel, lowHigh[i][1])
+        for itemIndex=0, nItems-1 do
+            if itemIndex == 0 then
+                out=out.."    .db "
+            elseif itemIndex % 4 == 0 then
+                out=out.."\n    .db "
+            else
+                out=out..", "
+            end
+            out=out..string.format("%s%s%02x",lowHigh[i][2], subLabel, itemIndex)
+            if itemIndex==nItems-1 then
+                out=out.."\n"
+            end
+        end
+        out=out.."\n"
+    end
+    return out
+end
+
+--function Metatiles_cmd()
+--    print(makePointerTable('foobar',8))
+--end
+

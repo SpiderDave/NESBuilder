@@ -613,15 +613,31 @@ function init()
     
     control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall*7.5, name="metatileNext",text=">"}
     control.helpText = "Next metatile"
-    x=x+control.width+pad
     
-    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall*7.5, name="metatileNew",text="+"}
-    control.helpText = "Create a new metatile (WIP)"
     y = y + control.height + pad
     
     x=pop()
     
+    push(x)
+    
+    control = NESBuilder:makeNumberEdit{x=x,y=y,w=config.buttonWidthSmall*7.5,h=inputHeight, name="metatileW", value = 2}
+    control.helpText = "Metatile width"
+    x = x + control.width + pad
+    control = NESBuilder:makeNumberEdit{x=x,y=y,w=config.buttonWidthSmall*7.5,h=inputHeight, name="metatileH", value = 2}
+    control.helpText = "Metatile height"
+    
+    x=x+control.width+pad
+    
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall*7.5, name="metatileNew",text="Set"}
+    control.helpText = "Create a new metatile (WIP)"
+    
+    y = y + control.height + pad
+    
+    x=pop()
+    
+    
     control = NESBuilder:makeLabelQt{x=x,y=y, name="metatileName", text="name"}
+    control.helpText = "Metatile name.  Left-click: Edit"
     control.setFont("Verdana", 10)
     control.autoSize = false
     control.width = buttonWidth * 2
@@ -629,11 +645,6 @@ function init()
     
     y = y + control.height + pad
     
-    
-    control = NESBuilder:makeCanvasQt{x=x,y=y,w=16,h=16,name="tsaCanvas2Qt", scale=6}
-    control.helpText = "Left-click: apply tile, right-click: select tile"
-    y = y + control.height + pad
-    --x = x + control.width + pad
     
     control = NESBuilder:makeLabelQt{x=x,y=y, name="metatileOffset", text="offset: (0, 0)"}
     control.setFont("Verdana", 10)
@@ -646,7 +657,11 @@ function init()
     --control.helpText = "Create a new metatile (WIP)"
     
     y = y + control.height + pad
-
+    
+    control = NESBuilder:makeCanvasQt{x=x,y=y,w=16,h=16,name="tsaCanvas2Qt", scale=6}
+    control.helpText = "Left-click: apply tile, right-click: select tile"
+    y = y + control.height + pad
+    --x = x + control.width + pad
     
     ppInit()
     createAboutTab()
@@ -1543,7 +1558,12 @@ function Build_cmd() BuildProject() end
 
 function BuildTest_cmd()
     BuildProject()
-    TestRom_cmd()
+    if data.buildFail then
+        toggleTab('tabLog', true)
+        NESBuilder:switchTab("tabLog")
+    else
+        TestRom_cmd()
+    end
 end
 
 function TestRom_cmd()
@@ -1557,6 +1577,8 @@ function BuildProject()
     local n
     local out, out2
     local folder = data.folders.projects..data.project.folder
+    
+    data.buildFail = false
     
     --ppUpdate()
     
@@ -1590,12 +1612,10 @@ function BuildProject()
         exportAllChr()
     end
     
-    
     if ppGet('exportPalettes', 'bool') then
         -- Will use default if not defined
         exportPalettes(ppGet('exportPaletteFile'))
     end
-    
     
     -- build_sdasm
     NESBuilder:setWorkingFolder()
@@ -1754,7 +1774,10 @@ function BuildProject()
         print("Assembling with sdasm...")
         
         local success, errorText = sdasm.assemble('project.asm', data.project.binaryFilename, 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'), romData)
-        if not success then print(errorText) end
+        if not success then
+            data.buildFail = true
+            print(errorText)
+        end
     else
         handlePluginCallback("onAssemble", data.project.assembler)
         --print('invalid assembler '..data.project.assembler)
@@ -2853,11 +2876,41 @@ function metatileNext_cmd()
     updateSquareoid()
 end
 
-function metatileNew_cmd()
+
+function makeMap(w,h, direction)
     local m = {}
-    m.map = {}
-    m.w = 2
-    m.h = 2
+    local x,y = 0,0
+    
+    -- ToDo: some kind of default metatile map here
+    direction = direction or 0
+    
+    for i = 0, w * h -1 do
+        if direction == 1 then
+            -- tiles go top to bottom, left to right
+            x = math.floor(i / w)
+            y = i % h
+            m[i] = y * w + x
+        else
+            -- tiles go left to right, top to bottom
+            m[i] = i
+        end
+    end
+    return m
+end
+
+function metatileNew_cmd()
+    local mTileSet = currentMetatileSet()
+    local currentMTile = currentMetatile()
+    local m = {}
+    
+    m.w = NESBuilder:getInt(getControl('metatileW').value)
+    m.h = NESBuilder:getInt(getControl('metatileH').value)
+    
+    if m.w == 0 or m.h == 0 then return end
+    if m.w > 16 or m.h > 16 then return end
+    
+    m.map = makeMap(m.w, m.h)
+    
     m.palette = data.project.palettes.index
     m.chrIndex = data.project.chr.index
     for i=0,m.w * m.h-1 do
@@ -2865,9 +2918,26 @@ function metatileNew_cmd()
         m.map[i] = i
     end
     
-    data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] = m
-    updateSquareoid()
+    for y=0, m.h-1 do
+        for x=0, m.w-1 do
+            if x > currentMTile.w-1 or y > currentMTile.h-1 then
+                -- position doesn't exist in old metatile, use default
+                m[m.map[y * m.w + x]] = 0
+            elseif m.map[y * m.w + x] then
+                local mapOld = currentMTile.map or mTileSet.map or makeMap(currentMTile.w, currentMTile.h)
+                
+                if mapOld[y * currentMTile.h + x] then
+                    m[m.map[y * m.w + x]] = currentMTile[mapOld[y * currentMTile.w + x]]
+                end
+            end
+        end
+    end
     
+    m.desc = currentMTile.desc
+    
+    data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] = m
+    
+    updateSquareoid()
 end
 
 function metatileNumber_cmd(t)
@@ -3035,12 +3105,15 @@ end
 function metatileName_cmd(t)
     if not currentMetatile() then return end
     
-    local control = getControl('metatileName')
-    local txt = askText('Metatile Description', 'Enter a new description for this metatile.')
-    local index = data.project.mTileSets.index
-    if txt then
-        control.setText(txt)
-        data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].desc = txt
+    local control = t.control
+    
+    if t.control.event.button == 1 then
+        local txt = askText('Metatile Description', 'Enter a new description for this metatile.')
+        local index = data.project.mTileSets.index
+        if txt then
+            control.setText(txt)
+            data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].desc = txt
+        end
     end
 end
 

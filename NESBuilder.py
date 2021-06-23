@@ -455,6 +455,11 @@ class ForLua:
         if lupa.lua_type(item):
             return lupa.lua_type(item)
         return item.__class__.__name__
+    def getInt(self, n):
+        try:
+            return int(n)
+        except:
+            return 0
     def calc(self, s):
         @func_set_timeout(2)
         def calcWrap(s):
@@ -1437,6 +1442,15 @@ class ForLua:
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
+    def makeNumberEdit(self, t):
+        ctrl = QtDave.NumberEdit(self.tabQt)
+        t.text = coalesce(t.text, '')
+        t.control = ctrl
+        ctrl.init(t)
+        ctrl.textChanged.connect(makeCmdNoEvent(t))
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
     def makeCodeEdit(self, t):
         #ctrl = QtDave.CodeEdit(t.text, self.tabQt)
         ctrl = QtDave.CodeEdit(self.tabQt)
@@ -1546,6 +1560,7 @@ class ForLua:
     @lupa.unpacks_lua_table
     def makeLabelQt(self, t):
         ctrl = QtDave.Label(t.text, self.tabQt)
+        t.control = ctrl
         ctrl.init(t)
         ctrl.onMouseMove = makeCmdNew(t)
         ctrl.onMousePress = makeCmdNew(t)

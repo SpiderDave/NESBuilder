@@ -11,7 +11,7 @@ from zipfile import ZipFile
 from PIL.ImageQt import ImageQt
 
 from PyQt5 import QtGui
-from PyQt5.QtGui import QIcon, QPainter, QColor, QImage, QBrush, QPixmap, QPen, QCursor, QWindow, QFont
+from PyQt5.QtGui import QIcon, QPainter, QColor, QImage, QBrush, QPixmap, QPen, QCursor, QWindow, QFont, QIntValidator
 from PyQt5.QtCore import QDateTime, Qt, QTimer, QCoreApplication, QSize, QRect, QPoint
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
         QDial, QDialog, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
@@ -446,6 +446,32 @@ class LineEdit(Base, QLineEdit):
         else:
             super().__setattr__(key,v)
 
+class NumberEdit(Base, QLineEdit):
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
+        self.setValidator(QIntValidator())
+    def init(self, t):
+        super().init(t)
+        self.value = t.value or 0
+    def __getattribute__(self, key):
+        if key == 'value':
+            try:
+                return int(super().text())
+            except:
+                return 0
+        else:
+            return super().__getattribute__(key)
+    def __setattr__(self, key, v):
+        if key == 'value':
+            try:
+                v = int(v)
+            except:
+                v = 0
+            super().setText(str(v))
+        else:
+            super().__setattr__(key,v)
+
+
 class TextEdit(Base, QPlainTextEdit):
     def print(self, txt=''):
         self.appendPlainText(str(txt))
@@ -555,9 +581,8 @@ class Label(Base, QLabel):
     def setFont(self, *args, **kw):
         self.removeCssClass("defaultfont")
         super().setFont(*args, **kw)
-        
+    
     def setText(self, txt, autoSize = False):
-        
         super().setText(txt)
         if autoSize or self.autoSize:
             self.adjustSize()

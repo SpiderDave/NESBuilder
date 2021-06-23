@@ -454,7 +454,8 @@ class Assembler():
         
         return self.palette
     def findFile(self, filename):
-        
+        if not filename:
+            return False
         # Search for files in this order:
         #   Exact match
         #   Relative to current script folder
@@ -854,10 +855,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             l = len(n)
         
         return l
-    def getValueAsString(s):
+    def getValueAsString(s, fallback=False):
         try:
             return getString(getValue(s))
         except:
+            if fallback:
+                assembler.errorHint = False
+                return  getString(s)
             return False
     
     def getString(s, strip=True):
@@ -871,10 +875,20 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             s=s.strip()
         
         for q in assembler.quotes:
-            #if s.startswith(q) and s.endswith(q):
             if s.strip().startswith(q) and s.strip().endswith(q):
                 s=s.strip()
                 s=s[len(q):-len(q)]
+                return s
+            elif s.strip().startswith(q):
+                s=s.strip()
+                s=s[len(q):]
+                for q2 in assembler.quotes:
+                    if s.strip().endswith(q2):
+                        s=s[:-len(q2)]
+                        assembler.errorHint = "quote missmatch"
+                        return s
+                
+                assembler.errorHint = f"missing closing quote ({q})"
                 return s
         return s
     def getSymbolInfo(symbol):
@@ -1432,11 +1446,14 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         elif v.lower() in specialSymbols:
             v, l = getValueAndLength(getSpecial(v.lower()), mode=mode)
         else:
+            if hint == 'string':
+                return str(v), len(v)
+            
             if passNum == lastPass:
                 #errorText= 'invalid value: {}'.format(v)
                 #print('*** '+errorText)
                 pass
-            assembler.errorHint = "invalid value"
+            assembler.errorHint = "invalid value*"
             v = 0
             l = -1
         
@@ -2428,7 +2445,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 else:
                     filename = l
                 
-                filename = getValueAsString(filename) or getString(filename)
+                filename = getValueAsString(filename, fallback=True)
                 filename = assembler.findFile(filename)
                 
                 if errorText:
@@ -2547,7 +2564,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 
             elif k == 'ips' and passNum == lastPass:
                 filename = line.split(" ",1)[1].strip()
-                filename = getString(filename)
+                filename = getValueAsString(filename, fallback=True)
+                
+                if assembler.errorHint:
+                    errorText = assembler.errorHint
+                    assembler.errorLinePos = len(line)
+
                 filename = assembler.findFile(filename)
                 if filename:
                     ipsData = np.fromfile(filename, dtype='B')
@@ -2569,12 +2591,18 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
 
             elif k == 'include' or k == 'include?' or k=='incsrc' or k == 'require':
                 filename = line.split(" ",1)[1].strip()
+                filename = getValueAsString(filename, fallback=True)
                 
-                filename = getValueAsString(filename) or getString(filename)
-                if passNum == lastPass and not quiet:
+                if assembler.errorHint:
+                    errorText = assembler.errorHint
+                    assembler.errorLinePos = len(line)
+                
+                if passNum == lastPass and not quiet and filename is str:
                     print(filename.replace("\\","/"))
+                
                 filename = assembler.findFile(filename)
                 if filename:
+
                     newLines = False
                     try:
                         with open(filename, 'r') as file:
@@ -2941,7 +2969,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     immediate = False
                     
                     if v.startswith("#"):
-                        if v.lower().endswith((',x)',',y)',',x',',y')) or (getValue(v) > 255):
+                        vv = getValue(v)
+                        if type(vv) is list and len(vv) == 1:
+                            # cmp #'N'
+                            pass
+                        elif type(vv) is list:
+                            # attempt to use non-immediate
+                            v = v[1:]
+                            immediate = False
+                        elif v.lower().endswith((',x)',',y)',',x',',y')) or (getValue(v) > 255):
                             v = v[1:]
                             immediate = False
 

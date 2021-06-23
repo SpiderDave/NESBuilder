@@ -2920,7 +2920,9 @@ function metatileNew_cmd()
     
     for y=0, m.h-1 do
         for x=0, m.w-1 do
-            if x > currentMTile.w-1 or y > currentMTile.h-1 then
+            if not currentMTile then
+                m[m.map[y * m.w + x]] = 0
+            elseif x > currentMTile.w-1 or y > currentMTile.h-1 then
                 -- position doesn't exist in old metatile, use default
                 m[m.map[y * m.w + x]] = 0
             elseif m.map[y * m.w + x] then
@@ -2933,7 +2935,11 @@ function metatileNew_cmd()
         end
     end
     
-    m.desc = currentMTile.desc
+    if currentMTile then
+        m.desc = currentMTile.desc
+    else
+        m.desc = ''
+    end
     
     data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] = m
     

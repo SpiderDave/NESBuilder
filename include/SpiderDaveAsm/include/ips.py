@@ -90,14 +90,20 @@ def createIps(oldData, newData):
         if a >= len(newData):
             break
         
-        d1 = oldData[a]
+        d1 = False
+        if a<len(oldData):
+            d1 = oldData[a]
         d2 = newData[a]
         if d1==d2:
             a=a+1
         else:
             length = 1
             while True:
-                d1 = oldData[a+length]
+                #print(f'len oldData={len(oldData)} len NewData={len(newData)} a={a} length={length}')
+                
+                d1 = False
+                if a+length<len(oldData):
+                    d1 = oldData[a+length]
                 d2 = newData[a+length]
                 
                 if (d1==d2) or length == 0xffff:

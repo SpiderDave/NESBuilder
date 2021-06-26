@@ -524,7 +524,7 @@ filters = [
     'format','random','range','textmap',
     'evalvar','pop','astext','len',
     'fileexist', 'nfileexist','py',
-    'concat',
+    'concat','coalesce',
 ]
 
 def clamp(n, smallest, largest): return max(smallest, min(n, largest))
@@ -714,6 +714,10 @@ ifDirectives = ['if','endif','else','elseif','ifdef','ifndef','iffileexist','iff
 mergeList = lambda a,b: [(a[i], b[i]) for i in range(min(len(a),len(b)))]
 makeHex = lambda x: '$'+x.to_bytes(((x.bit_length()|1  + 7) // 8),"big").hex()
 
+superglobals = [
+    'return'
+]
+
 specialSymbols = [
     'sdasm','bank','banksize','chrsize','randbyte','randword','fileoffset',
     'prgbanks','chrbanks','lastbank','lastchr','mapper','binfile','namespace',
@@ -891,11 +895,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 assembler.errorHint = f"missing closing quote ({q})"
                 return s
         return s
-    def getSymbolInfo(symbol):
+    def getSymbolInfo(symbol, ns = False):
         symbol = symbol.strip()
         symbol = assembler.lower(symbol)
         
-        ns = assembler.namespace[-1]
+        if ns == False:
+            ns = assembler.namespace[-1]
         ret = Map()
         ret.namespace = ns
         
@@ -1040,6 +1045,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         if mode == 'len':
             v, l = getValueAndLength(v)
             return l, 1
+        if mode == 'coalesce':
+            vToken = assembler.tokenize(v)
+            for item in vToken:
+                v,l = getValueAndLength(item)
+                if v:
+                    return v, l
+            return 0, 0
         if mode == 'choose':
             v = v.split(',')
             random.shuffle(v)
@@ -1149,10 +1161,28 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         v = v.strip()
         l = False
         
+#        if '(' in v and v.endswith(')'):
+#            fName = v.split('(')[0]
+#            if fName in functions:
+#                print(functions[fName])
+                
+#                vToken = assembler.tokenize('foo,bar = foobar()')
+#                print(vToken)
+                
+        
         # list indexing like a[1]
         if '[' in v and v.endswith(']') and v.find(']') == v.rfind(']'):
             index = v.split('[',1)[1].split(']')[0]
             s = getSymbolInfo(v.split('[')[0])
+            
+            if s and s.baseKey in superglobals:
+                s = getSymbolInfo(s.baseKey, ns='')
+                v = symbols[s.baseKey]
+                if type(v) == list:
+                    v = v[:]
+                v,l = getValueAndLength(v[getValue(index)], mode=mode)
+                return v,l
+            
             if s:
                 if type(s.value) == list:
                     s.value = s.value[:]
@@ -2226,7 +2256,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 
                 fileOffset = addr + bank * bankSize + headerSize
                 fileOffset = int(getSpecial('fileoffset'))
-                print(f'addr={hex(addr)}, bank={hex(bank)}, bankSize={hex(bankSize)}, headerSize={headerSize}, fileOffset={hex(fileOffset)}')
+                #print(f'addr={hex(addr)}, bank={hex(bank)}, bankSize={hex(bankSize)}, headerSize={headerSize}, fileOffset={hex(fileOffset)}')
                 #out = out[:fileOffset]+([fv] * v)+out[fileOffset:]
                 
                 out[fileOffset:fileOffset] = [fv] * v
@@ -2245,8 +2275,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 if debug:
                     print('delete', v, 'bytes.')
             elif k == 'seed':
-                v = getValue(line.split(" ")[1].strip())
-                random.seed(v)
+                if not line.split(" ")[1].strip().startswith('='):
+                    v = getValue(line.split(" ")[1].strip())
+                    random.seed(v)
             elif k == 'cleartable':
                 assembler.clearTextMap()
             elif k == 'textmap':
@@ -3090,11 +3121,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                             b.append(v % 0x100)
                             b.append(math.floor(v/0x100))
             
-            if originalLine.startswith('showsymb'):
-                print('-'*20)
-                for k,v in symbols.items():
-                    print(k,'=',v)
-                print('-'*20)
+#            if originalLine.startswith('showsymb'):
+#                print('-'*20)
+#                for k,v in symbols.items():
+#                    print(k,'=',v)
+#                print('-'*20)
 
             if k == 'define':
                 k = line.split(" ")[1].strip()
@@ -3115,10 +3146,31 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 k = line[:line.lower().find(' equ ')]
                 v = line[line.lower().find(' equ ')+len(' equ '):]
                 equ[k] = v
-            elif (line.split('=')+[''])[1] and k!='':
+            
+            if (line.split('=')+[''])[1] and k!='':
+                keyword = line.split("=",1)[0].strip()
+                value = line.split("=",1)[1].strip()
+                
+                if '(' in value and value.split('(',1)[0] in functions:
+                    t = assembler.tokenize(keyword)
+                    
+                    newLines = []
+                    newLines.append(value.lstrip())
+                    
+                    if len(t) == 1:
+                        newLines.append(f'{t[0]} = {{return}}')
+                    else:
+                        for index, item in enumerate(t):
+                            newLines.append(f'{item} = {{return[{index}]}}')
+                    
+                    lines = lines[:i]+['']+newLines+lines[i+1:]
+                    k = ''
+                    v = False
+            
+            if (line.split('=')+[''])[1] and k!='':
                 k = line.split("=",1)[0].strip()
                 v = line.split("=",1)[1].strip()
-
+                
                 keywords = [x.strip() for x in k.split(',')]
                 if len(keywords)>1:
                     v = getValue(v)

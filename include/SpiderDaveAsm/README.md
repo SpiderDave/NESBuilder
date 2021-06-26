@@ -674,7 +674,7 @@ endf / endfunction
         ; namespace splitByte
         foo = 42 
         return >a, <a
-    macro
+    endfunction
     
     h,l = splitByte($42)
 

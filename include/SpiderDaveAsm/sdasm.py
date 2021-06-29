@@ -323,6 +323,8 @@ class Assembler():
     def dummy(self):
         pass
     def printError(self, errorText = '', line = ''):
+        if not errorText:
+            errorText = self.errorText
         print(line)
         if self.errorLinePos:
             print(' '*self.errorLinePos+'^')
@@ -1118,7 +1120,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 r2 = getValue(v[1])
             else:
                 r2 = None
-            v = random.randrange(r1,r2)
+            
+            try:
+                v = random.randrange(r1,r2)
+            except:
+                # symbol evaluation fails on earlier passes sometimes
+                v = 0
+                if passNum == lastPass:
+                    assembler.errorHint = "invalid random range"
+                    return 0,0
             l = 1
             return v,l
         
@@ -1817,20 +1827,27 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                                 fmtStart = line.find(':',start)+1
                                 fmtEnd = line.find(':',fmtStart)
                                 fmtString = '{:' + line[fmtStart:fmtEnd] + '}'
-                                l = getValue(line[fmtEnd+1:end])
+                                #v = getValue(line[fmtEnd+1:end])
+                                v, l = getValueAndLength(line[fmtEnd+1:end])
                                 
-                                if type(l) is list:
+                                if type(v) is list:
                                     print("can't format a list")
                                 
-                                l = fmtString.format(l)
+                                v = fmtString.format(v)
                             else:
-                                l = getValue(line[start+2+len(item):end], mode=item)
+                                #v = getValue(line[start+2+len(item):end], mode=item)
+                                v, l = getValueAndLength(line[start+2+len(item):end], mode=item)
+                                assembler.errorLinePos = start+2+len(item)
                             
-                            if type(l) is int:
-                                l = str(l)
-                            elif type(l) is list:
-                                l = ','.join([str(x) for x in l])
-                            line = line.replace(line[start:end+1], l)
+                            if l == 0:
+                                errorText = assembler.errorHint or 'invalid filter value'
+                                
+                                v = "0"
+                            elif type(v) is int:
+                                v = str(v)
+                            elif type(v) is list:
+                                v = ','.join([str(x) for x in v])
+                            line = line.replace(line[start:end+1], v)
                     
                     while o in line:
                         start = line.find(o)
@@ -2599,7 +2616,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 
                 if assembler.errorHint:
                     errorText = assembler.errorHint
-                    assembler.errorLinePos = len(line)
+                    assembler.errorLinePos = len(originalLine.rstrip())-1
 
                 filename = assembler.findFile(filename)
                 if filename:
@@ -2626,7 +2643,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 
                 if assembler.errorHint:
                     errorText = assembler.errorHint
-                    assembler.errorLinePos = len(line)
+                    assembler.errorLinePos = len(originalLine.rstrip())-1
                 
                 if passNum == lastPass and not quiet and filename is str:
                     print(filename.replace("\\","/"))
@@ -3153,6 +3170,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 
                 if '(' in value and value.split('(',1)[0] in functions:
                     t = assembler.tokenize(keyword)
+#                    fName = value.split('(',1)[0]
+#                    nParams = len(functions[fName].params)
                     
                     newLines = []
                     newLines.append(value.lstrip())
@@ -3319,7 +3338,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     outputText+='*** {}\n'.format(errorText)
                     outputText+='    {}\n'.format(assembler.currentFilename)
                     
-                    print(line)
+                    #print(line)
+                    print(originalLine)
                     if assembler.errorLinePos:
                         print(' '*assembler.errorLinePos+'^')
                     print('*** {}'.format(errorText))

@@ -521,7 +521,7 @@ directives = [
     'assemble', 'exportchr', 'ips','makeips', 'gg','echo','function','endf', 'endfunction',
     'return','namespace','break','expected',
     'findtext', 'lastpass', 'endoffunction', '_wipe',
-    'loadld65cfg', 'segment',
+    'loadld65cfg', 'loadld65cfg?', 'segment',
 ]
 
 filters = [
@@ -779,6 +779,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     cfg.setDefault('main', 'xkasplusbranch', False)
     cfg.setDefault('main', 'showFileOffsetInListFile', True)
     cfg.setDefault('main', 'fullTraceback', False)
+    cfg.setDefault('main', 'loadld65cfg', True)
     
     assembler.quotes = tuple(makeList(cfg.getValue('main', 'quotes')))
 
@@ -1673,6 +1674,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         metaCommandPrefix = makeList(cfg.getValue('main', 'metaCommandPrefix'))
         showFileOffsetInListFile = cfg.isTrue(cfg.getValue('main', 'showFileOffsetInListFile'))
         fullTraceback = cfg.isTrue(cfg.getValue('main', 'fullTraceback'))
+        loadld65cfg = cfg.isTrue(cfg.getValue('main', 'loadld65cfg'))
         
         assembler.namespace = Stack([''])
         
@@ -1686,6 +1688,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         
         assembler.currentFilename = assembler.initialFilename
         lines = originalLines
+        
+        if loadld65cfg:
+            lines = [assembler.hidePrefix + 'loadld65cfg?'] + lines
         
         addr = 0
         oldAddr = 0
@@ -2338,7 +2343,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     fv = v[1]
                     v = v[0]
                 
-                fileOffset = addr + bank * bankSize + headerSize
+                #fileOffset = addr + bank * bankSize + headerSize
                 fileOffset = int(getSpecial('fileoffset'))
                 #print(f'addr={hex(addr)}, bank={hex(bank)}, bankSize={hex(bankSize)}, headerSize={headerSize}, fileOffset={hex(fileOffset)}')
                 #out = out[:fileOffset]+([fv] * v)+out[fileOffset:]
@@ -2408,7 +2413,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 data = (line.split(" ",1)+[''])[1].strip()
                 filename = getValueAsString(data) or getString(data)
                 assembler.currentFilename = filename
-            elif k=='loadld65cfg':
+            elif k == 'loadld65cfg' or k == 'loadld65cfg?':
                 data = (line.split(" ",1)+[''])[1].strip()
                 filename = getAsFilename(data) or 'ld65.cfg'
                 
@@ -2421,6 +2426,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 else:
                     assembler.errorLinePos = len(line.split(' ',1)[0])+1
                     errorText = 'file not found'
+                
+                if k.endswith('?'):
+                    errorText = False
             elif k=='loadtable' or k == 'table':
                 l = line.split(" ",1)[1].strip()
                 l = l.split(',',1)

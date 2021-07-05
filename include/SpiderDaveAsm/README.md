@@ -373,6 +373,24 @@ chr
     chr 0   ; Start of chr area
 ```
 
+loadld65cfg
+    
+    load a ld65 configuration file.
+
+```
+    loadld65cfg "file.cfg"    ; load and parse "file.cfg"
+    loadld65cfg               ; use default filename "ld65.cfg"
+```
+
+segment
+    
+    Set the current segment.  Requires loading a ld65 configuration file first.
+
+```
+    loadld65cfg         ; use default filename "ld65.cfg"
+    segment "VECTORS"   ; use defined segment "VECTORS"
+```
+
 fillvalue
 
     Change the default filler for pad, align, etc.

@@ -132,6 +132,7 @@ Section "-DefaultStuff"
     CreateDirectory $INSTDIR\tools\xkas-plus
     CreateDirectory $INSTDIR\plugins
     CreateDirectory $INSTDIR\plugins\SMBLevelExtract
+    CreateDirectory $INSTDIR\plugins\gfxGenerator
     CreateDirectory $INSTDIR\templates
     
     ; Set output path to the installation directory.
@@ -146,6 +147,8 @@ Section "-DefaultStuff"
     !insertmacro dl "plugins/SMBLevelExtract/SMBLevelExtract.bat"
     !insertmacro dl "plugins/SMBLevelExtract/SMBLevelExtract.py"
     !insertmacro dl "plugins/SMBLevelExtract/README.md"
+    !insertmacro dl "plugins/gfxGenerator.lua"
+    !insertmacro dl "plugins/gfxGenerator/brick.lua"
     !insertmacro dl "plugins/rominfo.lua"
     !insertmacro dl "plugins/hash.py"
     !insertmacro dl "plugins/debug.lua"
@@ -212,12 +215,13 @@ Section "NESBuilder Source"
     !insertmacro dl "include/__init__.py"
     !insertmacro dl "include/Tserial.lua"
     !insertmacro dl "include/util.lua"
-    !insertmacro dl "include/SMBLevelExtract.py"
     !insertmacro dl "include/QtDave.py"
     !insertmacro dl "include/style.qss"
     !insertmacro dl "include/config.py"
     !insertmacro dl "include/calc.py"
     !insertmacro dl "include/ips.py"
+    !insertmacro dl "include/random.py"
+    !insertmacro dl "include/noise.py"
     !insertmacro dl "chr.png"
     !insertmacro dl "icons/__init__.py"
     !insertmacro dl "icons/folder32.png"

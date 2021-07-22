@@ -1,22 +1,25 @@
-from . import SMBLevelExtract
 from . import calc
 from . import config
 from . import ips
 from . import QtDave
 from . import SpiderDaveAsm
+from . import noise
+from . import random
 
 __all__ = [
-            'SMBLevelExtract',
             'Calculator',
             'Cfg',
             'QtDave',
             'ips',
             'sdasm',
+            'noise',
+            'RNG',
           ]
 
 Calculator = calc.Calculator
 Cfg = config.Cfg
 sdasm = SpiderDaveAsm.sdasm
+RNG = random.RNG
 
 def _exportToLua(lua, module, n=None):
     if n is None:
@@ -26,6 +29,7 @@ def _exportToLua(lua, module, n=None):
 
 def init(lua):
     # export the LevelExtract method to lua as SMBLevelExtract
-    _exportToLua(lua, SMBLevelExtract.LevelExtract, "SMBLevelExtract")
+    #_exportToLua(lua, SMBLevelExtract.LevelExtract, "SMBLevelExtract")
     #QtDave.init(lua)
+    pass
     

@@ -599,6 +599,10 @@ function init()
     control = NESBuilder:makeCheckbox{x=x,y=y,name="mTileIncludePointers", text="Include pointers"}
     control.helpText="Include a table of pointers to metatiles for this set"
     
+    data.mTileTypes = {}
+    y = y + control.height + pad
+    control = NESBuilder:makeComboBox{x=x,y=y,w=buttonWidth, name="mTileTypeList"}
+    
     y = pop()
     x = newX
     
@@ -679,6 +683,13 @@ end
 function onPluginsLoaded()
     handlePluginCallback("onInit")
     handlePluginCallback("onRegisterAssembler")
+    handlePluginCallback("onRegisterMTileType")
+    
+    getControl('mTileTypeList').clear()
+    local control = getControl('mTileTypeList')
+    for k, v in iterItems(data.mTileTypes) do
+        control.addItem(v.name)
+    end
 end
 
 function onReady()
@@ -700,6 +711,7 @@ function onReady()
         {name="exportAllChr", text="Export all CHR to .nes"},
         {name="importMultiChr", text="Import all CHR from .chr"},
     }
+    
     control = NESBuilder:makeMenuQt{name="menuTools",text="Tools", menuItems=items}
     
     local items = {
@@ -1317,6 +1329,11 @@ function ppLoad()
                 -- Use saved value from project properties
                 value = boolNumber(value)
             end
+            if not value then
+                -- need this so the callbacks won't run
+                hidePlugin(pluginName)
+            end
+            
             control = getControl(n)
             if control then
                 control.setChecked(value)
@@ -1614,17 +1631,23 @@ function BuildProject()
         BuildProject_cmd()
         return
     end
-    
+    print('** test0')
     if data.project.type == 'romhack' then
+        print(data.project.rom.filename)
+        print(data.project.rom.data)
         if data.project.rom.filename and not data.project.rom.data then
+            print('** test1')
             loadRom(data.project.rom.filename)
+            print('** test2')
             print('loading rom data')
             
             if not data.project.rom.data then return end
         end
+        print('** test3')
 
         -- export chr to rom and build binary
         exportAllChr()
+        print('** test4')
     end
     
     if ppGet('exportPalettes', 'bool') then
@@ -1655,6 +1678,9 @@ function BuildProject()
     
     local filename = data.folders.projects..data.project.folder.."code/symbols.asm"
     out=""
+    
+    out= out .. string.format('binaryFilename = "%s"\n', ppGet('binaryFilename') or data.project.binaryFilename)
+    
     local d = NESBuilder:getControlNew('symbolsTable1').getData()
     for i, row in python.enumerate(d) do
         k,v,comment = row[0],row[1],row[2]
@@ -2961,6 +2987,8 @@ function metatileNew_cmd()
         for x=0, m.w-1 do
             if not currentMTile then
                 m[m.map[y * m.w + x]] = 0
+            elseif not currentMTile.w then
+                m[m.map[y * m.w + x]] = 0
             elseif x > currentMTile.w-1 or y > currentMTile.h-1 then
                 -- position doesn't exist in old metatile, use default
                 m[m.map[y * m.w + x]] = 0
@@ -3089,7 +3117,7 @@ function updateSquareoid()
     getControl('metatileName').setText(txt)
     
     local offset = tile.offset or mTileSet.offset or {x=0, y=0}
-    getControl('metatileOffset').setText(string.format('offset: (%s, %s)', offset.x, offset.y))
+    getControl('metatileOffset').setText(string.format('offset: (%d, %d)', offset.x, offset.y))
     
     
     if data.metatileCursorMode == 'offset' and m.offset then
@@ -3560,6 +3588,8 @@ split = pythonEval('str.split')
 rsplit = pythonEval('str.rsplit')
 fixPath = pythonEval('fixPath2')
 pathSplit = pythonEval("lambda x:list(os.path.split(x))")
+splitExt = pythonEval("lambda x:list(os.path.splitext(x))")
+stem = pythonEval("lambda x:pathlib.Path(x).stem")
 int = pythonEval("lambda x:int(x)")
 sliceList = pythonEval("lambda x,y,z:x[y:z]")
 joinList = pythonEval("lambda x,y:x+y")
@@ -3819,8 +3849,7 @@ function loadRom(filename)
     -- make sure folders exist for this project
     NESBuilder:makeDir(data.folders.projects..data.project.folder)
     
-    local fileData = data.project.rom.data or NESBuilder:getFileAsArray(filename)
-    --print(fileData)
+    local fileData = NESBuilder:getFileAsArray(filename)
     
     --print(NESBuilder:getLen(fileData))
     
@@ -3832,6 +3861,9 @@ function loadRom(filename)
 --    data.project.rom = {
 --        filename = f
 --    }
+    
+--    print('Rom data loaded: "'..filename..'".')
+--    print(string.format('%02x bytes',len(fileData)))
     
     data.project.rom = {
         filename = filename,
@@ -3910,9 +3942,9 @@ function exportAllChr()
     nChr = int(fileData[5])
     chrStart = 0x10 + nPrg * 0x4000
     
-    print(nPrg)
-    print(nChr)
-    print(chrStart)
+    print(string.format('PRG: %02x', nPrg))
+    print(string.format('CHR: %02x', nChr))
+    print(string.format('CHR Start: %04x', chrStart))
     
     -- remove all chr
     fileData = sliceList(fileData, 0, chrStart)
@@ -3920,7 +3952,9 @@ function exportAllChr()
     local npConcat = python.eval("lambda x,y: np.concatenate([x,y])")
     
     for i = 0,(nChr*2)-1 do
-        fileData = npConcat(fileData, getChrData(i))
+        if getChrData(i) then
+            fileData = npConcat(fileData, getChrData(i))
+        end
     end
     
     local f = data.folders.projects..data.project.folder..data.project.binaryFilename
@@ -4170,4 +4204,6 @@ end
 --function Metatiles_cmd()
 --    print(makePointerTable('foobar',8))
 --end
+
+
 

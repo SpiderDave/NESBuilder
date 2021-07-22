@@ -40,6 +40,7 @@ if cmdArgs.asm:
 
 import pathlib
 from glob import glob
+import pathlib
 
 def badImport(m):
     print('Error: Could not import {0}.  Please run "install dependencies.bat".'.format(m))
@@ -67,6 +68,7 @@ from PIL import ImageOps
 from collections import deque
 import re
 
+import random
 from random import randrange
 
 import time
@@ -329,6 +331,8 @@ class ForLua:
     windowQt = main
     tabQt = main
     Qt = True
+    
+    RNG = RNG
     
     def QtWrapper(func):
         def inner(self, t=None):
@@ -665,6 +669,18 @@ class ForLua:
             return True
         except:
             print("Could not delete "+filename)
+            return False
+    def noise(self, *args):
+        
+        n = opensimplex.OpenSimplex()
+        
+        if len(args) == 2:
+            return n.noise2d(*args)
+        elif len(args) == 3:
+            return n.noise3d(*args)
+        elif len(args) == 4:
+            return n.noise4d(*args)
+        else:
             return False
     def run(self, workingFolder, cmd, args, input=None, capture=False):
         try:

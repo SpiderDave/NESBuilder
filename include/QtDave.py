@@ -860,12 +860,23 @@ QPixmap = QPixmap
 class ClipOperations():
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
-    def copy(self):
+    def save(self, f, fmt="PNG"):
+        self.pixmap().scaled(self.width/self.scale, self.height/self.scale).save(f, fmt)
+    def copy(self, x=0, y=0, w=False, h=False):
         """
         Copy pixmap to a "clipboard" type thing to later be
         pasted.  Also returns the pixmap to use directly.
         """
-        return clip.update(pix=self.pixmap())
+        pix = self.pixmap().scaled(self.width/self.scale, self.height/self.scale)
+        
+        if w == False:
+            w = self.width
+        if h == False:
+            h = self.height
+        
+        pix = pix.copy(QRect(x,y,w,h))
+        
+        return clip.update(pix=pix)
     def paste(self, pix=False):
         """
         Sets a pixmap with automatic resizing.  The pixmap
@@ -1181,14 +1192,12 @@ class NESPixmap(ClipOperations, Base, QPixmap):
         self.rows=None
         self.columns=None
     def loadCHRFromImage(self, filename, colors = False):
-        
         colors = fix(colors)
         
-        if not self.load(filename):
-            print("could not load image")
-            return false
-        
-        print(colors)
+        if filename:
+            if not self.load(filename):
+                print("could not load image")
+                return False
         
         img = self.toImage()
         
@@ -1217,8 +1226,26 @@ class NESPixmap(ClipOperations, Base, QPixmap):
         self.rows = math.floor(h/8)
         
         return ret
-        
-    def loadCHR(self, imageData, columns=None, rows=None):
+    def mapPixels(self, f):
+        for x in range(self.width):
+            for y in range(self.height):
+                c = f(x, y, self.getPixel(x,y))
+                c = max(c, 0)
+                c = min(c, 3)
+                c = math.floor(c+.5)
+                self.setPixel(x,y, c)
+    def setPixel(self, x, y, c):
+        painter = Painter(self)
+        painter.setPen(basePens[c])
+        painter.drawPoint(x,y)
+        painter.end()
+    def getPixel(self, x, y):
+        img = self.toImage()
+        c = basePens.index(img.pixelColor(x,y))
+        return c
+    def getChr(self):
+        return self.loadCHR(self)
+    def loadCHR(self, imageData=None, columns=None, rows=None):
         """Loads CHR data using 4 preset base colors."""
         painter = Painter(self)
         
@@ -1260,6 +1287,7 @@ class NESPixmap(ClipOperations, Base, QPixmap):
             [255,0,0],
             [0,0,255],
             ]
+        
         
         palette = fix(palette)
         palette = [nesPalette[x] for x in palette]

@@ -16,8 +16,8 @@ frozen = (getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'))
 if len(sys.argv) > 1 and sys.argv[1].lower() == '-asm':
     if frozen:
         logFile = open('log.txt', 'w')
-        sys.stdout =logFile
-        sys.stderr =logFile
+        sys.stdout = logFile
+        sys.stderr = logFile
 
     print('running sdasm\n')
     # sdasm will detect this rewritten sys.argv[0]

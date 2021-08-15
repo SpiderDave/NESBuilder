@@ -19,6 +19,7 @@ ToDo/Issues:
         ex: bcc $79
     * allow some awkward lack of spaces: "bne+"
     * handle expressions in macro arguments
+    * make it so insert shows added bytes in list file
 """
 
 from array import array
@@ -302,6 +303,7 @@ class Assembler():
     error = False               # used to determine if exit code 3 is needed
     errorText = ''
     memcfg = False
+    insert = False
     
     nesRegisters = Map(
         PPUCTRL = 0x2000, PPUMASK = 0x2001, PPUSTATUS = 0x2002,
@@ -2354,6 +2356,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 
                 out[fileOffset:fileOffset] = [fv] * v
                 
+                # This is used for display in list file
+                assembler.insert = (v, fv)
+                
                 if debug or True:
                     print('insert', v, 'bytes.')
             elif k == 'truncate':
@@ -3423,6 +3428,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         listBytes = ' '*(3*nBytes+1)
                     else:
                         listBytes = ' '.join(['{:02X}'.format(x) for x in b[:nBytes]]).ljust(3*nBytes-1) + ('..' if len(b)>nBytes else '  ')
+                        
+                        # Special coding so insert directive looks ok
+                        if k == 'insert':
+                            v, fv = assembler.insert
+                            insertBytes = [fv] * min(v, nBytes)
+                            listBytes = ' '.join(['{:02X}'.format(x) for x in insertBytes]).ljust(3*nBytes-1) + ('..' if v>nBytes else '  ')
                     
                     if (not assembler.expectedWait) and assembler.expected and (listBytes.strip() != assembler.expected):
                         errorText = 'Data and expected not matching\n'.format(listBytes.strip())

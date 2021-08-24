@@ -1329,7 +1329,7 @@ function ppLoad()
                 -- Use saved value from project properties
                 value = boolNumber(value)
             end
-            if not value then
+            if value == 0 then
                 -- need this so the callbacks won't run
                 hidePlugin(pluginName)
             end
@@ -2215,7 +2215,6 @@ function LoadProject(templateFilename)
     data.project.chrNames = data.project.chrNames or {}
     
     local converted = false
-    
     for i in ipairs_sparse(data.project.chr) do
         if type(data.project.chr[i]) == "table" then
             data.project.chr[i] = NESBuilder:tableToList(data.project.chr[i], 0)
@@ -3584,6 +3583,7 @@ pythonEval = function(s)
     return python.eval(s)
 end
 
+str = pythonEval('str')
 split = pythonEval('str.split')
 rsplit = pythonEval('str.rsplit')
 fixPath = pythonEval('fixPath2')

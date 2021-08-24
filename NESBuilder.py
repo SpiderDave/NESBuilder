@@ -994,6 +994,11 @@ class ForLua:
         ret = lua.table_from(out)
         
         return ret
+    def _try(self, f):
+        try:
+            return f()
+        except:
+            return None
     def applyIps(self, ipsData, fileData):
         return ips.applyIps(ipsData, fileData)
     def screenshotTest(self):

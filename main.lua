@@ -903,7 +903,7 @@ function ButtonAddPalette_cmd()
     p = {0x0f,0x20,0x10,0x00}
     table.insert(data.project.palettes, p)
 
-    local control = NESBuilder:getControlNew('SpinChangePalette')
+    local control = getControl('SpinChangePalette')
     control.max = #data.project.palettes
 
     PaletteEntryUpdate()
@@ -964,7 +964,7 @@ end
 
 
 function PaletteEntryUpdate()
-    local control = NESBuilder:getControlNew('SpinChangePalette')
+    local control = getControl('SpinChangePalette')
     control.max = #data.project.palettes
     control.value = data.project.palettes.index
     
@@ -973,11 +973,11 @@ function PaletteEntryUpdate()
 --    c = NESBuilder:getControl('PaletteEntry')
 --    c.setAll(p)
     
-    NESBuilder:getControlNew('PaletteEntryQt').setAll(p)
+    getControl('PaletteEntryQt').setAll(p)
 
 --    c = NESBuilder:getControl('CHRPalette')
 --    c.setAll(p)
-    NESBuilder:getControlNew('CHRPalette').setAll(p)
+    getControl('CHRPalette').setAll(p)
     
     local index = data.project.palettes.index or 0
     
@@ -1004,7 +1004,7 @@ function PaletteEntryUpdate()
         end
     end
     
-    c = NESBuilder:getControlNew('PaletteEntryLabelQt')
+    c = getControl('PaletteEntryLabelQt')
     c.text = string.format("Palette%02x",data.project.palettes.index)
     
     handlePluginCallback("onPaletteChange")
@@ -1208,6 +1208,44 @@ function ppInit()
     NESBuilder:makeTab{name="tabProjectProperties",text="Project Properties"}
     setTab("tabProjectProperties")
     
+    local items = {
+        {'main', 'Main'},
+        {'plugins', 'Plugins'},
+    }
+    
+    for i,v in ipairs(items) do
+        control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth, text=v[2], name="ppSwitchFrame", functionName = 'ppSwitchFrame', value=v[1]}
+        x = x + control.width + pad
+    end
+    x = x + pad * 2
+    NESBuilder:makeButton{x=x,y=y,w=buttonWidthSmall,h=buttonHeight,name="ppClose",text="close"}
+    
+    y = y + control.height + pad
+    
+    x=left
+    local startY = y
+    local setFrame = function(self, f)
+        for k,v in pairs(self) do
+            if k == "set" then
+            elseif k == f then
+                v.show()
+            else
+                v.hide()
+            end
+        end
+    end
+    
+    main.ppFrames = {
+        set = setFrame,
+    }
+    for i,v in ipairs(items) do
+        main.ppFrames[v[1]] = NESBuilder:makeFrame{x=x,y=startY,w=buttonWidth*5,h=config.height, name=v[1]}
+    end
+    
+    NESBuilder:setContainer(main.ppFrames['main'])
+    main.ppFrames:set('main')
+    x,y = left,top
+    
     control = NESBuilder:makeButton{x=x,y=y,w=100,h=buttonHeight, name="ppLoadRom",text="Load ROM"}
     x = x + control.width + pad
     push(y + control.height + pad)
@@ -1257,6 +1295,14 @@ function ppInit()
     
     y = y + control.height + pad
     
+    
+    NESBuilder:setContainer(main.ppFrames['plugins'])
+    x,y = left, top
+    
+    control=NESBuilder:makeLabelQt{x=x,y=y, clear=true,text="Select which plugins will be available for this project."}
+    control.setFont("Verdana", 10)
+    y = y + control.height + pad*2
+    
     push(x)
     for file in python.iter(pluginsList()) do
         if cfgGet('plugins', file) == 1 then
@@ -1265,10 +1311,6 @@ function ppInit()
         end
     end
     x=pop()
-    
-    
-    y = y + pad*7
-    b=NESBuilder:makeButton{x=x,y=y,w=100,h=buttonHeight,name="ppClose",text="close"}
 end
 
 function ppLoad()
@@ -1344,6 +1386,17 @@ function ppLoad()
     
     print('ppLoad()')
 end
+
+
+function ppSwitchFrame_cmd(t)
+    local control = t.control or t
+    
+    if control.value == '' then return end
+    print(control.value)
+    
+    main.ppFrames:set(control.value)
+end
+
 
 function projectProperties_cmd()
     toggleTab('tabProjectProperties', true)
@@ -1600,7 +1653,10 @@ end
 
 function TestRom_cmd()
     local workingFolder = data.folders.projects..data.project.folder
-    local f = data.folders.projects..data.project.folder..data.project.binaryFilename
+    
+    -- get binary filename with path
+    local f = getOutputBinaryFilename(true)
+    
     print("shellOpen "..f)
     NESBuilder:shellOpen(workingFolder, f)
 end
@@ -1622,7 +1678,7 @@ function BuildProject()
     NESBuilder:makeDir(folder.."code")
     
     -- remove old binary
-    NESBuilder:delete(folder..data.project.binaryFilename)
+    NESBuilder:delete(getOutputBinaryFilename(true))
     
     handlePluginCallback("onBuild")
     
@@ -1679,9 +1735,9 @@ function BuildProject()
     local filename = data.folders.projects..data.project.folder.."code/symbols.asm"
     out=""
     
-    out= out .. string.format('binaryFilename = "%s"\n', ppGet('binaryFilename') or data.project.binaryFilename)
+    out= out .. string.format('binaryFilename = "%s"\n', getOutputBinaryFilename())
     
-    local d = NESBuilder:getControlNew('symbolsTable1').getData()
+    local d = getControl('symbolsTable1').getData()
     for i, row in python.enumerate(d) do
         k,v,comment = row[0],row[1],row[2]
         if k~='' then
@@ -1786,7 +1842,7 @@ function BuildProject()
     
     if data.project.assembler == 'asm6' then
         local cmd = data.folders.tools.."asm6.exe"
-        local args = string.format("-L project.asm %s list.txt", data.project.binaryFilename)
+        local args = string.format("-L project.asm %s list.txt", getOutputBinaryFilename())
         print("Starting asm 6...")
         
         NESBuilder:run(folder, cmd, args)
@@ -1798,7 +1854,7 @@ function BuildProject()
         NESBuilder:run(folder, cmd, args)
     elseif data.project.assembler == 'xkasplus' then
         local cmd = data.folders.tools.."xkas-plus/xkas.exe"
-        local args = string.format("-o %s project.asm", data.project.binaryFilename)
+        local args = string.format("-o %s project.asm", getOutputBinaryFilename())
         print("Starting xkas plus...")
         
         NESBuilder:run(folder, cmd, args)
@@ -1824,7 +1880,7 @@ function BuildProject()
         -- Start assembling with sdasm
         print("Assembling with sdasm...")
         
-        local success, errorText = sdasm.assemble('project.asm', data.project.binaryFilename, 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'), romData)
+        local success, errorText = sdasm.assemble('project.asm', getOutputBinaryFilename(), 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'), romData)
         if not success then
             data.buildFail = true
             print(errorText)
@@ -1837,6 +1893,13 @@ function BuildProject()
     print("done.")
 end
 
+function getOutputBinaryFilename(includePath)
+    local f = ppGet('binaryFilename') or data.project.binaryFilename
+    if includePath then
+        return data.folders.projects..data.project.folder..f
+    end
+    return f
+end
 
 function saveChr()
     if #data.project.chr == 0 then return end
@@ -1997,7 +2060,7 @@ function BuildProject_cmd()
     local filename = data.folders.projects..data.project.folder.."code/symbols.asm"
     out=""
     
-    local d = NESBuilder:getControlNew('symbolsTable1').getData()
+    local d = getControl('symbolsTable1').getData()
     for i, row in python.enumerate(d) do
         k,v,comment = row[0],row[1],row[2]
         if k~='' then
@@ -2015,11 +2078,11 @@ function BuildProject_cmd()
     -- make sure project.asm exists, or dont bother
     if NESBuilder:fileExists(folder.."project.asm") or NESBuilder:fileExists(folder.."project.bas") then
         -- remove old binary
-        if NESBuilder:delete(folder..data.project.binaryFilename) then
+        if NESBuilder:delete(getOutputBinaryFilename(true)) then
             NESBuilder:setWorkingFolder(folder)
             if data.project.assembler == 'asm6' then
                 local cmd = data.folders.tools.."asm6.exe"
-                local args = string.format("-L project.asm %s list.txt", data.project.binaryFilename)
+                local args = string.format("-L project.asm %s list.txt", getOutputBinaryFilename())
                 print("Starting asm 6...")
                 
                 NESBuilder:run(folder, cmd, args)
@@ -2052,7 +2115,7 @@ function BuildProject_cmd()
                 NESBuilder:writeToFile(fixPath(data.folders.projects..data.project.folder..'project.bas.asm'), output)
                 
                 local f = fixPath(data.folders.projects..data.project.folder..'project')
-                local binFilename = fixPath(data.folders.projects..data.project.folder..data.project.binaryFilename)
+                local binFilename = fixPath(getOutputBinaryFilename(true))
                 cmd = bBFolder.."dasm.exe"
                 --args = string.format('"%s.bas" -I"%sincludes" -f3 -l"%s.lst" -s"%s.bas.sym" -o"%s.bin"', f, bBFolder, f, f, f)
                 args = string.format('%s.bas -I%sincludes -f1 -l%s.bas.lst -s%s.bas.sym -o%s', f, fixPath(bBFolder), f, f, binFilename)
@@ -2066,7 +2129,7 @@ function BuildProject_cmd()
                 local bBFolder = data.folders.tools..'bB/'
                 cmd = data.folders.tools.."bB/2600bas.bat"
                 
-                local args = string.format("project.bas %s", data.project.binaryFilename)
+                local args = string.format("project.bas %s", getOutputBinaryFilename())
                 print("Starting bB...")
                 
                 NESBuilder:run(folder, cmd, args)
@@ -2084,7 +2147,7 @@ function BuildProject_cmd()
                     NESBuilder:delete(file)
                 end
                 
-                NESBuilder:rename(data.folders.projects..data.project.folder.."project.bas.bin", data.folders.projects..data.project.folder..data.project.binaryFilename)
+                NESBuilder:rename(data.folders.projects..data.project.folder.."project.bas.bin", getOutputBinaryFilename(true))
                 
             elseif data.project.assembler == 'sdasm' then
                 local sdasm = python.eval('sdasm')
@@ -2092,7 +2155,7 @@ function BuildProject_cmd()
                 
                 local fixPath = python.eval('fixPath2')
                 
-                sdasm.assemble('project.asm', data.project.binaryFilename, 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'))
+                sdasm.assemble('project.asm', getOutputBinaryFilename(), 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'))
             else
                 handlePluginCallback("onAssemble", data.project.assembler)
                 --print('invalid assembler '..data.project.assembler)
@@ -2245,7 +2308,7 @@ function LoadProject(templateFilename)
     NESBuilder:getControl('CHRName').setText(data.project.chrNames[data.project.chr.index])
     
     -- load symbols table
-    local control = NESBuilder:getControlNew('symbolsTable1')
+    local control = getControl('symbolsTable1')
     control.clear()
     data.project.constants = data.project.constants or {}
     for i,row in pairs(data.project.constants) do
@@ -2298,7 +2361,7 @@ function LoadProject(templateFilename)
     PaletteEntryUpdate()
     
     -- refresh metatile tile canvas
-    local control = NESBuilder:getControlNew('tsaTileCanvasQt')
+    local control = getControl('tsaTileCanvasQt')
     control.drawTile(0,0, data.selectedTile, currentChr(), currentPalette(), control.columns, control.rows)
     control.update()
     
@@ -2341,7 +2404,7 @@ function SaveProject()
     
     -- Convert symbols table
     print("converting symbols...")
-    local d = NESBuilder:getControlNew('symbolsTable1').getData()
+    local d = getControl('symbolsTable1').getData()
     local t = {}
     for i, row in python.enumerate(d) do
         t[i] = {k=row[0],v=row[1],comment=row[2]}
@@ -2492,7 +2555,7 @@ function refreshCHR()
     control.paste(surface)
     
     if currentChr() then
-        control = NESBuilder:getControlNew("canvasTile")
+        control = getControl("canvasTile")
         control.chrData = currentChr()
         control.drawTile(0,0, data.selectedTile, currentChr(), currentPalette(), control.columns, control.rows)
         control.update()
@@ -2738,7 +2801,7 @@ function addMTileSet()
 end
 
 function renameMTileSet()
-    local control = NESBuilder:getControlNew("mTileList")
+    local control = getControl("mTileList")
     if control.count() == 0 then return end
 
     local n = askText('Rename Metatile Set', 'Enter a new name for the metatile set.')
@@ -2865,7 +2928,7 @@ function tsaCanvas_cmd(t)
             
             data.project.tileData = TileData
             data.project.tileNum = tileNum
-            NESBuilder:getControlNew("tsaTileCanvas").loadCHRData(TileData, p)
+            getControl("tsaTileCanvas").loadCHRData(TileData, p)
         end
     end
 end
@@ -2904,7 +2967,7 @@ function tsaCanvas2_cmd(t)
             data.project.tileData = TileData
             data.project.tileNum = tileNum
             
-            NESBuilder:getControlNew("tsaTileCanvas").loadCHRData(TileData, p)
+            getControl("tsaTileCanvas").loadCHRData(TileData, p)
         elseif t.event.button == 3 and data.project.tileData then
             NESBuilder:setCanvas(t.name)
             
@@ -2920,7 +2983,7 @@ function tsaCanvas2_cmd(t)
                     data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index][tileX*2+tileY] = data.project.tileNum
                     data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].palette = data.project.palettes.index
                 end
-                NESBuilder:getControlNew(t.name).loadCHRData{t.chrData, p, rows=2, columns=2}
+                getControl(t.name).loadCHRData{t.chrData, p, rows=2, columns=2}
             else
             end
             
@@ -3027,10 +3090,10 @@ function updateSquareoid()
     local tileOffset1, tileOffset2
     local m = currentMetatile()
     
-    local controlFrom = NESBuilder:getControlNew("tsaCanvasQt")
-    local controlTo = NESBuilder:getControlNew("tsaCanvas2Qt")
+    local controlFrom = getControl("tsaCanvasQt")
+    local controlTo = getControl("tsaCanvas2Qt")
     
-    local control = NESBuilder:getControlNew("mTileList")
+    local control = getControl("mTileList")
     
     getControl('metatileName').clear()
     getControl('metatileOffset').clear()
@@ -3073,7 +3136,7 @@ function updateSquareoid()
         setChr(chrIndex)
     end
     
---    local control = NESBuilder:getControlNew("mTileList")
+--    local control = getControl("mTileList")
 --    if control.count() == 0 then return end
     
 --    if data.project.mTileSets.index == -1 then
@@ -3193,7 +3256,7 @@ end
 function tsaTest_cmd()
     local p=data.project.palettes[data.project.palettes.index]
     
-    NESBuilder:getControlNew("tsaCanvas").loadCHRData(data.project.chr[data.project.chr.index], p)
+    getControl("tsaCanvas").loadCHRData(data.project.chr[data.project.chr.index], p)
 end
 
 --function onTabChanged_cmd(t)
@@ -3202,8 +3265,8 @@ end
 --        if tab == "tsa" then
 --            local p=data.project.palettes[data.project.palettes.index]
             
---            local control = NESBuilder:getControlNew("tsaCanvas")
---            NESBuilder:getControlNew("tsaCanvas").loadCHRData(data.project.chr[data.project.chr.index], p)
+--            local control = getControl("tsaCanvas")
+--            getControl("tsaCanvas").loadCHRData(data.project.chr[data.project.chr.index], p)
             
 --            updateSquareoid()
 --        end
@@ -3362,7 +3425,7 @@ function canvasQt_cmd(t)
     x = math.min(t.control.columns*8-1, math.max(0,x))
     y = math.min(t.control.rows*8-1, math.max(0,y))
 
-    local control = NESBuilder:getControlNew(t.name)
+    local control = getControl(t.name)
     local p = currentPalette()
     local tileX = math.floor(x/8)
     local tileY = math.floor(y/8)
@@ -3383,7 +3446,7 @@ function canvasQt_cmd(t)
     
     
     
-    control = NESBuilder:getControlNew("canvasTile")
+    control = getControl("canvasTile")
     --control.clear()
     control.chrData = currentChr()
     control.drawTile(0,0, tile, currentChr(), p, control.columns, control.rows)
@@ -3419,7 +3482,7 @@ function tsaCanvasQt_cmd(t)
     
     data.selectedTile = tile
     
-    local control = NESBuilder:getControlNew('tsaTileCanvasQt')
+    local control = getControl('tsaTileCanvasQt')
     control.drawTile(0,0, tile, currentChr(), currentPalette(), control.columns, control.rows)
     control.update()
     
@@ -3484,7 +3547,7 @@ function tsaCanvas2Qt_cmd(t)
         data.selectedTile = m[mtileOffsets[tileY*t.control.columns+tileX]]
         data.project.palettes.index = m.palette
 
-        local control = NESBuilder:getControlNew('tsaTileCanvasQt')
+        local control = getControl('tsaTileCanvasQt')
         control.drawTile(0,0, data.selectedTile, currentChr(), currentPalette(), control.columns, control.rows)
         control.update()
     end
@@ -3524,7 +3587,7 @@ function ppUpdate()
         end
     end
     
-    data.project.binaryFilename = ppGet('binaryFilename') or data.project.binaryFilename
+    data.project.binaryFilename = getOutputBinaryFilename()
     
     print('ppUpdate')
 end
@@ -3558,6 +3621,8 @@ function currentMetatileSet() return data.project.mTileSets[data.project.mTileSe
 
 function setMetatileData(mTileData, n) data.project.mTileSets[data.project.mTileSets.index][n or data.project.mTileSets[data.project.mTileSets.index].index]=mTileData end
 function getControl(n) return NESBuilder:getControl(n) end
+--function getControl(n) return NESBuilder:getControl(n) or NESBuilder:getControlNew(n) end
+
 function templateData(k)
     local t = data.project.template or {}
     if k then t = t[k] end
@@ -3697,7 +3762,7 @@ function autoSave()
     -- Wrong and it's running things while trying to close.  It's not a
     -- great solution, but at least it wont have a process open in the
     -- background forever.
-    local main = NESBuilder:getControlNew('main')
+    local main = getControl('main')
     if main.closing then
         NESBuilder:forceClose()
         return
@@ -3957,7 +4022,7 @@ function exportAllChr()
         end
     end
     
-    local f = data.folders.projects..data.project.folder..data.project.binaryFilename
+    local f = getOutputBinaryFilename(true)
     data.project.rom.outputFilename = data.project.rom.outputFilename or f
     -- For now, if output path not found, use default file.
     -- This will happen if a project folder is renamed

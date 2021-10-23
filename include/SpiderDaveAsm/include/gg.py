@@ -8,22 +8,23 @@ def getGG(ggString):
                      E="1000", O="1001", X="1010", U="1011",
                      K="1100", S="1101", V="1110", N="1111")
 
+        ggMap2 = None
         if len(ggString) == 6:
             ggMap2=[0,5,6,7,20,1,2,3,None,13,14,15,16,21,22,23,4,9,10,11,12,17,18,19]
         elif len(ggString) == 8:
             ggMap2=[0,5,6,7,28,1,2,3,None,13,14,15,16,21,22,23,4,9,10,11,12,17,18,19,24,29,30,31,20,25,26,27]
         else:
             return
-
+        
         # map to binary string
         binString = ''.join([ggMap[x.upper()] for x in ggString])
         # unscramble the binary string
         binString2 = ''.join([binString[ggMap2[i]] for i, x in enumerate(binString) if ggMap2[i] is not None])
         
         v = int(binString2[0:8], 2)
-        a = int(binString2[9:24], 2)
+        a = int(binString2[8:23], 2)
         if len(ggString) == 8:
-            c = int(binString2[24:32], 2)
+            c = int(binString2[23:31], 2)
             return dict(address = a, value = v, compare = c)
         return dict(address = a, value = v)
     except:

@@ -791,6 +791,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     cfg.setDefault('main', 'floorDiv', True)
     cfg.setDefault('main', 'xkasplusbranch', False)
     cfg.setDefault('main', 'showFileOffsetInListFile', True)
+    cfg.setDefault('main', 'showBankInListFile', False)
     cfg.setDefault('main', 'fullTraceback', False)
     cfg.setDefault('main', 'loadld65cfg', True)
     
@@ -1070,14 +1071,23 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         
         if mode == 'getbyte':
             a = getValue(v)
-
-            if bank != None:
-                a = (a-0x8000-0x4000) + bank * bankSize + headerSize
-            else:
-                #a = a + headerSize
-                pass
+            fileOffset = int(getSpecial('fileoffset')) + (a-currentAddress)
+            try:
+                v = int(out[fileOffset])
+            except:
+                v = 0
+            return v, 1
+        
+        if mode == 'getword':
+            a = getValue(v)
+            fileOffset = int(getSpecial('fileoffset')) + (a-currentAddress)
             
-            return out[a],1
+            try:
+                v = int(out[fileOffset]) + int(out[fileOffset+1]) * 0x100
+            except:
+                v = 0
+            return v, 2
+        
         if mode == 'len':
             v, l = getValueAndLength(v)
             return l, 1
@@ -1559,20 +1569,21 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 return v, param
             except:
                 return 0, 0
-        if mode == 'getbyte':
-            fileOffset = (addr + (v-currentAddress)) + headerSize
-            try:
-                v = int(out[fileOffset])
-            except:
-                v = 0
-            l = 1
-        if mode == 'getword':
-            fileOffset = (addr + (v-currentAddress)) + headerSize
-            try:
-                v = int(out[fileOffset]) + int(out[fileOffset+1]) * 0x100
-            except:
-                v = 0
-            l = 2
+#        if mode == 'getbyte':
+#            fileOffset = (addr + (v-currentAddress)) + headerSize
+#            try:
+#                v = int(out[fileOffset])
+#            except:
+#                v = 0
+#            l = 1
+#        if mode == 'getword':
+#            fileOffset = int(getSpecial('fileoffset')) + (v-currentAddress)
+            
+#            try:
+#                v = int(out[fileOffset]) + int(out[fileOffset+1]) * 0x100
+#            except:
+#                v = 0
+#            l = 2
         
         return v, l
 
@@ -1692,6 +1703,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         xkasplusbranch = cfg.isTrue(cfg.getValue('main', 'xkasplusbranch'))
         metaCommandPrefix = makeList(cfg.getValue('main', 'metaCommandPrefix'))
         showFileOffsetInListFile = cfg.isTrue(cfg.getValue('main', 'showFileOffsetInListFile'))
+        showBankInListFile = cfg.isTrue(cfg.getValue('main', 'showBankInListFile'))
         fullTraceback = cfg.isTrue(cfg.getValue('main', 'fullTraceback'))
         loadld65cfg = cfg.isTrue(cfg.getValue('main', 'loadld65cfg'))
         
@@ -2719,7 +2731,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     errorText = 'file not found'
             elif k == 'gg':
                 arg = line.split(' ',1)[1].strip()
-                ggCode = line.split(' ',1)[1].strip()
+                ggCode = getValueAsString(arg.strip(), fallback=True)
                 gg = GG.getGG(ggCode)
                 
                 ggAddresses = []
@@ -3448,6 +3460,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 
                 if showFileOffsetInListFile:
                     outputText+="{:05X} ".format(fileOffset)
+
+                if showBankInListFile:
+                    if bank == None:
+                        outputText+="   "
+                    else:
+                        outputText+="{:02X}:".format(bank)
 
                 if startAddress or ((noOutput == True) or (noOutputSingle==True)):
                     outputText+="{:05X} ".format(currentAddress-len(b))

@@ -844,6 +844,7 @@ class ForLua:
         #shutil.copytree(src, dst, symlinks=False, ignore=None, copy_function=copy2, ignore_dangling_symlinks=False)
         shutil.copytree(src, dst, symlinks=False, ignore=ignore, copy_function=copy2, ignore_dangling_symlinks=False, dirs_exist_ok=True)
     def copyFile(self, src,dst):
+        print('copyfile:\n  {} -->\n  {}\n'.format(src, dst))
         copyfile(src,dst)
     def canvasPaint(self, x,y, c):
         canvas = self.getCanvas(self)

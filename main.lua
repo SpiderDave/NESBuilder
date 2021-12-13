@@ -693,10 +693,28 @@ function onPluginsLoaded()
 end
 
 function onReady()
+    local k
+    
     local items = {
         {text="-"},
         {name="Quit", text="Exit"},
     }
+    
+    if devMode() then
+        -- add recent files (broken, needs work)
+        items = {}
+        items[#items+1] = {text="-"}
+        for i,v in python.enumerate(reverseList(recentProjects.asList())) do
+            k = string.format("recentproject%d", i+1)
+            
+            items[#items+1] = {name = k, text = v, index = i, foo='bar', action = function() recentproject_cmd({index=i}) end}
+            if i >= 4 then break end
+        end
+        items[#items+1] = {text="-"}
+        items[#items+1] = {name="Quit", text="Exit"}
+    end
+    
+    
     control = NESBuilder:makeMenuQt{name="menuFile", text="File", menuItems=items}
     
     local items = {
@@ -3658,6 +3676,7 @@ stem = pythonEval("lambda x:pathlib.Path(x).stem")
 int = pythonEval("lambda x:int(x)")
 sliceList = pythonEval("lambda x,y,z:x[y:z]")
 joinList = pythonEval("lambda x,y:x+y")
+reverseList = pythonEval("lambda x:list(reversed(x))")
 reverseByte = pythonEval("lambda x:int(('{:08b}'.format(x))[::-1],2)")
 replace = pythonEval("lambda x,y,z:x.replace(y,z)")
 list = pythonEval("lambda *x:[item for item in x]")
@@ -4270,5 +4289,17 @@ end
 --    print(makePointerTable('foobar',8))
 --end
 
+-- wip file menu recent items
+function recentproject_cmd(t)
+    print("recent")
+    print(t)
 
+    local n = len(recentProjects.stack)- 1 - t.index
+    local id = recentProjects.stack[n]
+    
+    print(n)
+    print(id)
+
+--    launcherRecentIcon_cmd({index=t.index})
+end
 

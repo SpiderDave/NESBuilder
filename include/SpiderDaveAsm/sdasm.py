@@ -93,6 +93,11 @@ defaultPalette = [
     [176, 252, 204],[156, 252, 240],[196, 196, 196],[0, 0, 0],[0, 0, 0],
 ]
 
+def replaceStringByIndex(text,startIndex=0,endIndex=0,replacement=''):
+    l = list(text)
+    l[startIndex:endIndex]=replacement
+    return''.join(l)
+
 def makeSurePathExists(path):
     pathlib.Path(path).mkdir(parents=True, exist_ok=True)
 
@@ -2775,13 +2780,22 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 filename = line.split(" ",1)[1].strip()
                 filename = getString(filename)
                 
-                ipsData = ips.createIps(originalFileData, out)
+                ipsData = False
                 try:
-                    with open(filename, 'wb') as file:
-                        file.write(bytes(ipsData))
-                    print("{} written.".format(filename))
+                    originalFileData
+                    ipsData = ips.createIps(originalFileData, out)
+                except NameError:
+                    errorText = 'could not create ips (no original file data)'
                 except:
-                    print("Could not open file.")
+                    errorText = 'could not create ips'
+                
+                if ipsData:
+                    try:
+                        with open(filename, 'wb') as file:
+                            file.write(bytes(ipsData))
+                        print("{} written.".format(filename))
+                    except:
+                        print("Could not open file.")
 
             elif k == 'include' or k == 'include?' or k=='incsrc' or k == 'require':
                 filename = line.split(" ",1)[1].strip()
@@ -3582,16 +3596,21 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         )
     else:
         outputTopper+= "No header\n"
-    if showFileOffsetInListFile:
-        outputTopper+= '{1}{0}{1}{0}{2}{0}{3}\n'.format(' ', '_'*5, '_'*25, '_'*40)
-        outputTopper+= '{1:5}{0}{2:5}{0}{3:25}{0}{4}\n'.format('|','file','prg',' bytes',' asm code')
-        outputTopper+= '{1:5}{0}{2:5}{0}{3:25}{0}{4}\n'.format('|','offst','addr','','')
-        outputTopper+= '{1}{0}{1}{0}{2}{0}{3}\n'.format('|', '-'*5, '-'*25, '-'*40)
-    else:
-        outputTopper+= '{1}{0}{2}{0}{3}\n'.format(' ', '_'*5, '_'*25, '_'*40)
-        outputTopper+= '{2:5}{0}{3:25}{0}{4}\n'.format('|','file','prg',' bytes',' asm code')
-        outputTopper+= '{2:5}{0}{3:25}{0}{4}\n'.format('|','offst','addr','','')
-        outputTopper+= '{1}{0}{2}{0}{3}\n'.format('|', '-'*5, '-'*25, '-'*40)
+
+    topperBase = [
+        '_____ __ _____ _________________________ ________________________________________',
+        'file |ba|prg  | bytes                   | asm code',
+        'offst|nk|addr |                         |',
+        '-----|--|-----|-------------------------|----------------------------------------',
+    ]
+    
+    if not showBankInListFile:
+        topperBase = [replaceStringByIndex(l, 6,9) for l in topperBase]
+    if not showFileOffsetInListFile:
+        topperBase = [replaceStringByIndex(l, 0,6) for l in topperBase]
+    
+    outputTopper+= '\n'.join(topperBase) + '\n'
+    
     outputText = outputTopper + outputText
     
     if listFilename:

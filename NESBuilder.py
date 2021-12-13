@@ -793,9 +793,20 @@ class ForLua:
         self.canvas = canvas
     def makeDir(self,dir):
         dir = fixPath(script_path + "/" + dir)
-        print('makedir:',dir)
+        print('makedir:',dir, end='')
         if not os.path.exists(dir):
             os.makedirs(dir)
+
+        for _ in range(10):
+            if os.path.exists(dir):
+                break
+            else:
+                print('.',end='')
+                time.sleep(0.05)
+        else:
+            print('\ntimeout.')
+        print('')
+
     def openFolder(self, initial=None):
         initial = fixPath(script_path + "/" + initial)
         m = QtDave.Dialog()

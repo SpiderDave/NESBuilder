@@ -173,6 +173,56 @@ def imageToCHRData(f, colors=False, xOffset=0,yOffset=0, rows=False, cols=False,
     
     return ret
 
+def exportTilemapToImage(tilemap, filename="export.png", offsetX=0, offsetY=0, fileOffset = 0, fileData = False, palette = 'current'):
+    colors=assembler.currentPalette
+    
+    if tilemap.palette:
+        colors = tilemap.palette
+    
+    maxX, maxY = 0, 0
+    for tile in tilemap.data:
+        maxX = max(maxX, offsetX + tile.x * tilemap.gridsize + 8)
+        maxY = max(maxY, offsetY + tile.y * tilemap.gridsize + 8)
+    print("w,h = ", maxX, maxY)
+    
+    # Load or create image
+    try:
+        with Image.open(filename) as img:
+            img.load()
+    except:
+        img=Image.new("RGB", size=(128,128))
+    
+    if (img.width < maxX) or (img.height < maxY):
+        imgNew = Image.new("RGB", size=(max(img.width, maxX), max(img.height, maxY)))
+        imgNew.paste(img)
+        img = imgNew
+    
+    img.load()
+    a = np.asarray(img).copy()
+    
+    for tile in tilemap.data:
+        for y in range(8):
+            for x in range(8):
+                c=0
+                if 'h' in tile.flip:
+                    x1 = offsetX + tile.x * tilemap.gridsize + x
+                else:
+                    x1 = offsetX + tile.x * tilemap.gridsize + (7-x)
+                if 'v' in tile.flip:
+                    y1 = offsetY + tile.y * tilemap.gridsize + (7-y)
+                else:
+                    y1 = offsetY + tile.y * tilemap.gridsize + y
+                if (fileData[fileOffset+tile.id*16+y] & (1<<x)):
+                    c=c+1
+                if (fileData[fileOffset+tile.id*16+y+8] & (1<<x)):
+                    c=c+2
+                a[y1][x1] = assembler.palette[colors[c]]
+
+    
+    img = Image.fromarray(a)
+    img.save(filename)
+    
+    
 def exportCHRDataToImage(filename="export.png", fileData=False, colors=(0x0f,0x21,0x11,0x01)):
     colors=assembler.currentPalette
     
@@ -540,6 +590,7 @@ directives = [
     'return','namespace','break','expected',
     'findtext', 'lastpass', 'endoffunction', '_wipe',
     'loadld65cfg', 'loadld65cfg?', 'segment',
+    'start', 'end','exportmap',
 ]
 
 filters = [
@@ -1655,6 +1706,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
     lLabels = []
     macros = Map()
     functions = Map()
+    tilemaps = Map()
     blockComment = 0
     #aLabelSearch = Map(up=Map(), down=Map())
     
@@ -1736,6 +1788,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         
         macro = False
         function = False
+        tilemap = False
         currentAddress = 0
         mode = ""
         showAddress = False
@@ -1950,7 +2003,17 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 if line.split(" ",1)[0].strip().lower() not in ['endf','endfunction','.endf','.endfunction']:
                     functions[function].lines.append(originalLine)
                     line = ''
-
+            if tilemap:
+                endTilemap = False
+                try:
+                    if ' '.join(line.lower().split(None, 2)[0:2]) == 'end tilemap':
+                        endTilemap = True
+                except:
+                    pass
+                
+                if not endTilemap:
+                    tilemaps[tilemap].lines.append(originalLine.strip())
+                    line = ''
             
             b=[]
             k0 = line.split(" ",1)[0].strip()
@@ -2526,6 +2589,33 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         errorText = 'file not found'
                 else:
                     errorText = 'PIL not available.'
+            elif k == 'exportmap':
+                if passNum == lastPass:
+                    l = line.split(" ",1)[1].strip()
+                    l = l.split(',')
+                    
+                    x,y = 0,0
+                    if len(l) == 2:
+                        tilemapName = assembler.lower(getString(l[0].strip()))
+                        filename = getString(l[1].strip())
+                    elif len(l) == 4:
+                        x = getValue(l[0])
+                        y = getValue(l[1])
+                        tilemapName = assembler.lower(getString(l[2].strip()))
+                        filename = getString(l[3].strip())
+                    
+                    if tilemaps[tilemapName].chr != None:
+                        bank = int((getValue('prgbanks') * 0x4000) / bankSize)
+                        bank = None
+                        currentAddress = 0
+                        addr = getValue('prgbanks') * 0x4000 + chrSize*tilemaps[tilemapName].chr + headerSize
+                    if tilemaps[tilemapName].org != None:
+                        addr = addr + (tilemaps[tilemapName].org-currentAddress)
+                        currentAddress += (tilemaps[tilemapName].org-currentAddress)
+                    
+                    fileOffset = int(getSpecial('fileoffset'))
+                    
+                    exportTilemapToImage(tilemaps[tilemapName], filename, x, y, fileOffset, out)
             elif k == 'exportchr':
                 if passNum == lastPass:
                     l = line.split(" ",1)[1].strip()
@@ -2886,6 +2976,55 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         print('{:02x}:{:04x}'.format(resultBank,a))
                 else:
                     print('0 results.')
+            elif k == 'start': # start tilemap
+                tilemapName = None
+                try:
+                    if ' '.join(line.lower().split(None, 2)[0:2]) == 'start tilemap':
+                        tilemapName = assembler.lower(line.split(None, 2)[2])
+                except:
+                    pass
+                
+                if tilemapName:
+                    tilemap = tilemapName
+                    tilemaps[tilemap]=Map()
+                    tilemaps[tilemap].lines = []
+                    tilemaps[tilemap].data = []
+            elif k == 'end': # end tilemap
+                if ' '.join(line.lower().split(None, 2)[0:2]) == 'end tilemap':
+                    tilemaps[tilemap].gridsize = 8
+                    for l in tilemaps[tilemap].lines:
+                        if l.startswith(('gridsize', 'address', 'palette')):
+                            k,v = l.split('=', 1)
+                            k = k.lower().strip()
+                            v = v.strip()
+                            
+                            if k in ('gridsize', 'address'):
+                                v = int(v, 16)
+                            elif k == 'palette':
+                                v = pal = [int(v[i:i+2],16) for i in range(0, len(v), 2)]
+                            
+                            tilemaps[tilemap][k] = v
+                        elif l.startswith(('chr', 'org')):
+                            k,v = l.split(None, 1)
+                            k = k.lower().strip()
+                            v = v.strip()
+                            
+                            tilemaps[tilemap][k] = getValue(v)
+                        elif l.strip():
+                            try:
+                                v = l.split()
+                                m = Map()
+                                m.id = int(v[0], 16)
+                                m.x = int(v[1], 16)
+                                m.y = int(v[2], 16)
+                                m.flip = v[3:4] and v[3:4][0].lower().strip() or ''
+                                tilemaps[tilemap].data.append(m)
+                            except:
+                                # lazy way to handle things like comments for now
+                                pass
+                    tilemaps[tilemap].lines = None
+                    print('Creating tilemap "{}"'.format(tilemap))
+                    tilemap = False
             elif k == 'macro':
                 v = line.split(" ")[1].strip()
                 macro = v.lower()

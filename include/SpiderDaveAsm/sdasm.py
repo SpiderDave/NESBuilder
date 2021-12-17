@@ -173,6 +173,55 @@ def imageToCHRData(f, colors=False, xOffset=0,yOffset=0, rows=False, cols=False,
     
     return ret
 
+def importTilemap(tilemap, filename="import.png", offsetX=0, offsetY=0, fileOffset = 0, fileData = False, palette = 'current'):
+    if tilemap.palette:
+        colors = [assembler.palette[x] for x in tilemap.palette]
+    else:
+        colors = [assembler.palette[x] for x in assembler.currentPalette]
+    
+    maxX, maxY = 0, 0
+    for tile in tilemap.data:
+        maxX = max(maxX, offsetX + tile.x * tilemap.gridsize + 8)
+        maxY = max(maxY, offsetY + tile.y * tilemap.gridsize + 8)
+    
+    # Load image
+    try:
+        with Image.open(filename) as img:
+            px = img.load()
+    except:
+        print("error loading image")
+        return
+    
+    width, height = img.size
+    
+    for tile in tilemap.data:
+        tileOut = [[]]*16
+        for y in range(8):
+            tileOut[y] = 0
+            tileOut[y+8] = 0
+            for x in range(8):
+
+                if 'h' in tile.flip:
+                    x1 = offsetX + tile.x * tilemap.gridsize + (7-x)
+                else:
+                    x1 = offsetX + tile.x * tilemap.gridsize + x
+                if 'v' in tile.flip:
+                    y1 = offsetY + tile.y * tilemap.gridsize + (7-y)
+                else:
+                    y1 = offsetY + tile.y * tilemap.gridsize + y
+
+                try:
+                    c = list(px[x1, y1])
+                except:
+                    c = [0,0,0]
+                i = bestColorMatch(c, colors)
+                
+                tileOut[y] += (2**(7-x)) * (i%2)
+                tileOut[y+8] += (2**(7-x)) * (math.floor(i/2))
+        
+        for i in range(16):
+            fileData[fileOffset+tile.id*16+i] = tileOut[i]
+
 def exportTilemapToImage(tilemap, filename="export.png", offsetX=0, offsetY=0, fileOffset = 0, fileData = False, palette = 'current'):
     colors=assembler.currentPalette
     
@@ -183,14 +232,13 @@ def exportTilemapToImage(tilemap, filename="export.png", offsetX=0, offsetY=0, f
     for tile in tilemap.data:
         maxX = max(maxX, offsetX + tile.x * tilemap.gridsize + 8)
         maxY = max(maxY, offsetY + tile.y * tilemap.gridsize + 8)
-    print("w,h = ", maxX, maxY)
     
     # Load or create image
     try:
         with Image.open(filename) as img:
             img.load()
     except:
-        img=Image.new("RGB", size=(128,128))
+        img=Image.new("RGB", size=(8,8))
     
     if (img.width < maxX) or (img.height < maxY):
         imgNew = Image.new("RGB", size=(max(img.width, maxX), max(img.height, maxY)))
@@ -217,7 +265,6 @@ def exportTilemapToImage(tilemap, filename="export.png", offsetX=0, offsetY=0, f
                 if (fileData[fileOffset+tile.id*16+y+8] & (1<<x)):
                     c=c+2
                 a[y1][x1] = assembler.palette[colors[c]]
-
     
     img = Image.fromarray(a)
     img.save(filename)
@@ -588,9 +635,9 @@ directives = [
     'rept','endr','endrept','sprite8x16','export','diff','diff2',
     'assemble', 'exportchr', 'ips','makeips', 'gg','echo','function','endf', 'endfunction',
     'return','namespace','break','expected',
-    'findtext', 'lastpass', 'endoffunction', '_wipe',
-    'loadld65cfg', 'loadld65cfg?', 'segment',
-    'start', 'end','exportmap',
+    'findtext','lastpass', 'endoffunction', '_wipe',
+    'loadld65cfg','loadld65cfg?','segment',
+    'start','end','exportmap','importmap',
 ]
 
 filters = [
@@ -2589,6 +2636,35 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         errorText = 'file not found'
                 else:
                     errorText = 'PIL not available.'
+            elif k == 'importmap':
+                if passNum == lastPass:
+                    l = line.split(" ",1)[1].strip()
+                    l = l.split(',')
+                    
+                    x,y = 0,0
+                    if len(l) == 2:
+                        tilemapName = assembler.lower(getString(l[0].strip()))
+                        filename = getString(l[1].strip())
+                    elif len(l) == 4:
+                        x = getValue(l[0])
+                        y = getValue(l[1])
+                        tilemapName = assembler.lower(getString(l[2].strip()))
+                        filename = getString(l[3].strip())
+                    
+                    if tilemaps[tilemapName].chr != None:
+                        bank = int((getValue('prgbanks') * 0x4000) / bankSize)
+                        bank = None
+                        currentAddress = 0
+                        addr = getValue('prgbanks') * 0x4000 + chrSize*tilemaps[tilemapName].chr + headerSize
+                    if tilemaps[tilemapName].org != None:
+                        addr = addr + (tilemaps[tilemapName].org-currentAddress)
+                        currentAddress += (tilemaps[tilemapName].org-currentAddress)
+                    
+                    fileOffset = int(getSpecial('fileoffset'))
+                    
+                    #exportTilemapToImage(tilemaps[tilemapName], filename, x, y, fileOffset, out)
+                    importTilemap(tilemaps[tilemapName], filename, x, y, fileOffset, out)
+                    
             elif k == 'exportmap':
                 if passNum == lastPass:
                     l = line.split(" ",1)[1].strip()
@@ -3023,7 +3099,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                                 # lazy way to handle things like comments for now
                                 pass
                     tilemaps[tilemap].lines = None
-                    print('Creating tilemap "{}"'.format(tilemap))
+                    #print('Creating tilemap "{}"'.format(tilemap))
                     tilemap = False
             elif k == 'macro':
                 v = line.split(" ")[1].strip()

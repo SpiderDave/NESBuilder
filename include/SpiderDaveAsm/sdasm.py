@@ -2636,7 +2636,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         errorText = 'file not found'
                 else:
                     errorText = 'PIL not available.'
-            elif k == 'importmap':
+            elif k in ('importmap', 'exportmap'):
                 if passNum == lastPass:
                     l = line.split(" ",1)[1].strip()
                     l = l.split(',')
@@ -2644,12 +2644,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     x,y = 0,0
                     if len(l) == 2:
                         tilemapName = assembler.lower(getString(l[0].strip()))
-                        filename = getString(l[1].strip())
+                        filename = getValueAsString(l[1].strip(), fallback=True)
                     elif len(l) == 4:
                         x = getValue(l[0])
                         y = getValue(l[1])
                         tilemapName = assembler.lower(getString(l[2].strip()))
-                        filename = getString(l[3].strip())
+                        filename = getValueAsString(l[3].strip(), fallback=True)
                     
                     if tilemaps[tilemapName].chr != None:
                         bank = int((getValue('prgbanks') * 0x4000) / bankSize)
@@ -2662,36 +2662,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     
                     fileOffset = int(getSpecial('fileoffset'))
                     
-                    #exportTilemapToImage(tilemaps[tilemapName], filename, x, y, fileOffset, out)
-                    importTilemap(tilemaps[tilemapName], filename, x, y, fileOffset, out)
-                    
-            elif k == 'exportmap':
-                if passNum == lastPass:
-                    l = line.split(" ",1)[1].strip()
-                    l = l.split(',')
-                    
-                    x,y = 0,0
-                    if len(l) == 2:
-                        tilemapName = assembler.lower(getString(l[0].strip()))
-                        filename = getString(l[1].strip())
-                    elif len(l) == 4:
-                        x = getValue(l[0])
-                        y = getValue(l[1])
-                        tilemapName = assembler.lower(getString(l[2].strip()))
-                        filename = getString(l[3].strip())
-                    
-                    if tilemaps[tilemapName].chr != None:
-                        bank = int((getValue('prgbanks') * 0x4000) / bankSize)
-                        bank = None
-                        currentAddress = 0
-                        addr = getValue('prgbanks') * 0x4000 + chrSize*tilemaps[tilemapName].chr + headerSize
-                    if tilemaps[tilemapName].org != None:
-                        addr = addr + (tilemaps[tilemapName].org-currentAddress)
-                        currentAddress += (tilemaps[tilemapName].org-currentAddress)
-                    
-                    fileOffset = int(getSpecial('fileoffset'))
-                    
-                    exportTilemapToImage(tilemaps[tilemapName], filename, x, y, fileOffset, out)
+                    if k == 'importmap':
+                        importTilemap(tilemaps[tilemapName], filename, x, y, fileOffset, out)
+                    elif k == 'exportmap':
+                        exportTilemapToImage(tilemaps[tilemapName], filename, x, y, fileOffset, out)
             elif k == 'exportchr':
                 if passNum == lastPass:
                     l = line.split(" ",1)[1].strip()
@@ -2944,7 +2918,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     errorText = 'file not found'
             elif k == 'makeips' and passNum == lastPass:
                 filename = line.split(" ",1)[1].strip()
-                filename = getString(filename)
+                #filename = getString(filename)
+                filename = getValueAsString(filename, fallback=True)
                 
                 ipsData = False
                 try:

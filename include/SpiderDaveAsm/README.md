@@ -543,6 +543,50 @@ incchr
     incchr "smbchr0.png", 5, 2, 16, 1  ; include 16 columns and 1 row starting at coordinates 5,2
 ```
     
+start tilemap ... end tilemap
+    
+    Define a tilemap.  Before the main tilemap entries, you can define gridsize, chr, org, palette.
+    
+    gridsize = <size>
+    chr <chr page>
+    org <offset>
+    palette = <hexidecimal palette>
+    
+    Each main entry uses hexidecimal for each tile id, x, y, and then flags of 
+    either "h", "v", or "hv", to flip the tile horizontally, vertically, or both.
+    
+    Note: Syntax of this directive will likely change to something more consistant.
+    
+```
+    start tilemap Mario_select1
+        gridsize = 1
+        chr $0c
+        org $0
+        palette = 0f271601
+        00 00 00
+        01 00 08
+        00 08 00 h
+        01 08 08 h
+        02 00 10
+        03 00 18
+        02 08 10 h
+        03 08 18 h
+    end tilemap
+```
+    
+importmap
+exportmap
+    
+    Import image file data using a tilemap.  The tilemap may have its own chr bank, org, palette
+    set.  exportmap works the same but exports using a tilemap to an image file.
+    
+```
+    importmap "Mario_select1", "Mario_select1.png"            ; import using default coordinates (0,0)
+    importmap $00, $00, "Mario_select1", "Mario_select1.png"  ; import using set coordinates
+    exportmap "Mario_select1", "Mario_select1.png"            ; export using default coordinates (0,0)
+    exportmap $00, $00, "Mario_select1", "Mario_select1.png"  ; export using set coordinates
+```
+    
 assemble
     
     Assemble a file.  This is useful to assemble things in multiple stages, or to create a base

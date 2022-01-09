@@ -18,6 +18,7 @@ ToDo/Issues:
     * handle relative unlabeled jumps
         ex: bcc $79
     * allow some awkward lack of spaces: "bne+"
+        * DONE *, should add tests
     * handle expressions in macro arguments
     * make it so insert shows added bytes in list file
 """
@@ -2079,11 +2080,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             #     bne+
             #
             if k0.startswith(tuple(opcodes+opcodes2)):
-                chars = '-+<>#$%'
-                for c in chars:
-                    if c in k0:
-                        k0 = k0.split(c,1)[0]
-                        line = line.replace(c, ' '+c)
+                chars = '-+<>#$%()'
+                
+                for index, c in enumerate(k0):
+                    if c in chars:
+                        k0 = line[:index]
+                        line = line[:index]+' '+line[index:]
                         break
             
             k = k0.lower()

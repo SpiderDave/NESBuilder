@@ -44,10 +44,12 @@ config.top = config.pad*1.5
 config.launchText=[[
 Created by SpiderDave
 -------------------------------------------------------------------------------------------
-NESBuilder is a NES development tool.
+NESBuilder is a NES development and romhacking tool made with
+Python and Lua.
 
-The goal of NESBuilder is to make NES development easier, with a goal of
-helping create a NES game from start to finish.
+The goal of NESBuilder is to make NES development and romhacking
+easier, helping to create a NES game from start to finish or
+modify an existing game easily.
 
 Features:
  *  Open source
@@ -62,7 +64,6 @@ Features:
 stack, push, pop = NESBuilder:newStack()
 recentProjects = NESBuilder:newStack{maxlen=config.nRecentFiles}
 
-local foo=42
 pad,left,top=config.pad, config.left, config.top
 
 data = {}
@@ -145,13 +146,9 @@ function init()
     
     print("init")
     
-    -- Tab close buttons aren't done yet.
-    --if not devMode() then
-    if true then
-        local main = NESBuilder:getWindowQt()
-        main.tabParent.self.setTabsClosable(false)
-        main.update()
-    end
+--    local main = NESBuilder:getWindowQt()
+--    main.tabParent.self.setTabsClosable(false)
+--    main.update()
     
     NESBuilder:incLua("Tserial")
     util = NESBuilder:incLua("util")
@@ -178,11 +175,11 @@ function init()
     -- The separator and Quit items will be added
     -- in onReady() so plugins can add items before them.
     items = {
-        {name="New", text="New Project"},
-        {name="Open", text="Open Project"},
-        {name="Save", text="Save Project"},
-        {name="SaveAs", text="Save As"},
-        {name="Preferences", text="Preferences"},
+        {name="New", text="\u{1f4c1} New Project"},
+        {name="Open", text="\u{1f4c2} Open Project"},
+        {name="Save", text="\u{1f4be} Save Project"},
+        {name="SaveAs", text="\u{1f4be} Save As"},
+        {name="Preferences", text="\u{2699}\u{fe0f} Preferences"},
     }
     control = NESBuilder:makeMenuQt{name="menuFile", text="File", menuItems=items}
     
@@ -331,6 +328,13 @@ function init()
     
     y=y+pad
     
+    --if false then
+    
+    local scroll = NESBuilder:makeScrollFrame{x=x,y=y,w=300,h=400,name='scrollArea1'}
+    NESBuilder:setContainer(scroll.frame)
+    y=pad
+    x=left
+    
     paletteControl = {}
     for i = 0,15 do
         paletteControl[i] = {}
@@ -349,6 +353,8 @@ function init()
             if f then return f(t, i) end
         end
     end
+    
+    --end
     
     NESBuilder:setTabQt("Image")
     p = {[0]=0x0f,0x21,0x11,0x01}
@@ -388,7 +394,7 @@ function init()
     
     x=128*3+pad*3
     y=top
-    c=NESBuilder:makeLabelQt{x=x,y=y,name="CHRNumLabelQt",clear=true,text="CHR"}
+    c=NESBuilder:makeLabelQt{x=x,y=y,name="CHRNumLabel",clear=true,text="CHR"}
     y = y + buttonHeight
     
     --y=top
@@ -697,7 +703,7 @@ function onReady()
     
     local items = {
         {text="-"},
-        {name="Quit", text="Exit"},
+        {name="Quit", text="\u{274e} Exit"},
     }
     
     if devMode() then
@@ -711,7 +717,7 @@ function onReady()
             if i >= 4 then break end
         end
         items[#items+1] = {text="-"}
-        items[#items+1] = {name="Quit", text="Exit"}
+        items[#items+1] = {name="Quit", text="\u{274e} Exit"}
     end
     
     
@@ -733,7 +739,7 @@ function onReady()
     control = NESBuilder:makeMenuQt{name="menuTools",text="Tools", menuItems=items}
     
     local items = {
-        {name="About", text="About"},
+        {name="About", text="\u{2753} About"},
     }
     control = NESBuilder:makeMenuQt{name="menuHelp", text="Help", menuItems=items}
     
@@ -1172,6 +1178,7 @@ function launcherButtonRecent_cmd()
     data.launchFrames.set('recent')
 end
 function launcherButtonTemplates_cmd()
+    toggleTab('Launcher', true)
     data.launchFrames.set('templates')
 end
 
@@ -1299,7 +1306,7 @@ function ppInit()
     control.setColumnWidth(1,buttonWidth)
     control.horizontalHeader().setStretchLastSection(true)
     
-    control.onChange = function() ppUpdate(control) end
+    control.onChange = function() ppUpdate() end
     
     y = y + control.height + pad
     
@@ -1561,6 +1568,7 @@ function createAboutTab()
 end
 
 function New_cmd()
+    toggleTab('Launcher', true)
     data.launchFrames.set('new')
     NESBuilder:switchTab("Launcher")
 end
@@ -1673,7 +1681,10 @@ function TestRom_cmd()
     local workingFolder = data.folders.projects..data.project.folder
     
     -- get binary filename with path
-    local f = getOutputBinaryFilename(true)
+    --local f = getOutputBinaryFilename(true)
+    
+    -- get actual binary filename
+    local f = getBuildBinary(true)
     
     print("shellOpen "..f)
     NESBuilder:shellOpen(workingFolder, f)
@@ -1685,6 +1696,14 @@ function BuildProject()
     local folder = data.folders.projects..data.project.folder
     
     data.buildFail = false
+    
+    print('*****************')
+    print(getOutputBinaryFilename())
+    print(ppGet('binaryFilename'))
+    print(data.project.binaryFilename)
+    print(ppGet('binaryFilename') or data.project.binaryFilename)
+    print(data.project.buildBinaryFilename)
+    print('*****************')
     
     --ppUpdate()
     
@@ -1756,11 +1775,17 @@ function BuildProject()
     out= out .. string.format('binaryFilename = "%s"\n', getOutputBinaryFilename())
     
     local d = getControl('symbolsTable1').getData()
+    local line = ''
     for i, row in python.enumerate(d) do
         k,v,comment = row[0],row[1],row[2]
         if k~='' then
             if comment~='' then
-                out = out .. string.format("%s = %s ; %s\n",k,v or 0,comment)
+                line = string.format("%s = %s",k,v or 0)
+                if #line < 40 then
+                    line = line .. string.rep(' ', 40-#line)
+                end
+                line = string.format("%s ; %s\n", line, comment)
+                out = out .. line
             else
                 out = out .. string.format("%s = %s\n",k,v or 0)
             end
@@ -1903,6 +1928,8 @@ function BuildProject()
             data.buildFail = true
             print(errorText)
         end
+        
+        data.project.buildBinaryFilename = sdasm.assembler.outputFilename
     else
         handlePluginCallback("onAssemble", data.project.assembler)
         --print('invalid assembler '..data.project.assembler)
@@ -1911,8 +1938,19 @@ function BuildProject()
     print("done.")
 end
 
+function getBuildBinary(includePath)
+    local f = data.project.buildBinaryFilename or ppGet('binaryFilename') or data.project.binaryFilename
+    if includePath then
+        return data.folders.projects..data.project.folder..f
+    end
+    return f
+end
+
 function getOutputBinaryFilename(includePath)
     local f = ppGet('binaryFilename') or data.project.binaryFilename
+    
+    --f = data.project.buildBinaryFilename or f
+    
     if includePath then
         return data.folders.projects..data.project.folder..f
     end
@@ -2212,10 +2250,14 @@ function closePluginTabs()
 end
 
 function LoadProject(templateFilename)
-    local projectID, filename
+    local projectID, filename, control
     
     -- Close all plugin tabs by default
     closePluginTabs()
+    
+    
+    control = getControl('ppSettingsTable')
+    if control then control.clear() end
     
     for k,v in pairs(plugins) do
         -- Unhide plugin by default
@@ -2541,9 +2583,9 @@ end
 
 function refreshCHR()
     local w,h
-    local c = NESBuilder:getControl('CHRNumLabelQt')
+    local c = NESBuilder:getControl('CHRNumLabel')
     if currentChr() then
-        c.text = string.format("%02x", data.project.chr.index)
+        c.text = string.format("CHR %02x/%02x", data.project.chr.index, #data.project.chr)
     else
         c.text = ''
     end
@@ -2874,7 +2916,7 @@ function delCHR(index)
     data.project.chr.index = index
     
     if not currentChr() then
-        getControl('CHRNumLabelQt').text = ''
+        getControl('CHRNumLabel').text = ''
         getControl('CHRName').clear()
     end
     
@@ -2886,6 +2928,7 @@ end
 function CHRList_keyPress_cmd(t)
     local key = t.control.event.key
     if key == "Delete" then delCHR(t.getIndex()) end
+    print(key)
 end
 
 function CHRList_cmd(t)
@@ -3331,12 +3374,16 @@ function launcherRecentIcon_cmd(t)
 end
 
 function MainQttabs_cmd(t,a)
-    local tab = t.control.widget(t.control.currentIndex())
+    local tabIndex = t.control.currentIndex()
+    local tab = t.control.widget(tabIndex)
+    
     if not tab then return end
     
     if t.event and t.event.button == 4 then
         print('middle click')
-        --closeTab('tabPreferences', 'Launcher')
+        if devMode() then
+            t.control.setIcon(tabIndex, 'icons/note32.png')
+        end
     elseif t.event and t.event.button == 2 then
         print('right click')
     else
@@ -3685,6 +3732,8 @@ tableAppend = function(...) util.tableAppendSparse(...) end
 maxTableIndex = function(...) util.maxTableIndex(...) end
 makeLabel = pythonEval("lambda x:x.replace(' ','_')")
 makeNp = pythonEval("lambda x: np.array(x)")
+dictGet = pythonEval('lambda x,y:x.get(y, False)')
+startsWith = pythonEval('lambda x,y:x.startswith(tuple(y))')
 
 strip = pythonEval("lambda x:x.strip()")
 lstrip = python.eval("lambda x:x.lstrip()")
@@ -3773,6 +3822,22 @@ function closeTab(tabName, switchTo)
     control.tabs[tabName] = nil
     if switchTo then
         NESBuilder:switchTab(switchTo)
+    end
+end
+
+-- Tab closed using X button
+function closeTabButton_cmd(t)
+    local n = t.control.closingWidget.name
+    
+    local control = NESBuilder:getWindowQt()
+    
+    local actionObject = dictGet(control.menus['menuView'].actions, n)
+    if actionObject then
+        -- If it exists in view menu, just change the checkmark
+        actionObject.setChecked(false)
+    else
+        -- If it doesn't exist in view menu, delete the tab
+        closeTab(n, 'Launcher')
     end
 end
 
@@ -4301,5 +4366,25 @@ function recentproject_cmd(t)
     print(id)
 
 --    launcherRecentIcon_cmd({index=t.index})
+
+--    for k,v in iterItems(control.tabs) do
+--        if not v then
+--            control.menus['menuView'].removeAction(control.menus['menuView'].actions[k])
+--            table.insert(keys, k)
+--        end
+--    end
+
+    local control = NESBuilder:getWindowQt()
+    --control.menus['menuFile'].removeAction(control.menus['menuFile'].actions[k])
+    local menu = control.menus['menuFile']
+    
+
+    print(control.menus['menuFile'].actions)
+    for k,v in iterItems(control.menus['menuFile'].actions) do
+        if startsWith(k, 'recentproject') then
+            menu.removeAction(menu.actions[k])
+        end
+    end
+
 end
 

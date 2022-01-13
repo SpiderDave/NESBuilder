@@ -631,9 +631,18 @@ class Link(Label):
 class CheckBox(Base, QCheckBox): pass
 
 class Frame(Base, QFrame): pass
+
 class ScrollFrame(Base, QScrollArea):
+    frame = False
     def init(self, t):
         super().init(t)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.frame = QFrame()
+        self.setWidget(self.frame)
+        self.frame.resize(self.width, 1000)
+        self.frame.move(0,0)
+        self.setWidget(self.frame)
 
 class LauncherIcon(Frame):
     def init(self, t):
@@ -663,16 +672,25 @@ class TabWidget(Base, QTabWidget):
         self.self = self
         self.setTabsClosable(True)
         self.tabCloseRequested.connect(lambda index: self.closeTab(index))
+        self.onCloseTab = False
+        self.closingWidget = False
     def closeTab(self, index):
         if self.tabsClosable():
-            print('closeTab')
-            print(index)
             if self.widget(index).closable:
-                print('close')
+                if self.onCloseTab:
+                    self.closingWidget = self.widget(index)
+                    self.onCloseTab(self.widget(index))
                 self.removeTab(index)
-            else:
-                print('dont close')
-        
+    def setIcon(self, tabIndex, f):
+        try:
+            super().setTabIcon(tabIndex, QIcon(f))
+            #self.setIconSize(QSize(64, 64))
+            super().setProperty('hasIcon', True)
+            return True
+        except:
+            return False
+
+
 class Widget(Base, QWidget): pass
 QWidget = Widget
 
@@ -1329,6 +1347,22 @@ class ListWidget(Base, QListWidget):
         super().addItem(QListWidgetItem(text))
     def removeItem(self, index):
         self.takeItem(index)
+    def keyPressEvent(self, event):
+        if getattr(self, 'onKeyPress', False):
+            k = keyConstMap.get(event.key(),event.text())
+            ev = Map(
+                key = k,
+                type = "KeyPress",
+            )
+            self.event = ev
+            # We still call the original event unless
+            # cancel is true, so list navigation still
+            # works.
+            cancel = self.onKeyPress(event)
+            if not cancel:
+                super(QListWidget, self).keyPressEvent(event)
+        else:
+            super(QListWidget).keyPressEvent(event)
 
 class Table(Base, QTableWidget):
     def set(self, x,y, text):
@@ -1433,3 +1467,6 @@ class Menu(QMenu):
         super().__init__(*args, **kw)
         self.actions = dict()
 
+def makePoint(x,y):
+    print('test')
+    return QPoint(x,y)

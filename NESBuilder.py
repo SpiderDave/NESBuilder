@@ -605,6 +605,9 @@ class ForLua:
         return None
     def getKeyPress(self):
         return getKeyPress()
+    def getFileSize(self, f):
+        f = fixPath2(f)
+        return os.path.getsize(f)
     def fileExists(self, f):
         #f = fixPath(script_path+"/"+f)
         f = fixPath2(f)
@@ -1884,8 +1887,9 @@ main.tabParent = ctrl
 t = lua.table(name = main.name+"tabs", y=main.menuBar().height(), control=ctrl)
 ctrl.init(t)
 ctrl.mousePressEvent = makeCmdNew(t)
-
 main.tabParent.currentChanged.connect(makeCmdNoEvent(t))
+
+ctrl.onCloseTab = makeCmdNew(lua.table(name = 'closeTabButton', control=ctrl))
 
 windows={}
 

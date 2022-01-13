@@ -17,7 +17,7 @@ function plugin.onInit()
     x,y=left,top
     
     local items = {
-        {name="rominfoShow", text="Rom Info"},
+        {name="rominfoShow", text="\u{2139}\u{fe0f} Rom Info"},
     }
     control = NESBuilder:makeMenuQt{name="menuFile", menuItems=items}
 
@@ -38,30 +38,43 @@ function rominfoShow_cmd()
     
     --local window = NESBuilder.getWindowQt()
     
-    control = NESBuilder:makeTabQt{x=x,y=y,w=config.width,h=config.height,name="romInfoTab",text="Rom Info"}
+    control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="romInfoTab",text="Rom Info"}
     NESBuilder:setTabQt("romInfoTab")
     
-    control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth, name="rominfoLoadRom",text="Load rom"}
+    --control = NESBuilder:makeButton2{x=x,y=y,w=config.buttonWidth, name="rominfoLoadRom",text="Load rom"}
+    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth*7.5, name="rominfoLoadRom",text="Load rom"}
     y = y + control.height + pad
 
     control = NESBuilder:makeTextEdit{x=x,y=y,w=700,h=400,name="rominfoOutput"}
     
     y = y + control.height + pad*8
-    control=NESBuilder:makeButtonQt{x=x,y=y,w=100,h=buttonHeight,name="buttonRomInfoClose",text="close"}
+    control=NESBuilder:makeButton{x=x,y=y,w=100,h=buttonHeight,name="buttonRomInfoClose",text="close"}
     
     NESBuilder:switchTab('romInfoTab')
+    
+    if data.project.rom.filename then
+        rominfoLoadRom(data.project.rom.filename)
+    end
+    
 end
 
 function buttonRomInfoClose_cmd() closeTab('romInfoTab', 'Launcher') end
 
 function rominfoLoadRom_cmd()
-    local control, c
     local f = NESBuilder:openFile{filetypes={{"NES rom", ".nes"}}}
     
     if f == "" then
         print("Open cancelled.")
         return
     end
+    rominfoLoadRom(f)
+end
+
+function rominfoLoadRom(f)
+    local control, c
+    
+    if not f then return end
+    
     local c=NESBuilder:getControl('rominfoOutput')
     c.clear()
     
@@ -70,6 +83,9 @@ function rominfoLoadRom_cmd()
     c.print = function(txt) c.appendPlainText((txt or '')) end
     
     c.print(f)
+    c.print()
+    c.print(string.format('  Size: %d bytes', NESBuilder:getFileSize(f)))
+    
     local fileData = NESBuilder:getFileData(f)
     local getHash = NESBuilder:importFunction('plugins.hash','getHash')
     c.print()

@@ -10,11 +10,11 @@ local plugin = {
 
 function plugin.onInit()
     local items = {
-        {name="restart", text="Restart"},
-        {name="forceClose", text="Force Close"},
-        {name="openMainFolder", text="Open Main Folder"},
-        {name="openPluginFolder", text="Open Plugins Folder"},
-        {name="copySdasm", text="Copy sdasm for standalone project"}
+        {name="restart", text="\u{1f503} Restart"},
+        {name="forceClose", text="\u{274e} Force Close"},
+        {name="openMainFolder", text="\u{1f4c2} Open Main Folder"},
+        {name="openPluginFolder", text="\u{1f4c2} Open Plugins Folder"},
+        {name="copySdasm", text="\u{1f4cb} Copy sdasm for standalone project"}
     }
     control = NESBuilder:makeMenuQt{name="debugMenu", text="Debug", menuItems=items, prefix=true}
 end

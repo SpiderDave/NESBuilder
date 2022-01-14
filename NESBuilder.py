@@ -1362,7 +1362,12 @@ class ForLua:
         window.repaint()
         ctrl.init(t)
         
-        window.tabs.update({t.name:ctrl})
+        # hard code dummy tab to not appear in list
+        if t.showInList == None:
+            t.showInList = True
+        
+        if t.showInList:
+            window.tabs.update({t.name:ctrl})
         
         ctrl.mousePressEvent = makeCmdNew(t)
         

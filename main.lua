@@ -10,6 +10,7 @@ config = {
     buttonWidthSmall=4,
     aboutURL = "https://github.com/SpiderDave/NESBuilder#readme",
     bitcoinURL = "bitcoin:1ZdyKcXeqbbBp9yFxpEdpCMwSwccR2Cey",
+    moneroURL = "monero:831QMtQnoJJPik5Jtbz5wPhjDDM5JnMFVh5G7z834gTbLyHo4TcE83KBi4Co7FoBSi3V4j7VQpHWi5ZEckBZqhjCAA4BowV",
     colors = {
         bk='#202036',
         bk2='#303046',
@@ -161,6 +162,12 @@ function init()
     statusBar=NESBuilder:makeLabelQt{x=x,y=y,text="Status bar"}
     statusBar.setFont("Verdana", 10)
     
+    -- This dummy tab fixes an issue with create-on-demand tabs showing up
+    -- blank if all other tabs are closed.
+    local dummyTab = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="dummy",text="dummy", showInList = false}
+    local control = NESBuilder:getWindowQt()
+    control.tabParent.setTabVisible(control.tabParent.indexOf(dummyTab), false)
+    
     if cfgGet('alphawarning')==1 then
         control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Warning",text="Warning"}
     end
@@ -184,8 +191,8 @@ function init()
     control = NESBuilder:makeMenuQt{name="menuFile", text="File", menuItems=items}
     
     items = {
-        {name="hFlip", text="Flip tile horizontally"},
-        {name="vFlip", text="Flip tile vertically"},
+        {name="hFlip", text="\u{2194} Flip tile horizontally"},
+        {name="vFlip", text="\u{2195} Flip tile vertically"},
     }
     control = NESBuilder:makeMenuQt{name="menuEdit", text="Edit", menuItems=items}
     
@@ -196,9 +203,9 @@ function init()
     --print(f(control))
     
     items = {
-        {name="Build", text="Build"},
-        {name="BuildTest", text="Build and Test"},
-        {name="TestRom", text="Re-Test Last"},
+        {name="Build", text="\u{27A0} Build"},
+        {name="BuildTest", text="\u{27A0} Build and Test"},
+        {name="TestRom", text="\u{27A5} Re-Test Last"},
     }
     control = NESBuilder:makeMenuQt{name="menuProject", text="Project", menuItems=items}
     
@@ -725,15 +732,15 @@ function onReady()
     
     local items = {
         {text="-"},
-        {name="openProjectFolder", text="Open Project Folder"},
-        {name="projectProperties", text="Project Properties"},
+        {name="openProjectFolder", text="\u{1f4c2} Open Project Folder"},
+        {name="projectProperties", text="\u{2699} Project Properties"},
     }
     control = NESBuilder:makeMenuQt{name="menuProject", text="Project", menuItems=items}
     
     local items = {
-        {name="importAllChr", text="Import all CHR from .nes"},
-        {name="exportAllChr", text="Export all CHR to .nes"},
-        {name="importMultiChr", text="Import all CHR from .chr"},
+        {name="importAllChr", text="\u{1f4c4}\u{20d6}  Import all CHR from .nes"},
+        {name="exportAllChr", text="\u{1f4c4}\u{20d7}  Export all CHR to .nes"},
+        {name="importMultiChr", text="\u{1f4c4}\u{20d6}  Import all CHR from .chr"},
     }
     
     control = NESBuilder:makeMenuQt{name="menuTools",text="Tools", menuItems=items}
@@ -784,7 +791,13 @@ function toggleTab(n, visible, switchTo)
         control.tabParent.removeTab(control.tabParent.indexOf(tab))
     else
         control.menus['menuView'].actions[n].setChecked(true)
-        control.tabParent.insertTab(tab.index, tab, tab.title)
+        
+        if control.tabParent.isTabVisible(control.tabParent.indexOf(tab)) then
+            -- already visible, no need to add
+        else
+            control.tabParent.insertTab(tab.index, tab, tab.title)
+        end
+        
         if switchTo then NESBuilder:switchTab(n) end
     end
 end
@@ -1178,7 +1191,7 @@ function launcherButtonRecent_cmd()
     data.launchFrames.set('recent')
 end
 function launcherButtonTemplates_cmd()
-    toggleTab('Launcher', true)
+    toggleTab('Launcher', true, true)
     data.launchFrames.set('templates')
 end
 
@@ -1555,16 +1568,17 @@ function createAboutTab()
     control.setFont("Verdana", 12)
     control.helpText = linkHelpText(control)
     
+    y = y + control.height
+    
     y = y + control.height + pad
-    control = NESBuilder:makeLink{x=x,y=y,name="linkDonate",clear=true,text="Donate Bitcoin", url=config.bitcoinURL}
+    control = NESBuilder:makeLink{x=x,y=y,name="linkDonate",clear=true,text="\u{2764} Donate Bitcoin", url=config.bitcoinURL}
     control.setFont("Verdana", 12)
     control.helpText = linkHelpText(control)
-    
-    y = y + control.height + pad*8
-    b=NESBuilder:makeButton{x=x,y=y,w=100,h=buttonHeight,name="buttonAboutClose",text="close"}
-    
-    --NESBuilder:switchTab("tabAbout")
-    
+
+    y = y + control.height + pad
+    control = NESBuilder:makeLink{x=x,y=y,name="linkDonate",clear=true,text="\u{2764} Donate Monero", url=config.moneroURL}
+    control.setFont("Verdana", 12)
+    control.helpText = linkHelpText(control)
 end
 
 function New_cmd()
@@ -3626,8 +3640,6 @@ end
 --function buttonWarningClose_cmd() closeTab('Warning', 'Launcher') end
 function buttonWarningClose_cmd() toggleTab('Warning', false) end
 function buttonPreferencesClose_cmd() closeTab('tabPreferences', 'Launcher') end
---function buttonAboutClose_cmd() closeTab('tabAbout', 'Launcher') end
-function buttonAboutClose_cmd() toggleTab('tabAbout', false) end
 function ppClose_cmd()
     toggleTab('tabProjectProperties', false)
 end
@@ -3777,7 +3789,7 @@ iLength = function(t)
 end
 
 function makeTab(t)
-    NESBuilder:makeTab{name=t.name, text=t.text}
+    local ret = NESBuilder:makeTab{name=t.name, text=t.text}
     
     -- Keep track of which plugin generated a tab
     local p = _getPlugin and plugins[_getPlugin().name]
@@ -3785,6 +3797,7 @@ function makeTab(t)
         p.tabs = p.tabs or {}
         table.insert(p.tabs, t.name)
     end
+    return ret
 end
 
 function setTab(tab)
@@ -3834,10 +3847,13 @@ function closeTabButton_cmd(t)
     local actionObject = dictGet(control.menus['menuView'].actions, n)
     if actionObject then
         -- If it exists in view menu, just change the checkmark
+        print('close(toggle) '..n)
         actionObject.setChecked(false)
     else
         -- If it doesn't exist in view menu, delete the tab
-        closeTab(n, 'Launcher')
+        print('close '..n)
+        --closeTab(n, 'Launcher')
+        control.tabs[n] = nil
     end
 end
 

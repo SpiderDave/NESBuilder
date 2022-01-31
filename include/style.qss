@@ -63,7 +63,6 @@ QPushButton[hasIcon] {
     font-size:24pt;
 }
 
-
 .test {
     border:1px solid red;
 }
@@ -284,7 +283,6 @@ QComboBox {
 
 .link {
     color:_link_;
-    -text-decoration:underline;
 }
 .link:hover {
     color:_linkHover_;
@@ -294,7 +292,4 @@ QComboBox {
 * {
     selection-background-color: _bkHighlight_;
 }
-
-
-
 

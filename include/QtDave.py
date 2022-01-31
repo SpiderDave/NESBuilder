@@ -65,25 +65,6 @@ directives = directives + [x.upper() for x in directives]
 # keys are numerical, data is text
 keyConstMap = dict([(getattr(Qt,item),item[4:]) for item in dir(Qt) if item.startswith('Key_')])
 
-nesPalette=[
-[0x74,0x74,0x74],[0x24,0x18,0x8c],[0x00,0x00,0xa8],[0x44,0x00,0x9c],
-[0x8c,0x00,0x74],[0xa8,0x00,0x10],[0xa4,0x00,0x00],[0x7c,0x08,0x00],
-[0x40,0x2c,0x00],[0x00,0x44,0x00],[0x00,0x50,0x00],[0x00,0x3c,0x14],
-[0x18,0x3c,0x5c],[0x00,0x00,0x00],[0x00,0x00,0x00],[0x00,0x00,0x00],
-[0xbc,0xbc,0xbc],[0x00,0x70,0xec],[0x20,0x38,0xec],[0x80,0x00,0xf0],
-[0xbc,0x00,0xbc],[0xe4,0x00,0x58],[0xd8,0x28,0x00],[0xc8,0x4c,0x0c],
-[0x88,0x70,0x00],[0x00,0x94,0x00],[0x00,0xa8,0x00],[0x00,0x90,0x38],
-[0x00,0x80,0x88],[0x00,0x00,0x00],[0x00,0x00,0x00],[0x00,0x00,0x00],
-[0xfc,0xfc,0xfc],[0x3c,0xbc,0xfc],[0x5c,0x94,0xfc],[0xcc,0x88,0xfc],
-[0xf4,0x78,0xfc],[0xfc,0x74,0xb4],[0xfc,0x74,0x60],[0xfc,0x98,0x38],
-[0xf0,0xbc,0x3c],[0x80,0xd0,0x10],[0x4c,0xdc,0x48],[0x58,0xf8,0x98],
-[0x00,0xe8,0xd8],[0x78,0x78,0x78],[0x00,0x00,0x00],[0x00,0x00,0x00],
-[0xfc,0xfc,0xfc],[0xa8,0xe4,0xfc],[0xc4,0xd4,0xfc],[0xd4,0xc8,0xfc],
-[0xfc,0xc4,0xfc],[0xfc,0xc4,0xd8],[0xfc,0xbc,0xb0],[0xfc,0xd8,0xa8],
-[0xfc,0xe4,0xa0],[0xe0,0xfc,0xa0],[0xa8,0xf0,0xbc],[0xb0,0xfc,0xcc],
-[0x9c,0xfc,0xf0],[0xc4,0xc4,0xc4],[0x00,0x00,0x00],[0x00,0x00,0x00],
-]
-
 # black, green, red, blue
 basePalette = [
     [0,0,0],
@@ -93,6 +74,45 @@ basePalette = [
     ]
 
 basePens = [QColor(*basePalette[x]) for x in range(4)]
+
+# ToDo: use a dict of multiple palettes loaded
+class Palette():
+    palette=[
+    [0x74,0x74,0x74],[0x24,0x18,0x8c],[0x00,0x00,0xa8],[0x44,0x00,0x9c],
+    [0x8c,0x00,0x74],[0xa8,0x00,0x10],[0xa4,0x00,0x00],[0x7c,0x08,0x00],
+    [0x40,0x2c,0x00],[0x00,0x44,0x00],[0x00,0x50,0x00],[0x00,0x3c,0x14],
+    [0x18,0x3c,0x5c],[0x00,0x00,0x00],[0x00,0x00,0x00],[0x00,0x00,0x00],
+    [0xbc,0xbc,0xbc],[0x00,0x70,0xec],[0x20,0x38,0xec],[0x80,0x00,0xf0],
+    [0xbc,0x00,0xbc],[0xe4,0x00,0x58],[0xd8,0x28,0x00],[0xc8,0x4c,0x0c],
+    [0x88,0x70,0x00],[0x00,0x94,0x00],[0x00,0xa8,0x00],[0x00,0x90,0x38],
+    [0x00,0x80,0x88],[0x00,0x00,0x00],[0x00,0x00,0x00],[0x00,0x00,0x00],
+    [0xfc,0xfc,0xfc],[0x3c,0xbc,0xfc],[0x5c,0x94,0xfc],[0xcc,0x88,0xfc],
+    [0xf4,0x78,0xfc],[0xfc,0x74,0xb4],[0xfc,0x74,0x60],[0xfc,0x98,0x38],
+    [0xf0,0xbc,0x3c],[0x80,0xd0,0x10],[0x4c,0xdc,0x48],[0x58,0xf8,0x98],
+    [0x00,0xe8,0xd8],[0x78,0x78,0x78],[0x00,0x00,0x00],[0x00,0x00,0x00],
+    [0xfc,0xfc,0xfc],[0xa8,0xe4,0xfc],[0xc4,0xd4,0xfc],[0xd4,0xc8,0xfc],
+    [0xfc,0xc4,0xfc],[0xfc,0xc4,0xd8],[0xfc,0xbc,0xb0],[0xfc,0xd8,0xa8],
+    [0xfc,0xe4,0xa0],[0xe0,0xfc,0xa0],[0xa8,0xf0,0xbc],[0xb0,0xfc,0xcc],
+    [0x9c,0xfc,0xf0],[0xc4,0xc4,0xc4],[0x00,0x00,0x00],[0x00,0x00,0x00],
+    ]
+    def load(self, filename):
+        try:
+            size = os.path.getsize(filename)
+            if size != 192:
+                print(f'Incorrect size of palette file {filename} ({size})')
+                return
+            with open(filename, "rb") as file:
+                fileData = list(file.read())
+            self.palette = [fileData[i * 3:(i + 1) * 3] for i in range((len(fileData) + 3 - 1) // 3 )] 
+            print(f'palette loaded from {filename}')
+        except:
+            print(f'Could not load palette file {filename}')
+            return
+    def get(self):
+        return self.palette
+
+nesPalette = Palette()
+
 
 # This is something to reformat lua tables from lupa into 
 # lists if needed.  I'd like to avoid importing lupa here
@@ -361,6 +381,7 @@ class Base():
             pass
         else:
             super().setProperty('class', classes+" "+value)
+            self.update()
     def removeCssClass(self, value):
         value = value.strip()
         classes = super().property('class') or ''
@@ -368,6 +389,7 @@ class Base():
         if value.lower() in classes.lower().split():
             classes = ' '.join([x for x in classes.split() if x.lower()!=value.lower()])
             super().setProperty('class', classes)
+            self.update()
     def __getattribute__(self, key):
         if key == 'tooltip':
             return self.toolTip()
@@ -473,6 +495,7 @@ class NumberEdit(Base, QLineEdit):
 
 
 class TextEdit(Base, QPlainTextEdit):
+    changed = False
     def print(self, txt=''):
         self.appendPlainText(str(txt))
     def setText(self, txt=''):
@@ -495,6 +518,9 @@ class TextEdit(Base, QPlainTextEdit):
             return super().toPlainText()
         else:
             return super().__getattribute__(key)
+    def _changed(self):
+        if self.onChange:
+            self.onChange()
 
 class Console(TextEdit):
     def init(self, t):
@@ -725,6 +751,24 @@ class MainWindow(Base, QMainWindow):
             self.onResize(width, height, oldWidth, oldHeight)
     def onDisplay(self):
         self.loaded = True
+    def hideMenuItem(self, menuName, menuItem=None):
+        if not self.menus.get(menuName, False):
+            return
+        if not menuItem:
+            # hide entire menu
+            m.menuAction().setVisible(False)
+            return
+        m = self.menus.get(menuName)
+        m.actions.get(menuItem).setVisible(False)
+    def showMenuItem(self, menuName, menuItem=None):
+        if not self.menus.get(menuName, False):
+            return
+        if not menuItem:
+            # hide entire menu
+            m.menuAction().setVisible(True)
+            return
+        m = self.menus.get(menuName)
+        m.actions.get(menuItem).setVisible(True)
     def addMenu(self, menuName, menuText, menuItems):
         if not self.menus.get(menuName, False):
             menu = Menu(menuText)
@@ -834,12 +878,12 @@ class Dialog():
         if file:
             return file, os.path.splitext(file)[1].lower(), selectedFilter
         return None, None, None
-    def askText(self, title="Enter Text", label=None):
+    def askText(self, title="Enter Text", label=None, defaultText=None):
         # trims whitespace and returns false on the empty string.
         
         d = QInputDialog(None, Qt.WindowCloseButtonHint)
         
-        text, okPressed = d.getText(None, title, label, QLineEdit.Normal, "")
+        text, okPressed = d.getText(None, title, label, QLineEdit.Normal, defaultText)
         if okPressed and text != '':
             return text.strip()
         else:
@@ -1026,8 +1070,8 @@ class Canvas(ClipOperations, Base, QLabel):
                     c=c+1
                 if (imageData[tile*16+y+8] & (1<<x)):
                     c=c+2
-                a[y][(7-x)] = nesPalette[colors[c]]
-                brushColor = QColor(nesPalette[colors[c]][0], nesPalette[colors[c]][1], nesPalette[colors[c]][2])
+                a[y][(7-x)] = nesPalette.palette[colors[c]]
+                brushColor = QColor(nesPalette.palette[colors[c]][0], nesPalette.palette[colors[c]][1], nesPalette.palette[colors[c]][2])
                 painter.fillRect(originX+(7-x)*self.scale,originY+y*self.scale,self.scale,self.scale,QBrush(brushColor))
         painter.end()
         #self.update()
@@ -1065,65 +1109,65 @@ class PaletteControl(Base, QFrame):
             self.upperHex = t.upperHex = self.cls.upperHex
         
         self.addCssClass('paletteControl')
-        pw=len(t.palette) %0x10+1
-        ph=math.floor(len(t.palette) /0x10)+1
+        
+        palette = [fix(x) for x in fix(t.palette)]
+        
+        pw = min(len(palette), 0x10)
+        ph = math.ceil(len(palette) / 0x10)
+        
         self.width = pw * 26+2
         self.height = ph * 26+2
+        #self.height = max(28, self.height)
         self.cells = []
-        for y in range(0,ph):
-            for x in range(0,pw):
-                ctrl = PaletteButton("00", self)
-                ctrl.init(t, width=26, height=26)
-                ctrl.name = "{0}_Cell{1:02x}".format(t.name,y*pw+x)
-                ctrl.cellNum = y*pw+x
-                ctrl.move(1+x*ctrl.width,1+y*ctrl.height)
-                
-                i=y*0x10+x
-                if self.cls.upperHex:
-                    ctrl.setText("{0:02X}".format(i), autoSize=False)
-                else:
-                    ctrl.setText("{0:02x}".format(i), autoSize=False)
-                bg = "#{0:02x}{1:02x}{2:02x}".format(t.palette[i][1],t.palette[i][2],t.palette[i][3])
-                fg = 'white' if x>=(0x00,0x01,0x0d,0x0e)[y] else 'black'
-                ctrl.setStyleSheet("""
-                background-color :{0};
-                color :{1};
-                border:none;
-                """.format(bg, fg))
-                
-                self.cells.append(ctrl)
+        
+        for i, p in enumerate(palette):
+            x = i % 0x10
+            y = i // 0x10
+            
+            ctrl = PaletteButton("00", self)
+            ctrl.init(t, width=26, height=26)
+            ctrl.name = "{0}_Cell{1:02x}".format(t.name, i)
+            ctrl.cellNum = i
+            ctrl.move(x*26+1, y*26+1)
+            if self.cls.upperHex:
+                ctrl.setText("{0:02X}".format(i), autoSize=False)
+            else:
+                ctrl.setText("{0:02x}".format(i), autoSize=False)
+            bg = "#{0:02x}{1:02x}{2:02x}".format(*palette[i-1])
+            fg = 'white' if x>=(0x00,0x01,0x0d,0x0e)[y] else 'black'
+            ctrl.setStyleSheet("""
+            background-color :{};
+            color :{};
+            """.format(bg, fg))
+            self.cells.append(ctrl)
     def setAll(self, colors):
         if not colors:
             return
         colors = [x for _,x in colors.items()]
         for i, c in enumerate(colors):
             self.set(index=i, c=c)
-    def highlight(self, highlight=False, cellNum=False):
-        #print(self.cells[0].styleSheet())
-        
-        for i, cell in enumerate(self.cells):
-            if (cellNum==False) or i==cellNum:
-                s = cell.styleSheet()
-                if highlight:
-                    s = s.replace('border:none;','border:1px solid white;')
-                else:
-                    s = s.replace('border:1px solid white;', 'border:none;')
-                cell.setStyleSheet(s)
+    def highlight(self, h=False, cellNum=False):
+        # this just doesn't work.  i hate it.
+        if h:
+            self.setProperty('highlight', 'true')
+            self.addCssClass('highlight')
+        else:
+            self.setProperty('highlight', 'false')
+            self.removeCssClass('highlight')
     def set(self, index=0, c=0x0f):
-        if not (0 <= c < len(nesPalette)):
+        if not (0 <= c < len(nesPalette.get())):
             print('Invalid palette index {}'.format(c))
             c = 0
         
         cell = self.cells[index]
         
-        bg = "#{0:02x}{1:02x}{2:02x}".format(nesPalette[c][0],nesPalette[c][1],nesPalette[c][2])
+        bg = "#{0:02x}{1:02x}{2:02x}".format(*nesPalette.get()[c])
         x,y = c%0x10, c>>4
         fg = 'white' if x>=(0x00,0x01,0x0d,0x0e)[y] else 'black'
         
         cell.setStyleSheet("""
-        background-color :{0};
-        color :{1};
-        border:none;
+        background-color :{};
+        color :{};
         """.format(bg, fg))
         if self.cls.upperHex:
             cell.setText("{0:02X}".format(c), autoSize=False)
@@ -1308,7 +1352,7 @@ class NESPixmap(ClipOperations, Base, QPixmap):
         
         
         palette = fix(palette)
-        palette = [nesPalette[x] for x in palette]
+        palette = [nesPalette.palette[x] for x in palette]
         pens = [QColor(*palette[x]) for x in range(4)]
         masks = []
         for i, c in enumerate(colors):
@@ -1365,6 +1409,7 @@ class ListWidget(Base, QListWidget):
             super(QListWidget).keyPressEvent(event)
 
 class Table(Base, QTableWidget):
+    ignoreChanges = False
     def set(self, x,y, text):
         self.setItem(x,y, QTableWidgetItem(text))
     def setHorizontalHeaderLabels(self, *args):
@@ -1388,6 +1433,8 @@ class Table(Base, QTableWidget):
             for c in range(self.columnCount()):
                 self.set(r,c,None)
     def _changed(self):
+        if self.ignoreChanges:
+            return
         if self.onChange:
             self.onChange()
 

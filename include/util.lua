@@ -5,9 +5,18 @@ util.stripSpaces = function(s)
     return string.gsub(s, "%s", "")
 end
 
+util.pythonEval = function(s)
+    out =    "try:\n"
+    out=out.."  "..s.."\n"
+    out=out.."except LuaError as err:\n"
+    out=out.."  handleLuaError(err)\n"
+    out=out.."except Exception as err:\n"
+    out=out.."  handlePythonError(err)\n"
+    return python.eval(s)
+end
 
 util.serializeHelper = function(data)
-    local f = python.eval("lambda x:'base64pickle:'+ binascii.b2a_base64(x.dumps(), newline=False).decode()")
+    local f = util.pythonEval("lambda x:'base64pickle:'+ binascii.b2a_base64(x.dumps(), newline=False).decode()")
     return f(data)
 end
 
@@ -17,8 +26,10 @@ util.serialize = function(t)
 end
 
 util.unpickleAll = function(t)
-    local startsWith = python.eval("lambda x,y: x.startswith(y)")
-    local unpickle = python.eval("lambda x: pickle.loads(binascii.a2b_base64(x.split('base64pickle:')[1]))")
+    local startsWith = util.pythonEval("lambda x,y: x.startswith(y)")
+    --local unpickle = util.pythonEval("lambda x: pickle.loads(binascii.a2b_base64(x.split('base64pickle:')[1]))")
+    -- no idea why the imports disappear but this is a hacky fix.
+    local unpickle = util.pythonEval("lambda x: __import__('pickle').loads(__import__('binascii').a2b_base64(x.split('base64pickle:')[1]))")
 
     for k,v in pairs(t) do
         if type(v) == "string" and startsWith(v,'base64pickle:') then

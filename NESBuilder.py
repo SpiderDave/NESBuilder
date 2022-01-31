@@ -46,6 +46,9 @@ def badImport(m):
     print('Error: Could not import {0}.  Please run "install dependencies.bat".'.format(m))
     sys.exit(1)
 
+
+import pickle as pickle2
+
 try: import lupa
 except: badImport('lupa')
 from lupa import LuaRuntime
@@ -62,9 +65,8 @@ except Exception as e:
     print('***', str(e))
     sys.exit(1)
 
-try: from PIL import ImageTk, Image, ImageDraw
+try: from PIL import ImageTk, Image, ImageDraw,ImageOps
 except: badImport('Pillow')
-from PIL import ImageOps
 from collections import deque
 import re
 
@@ -113,7 +115,7 @@ import textwrap
 try: import numpy as np
 except: badImport('numpy')
 
-import pickle
+#import pickle
 
 import shutil
 from shutil import copyfile, copy2
@@ -176,6 +178,8 @@ cfg.setDefault('main', 'autosaveinterval', 1000 * 60 * 5) # 5 minutes
 cfg.setDefault('main', 'dev', 0)
 cfg.setDefault('main', 'oldbuild', 0)
 cfg.setDefault('plugins', 'debug', 0)
+cfg.setDefault('main', 'defaultpalettefile', 'default.pal')
+cfg.setDefault('main', 'defaultpalettefolder', 'palettes')
 
 cfg.setDefault('main', 'QT_AUTO_SCREEN_SCALE_FACTOR', 1)
 cfg.setDefault('main', 'QT_SCREEN_SCALE_FACTORS', 1)
@@ -200,25 +204,6 @@ if frozen:
     application_path = sys._MEIPASS
 else:
     application_path = os.path.dirname(os.path.abspath(__file__))
-
-nesPalette=[
-[0x74,0x74,0x74],[0x24,0x18,0x8c],[0x00,0x00,0xa8],[0x44,0x00,0x9c],
-[0x8c,0x00,0x74],[0xa8,0x00,0x10],[0xa4,0x00,0x00],[0x7c,0x08,0x00],
-[0x40,0x2c,0x00],[0x00,0x44,0x00],[0x00,0x50,0x00],[0x00,0x3c,0x14],
-[0x18,0x3c,0x5c],[0x00,0x00,0x00],[0x00,0x00,0x00],[0x00,0x00,0x00],
-[0xbc,0xbc,0xbc],[0x00,0x70,0xec],[0x20,0x38,0xec],[0x80,0x00,0xf0],
-[0xbc,0x00,0xbc],[0xe4,0x00,0x58],[0xd8,0x28,0x00],[0xc8,0x4c,0x0c],
-[0x88,0x70,0x00],[0x00,0x94,0x00],[0x00,0xa8,0x00],[0x00,0x90,0x38],
-[0x00,0x80,0x88],[0x00,0x00,0x00],[0x00,0x00,0x00],[0x00,0x00,0x00],
-[0xfc,0xfc,0xfc],[0x3c,0xbc,0xfc],[0x5c,0x94,0xfc],[0xcc,0x88,0xfc],
-[0xf4,0x78,0xfc],[0xfc,0x74,0xb4],[0xfc,0x74,0x60],[0xfc,0x98,0x38],
-[0xf0,0xbc,0x3c],[0x80,0xd0,0x10],[0x4c,0xdc,0x48],[0x58,0xf8,0x98],
-[0x00,0xe8,0xd8],[0x78,0x78,0x78],[0x00,0x00,0x00],[0x00,0x00,0x00],
-[0xfc,0xfc,0xfc],[0xa8,0xe4,0xfc],[0xc4,0xd4,0xfc],[0xd4,0xc8,0xfc],
-[0xfc,0xc4,0xfc],[0xfc,0xc4,0xd8],[0xfc,0xbc,0xb0],[0xfc,0xd8,0xa8],
-[0xfc,0xe4,0xa0],[0xe0,0xfc,0xa0],[0xa8,0xf0,0xbc],[0xb0,0xfc,0xcc],
-[0x9c,0xfc,0xf0],[0xc4,0xc4,0xc4],[0x00,0x00,0x00],[0x00,0x00,0x00],
-]
 
 # make cfg available to lua
 lua_func = lua.eval('function(o) {0} = o return o end'.format('cfg'))
@@ -334,10 +319,13 @@ class ForLua:
     
     RNG = RNG
     
+    palette = QtDave.nesPalette
+    
     def QtWrapper(func):
         def inner(self, t=None):
             return t
         return inner
+    
     # decorator
     def makeControl(func):
         def addStandardProp(t):
@@ -721,9 +709,9 @@ class ForLua:
     def showInfo(self, title="Info2", text=""):
         d = QtDave.Dialog()
         d.showInfo(text, title)
-    def askText(self, title, text):
+    def askText(self, title, text, defaultText=''):
         d = QtDave.Dialog()
-        return d.askText(title, text)
+        return d.askText(title, text, defaultText)
     def isAlphaNumeric(self, txt):
         return txt.isalnum()
     def regexMatch(self,reString, txt):
@@ -851,7 +839,7 @@ class ForLua:
         copyfile(src,dst)
     def canvasPaint(self, x,y, c):
         canvas = self.getCanvas(self)
-        c = "#{0:02x}{1:02x}{2:02x}".format(nesPalette[c][0],nesPalette[c][1],nesPalette[c][2])
+        c = "#{0:02x}{1:02x}{2:02x}".format(self.palette.get()[c][0],self.palette.get()[c][1],self.palette.get()[c][2])
         canvas.control.create_rectangle(x*canvas.scale, y*canvas.scale, x*canvas.scale+canvas.scale-1, y*canvas.scale+canvas.scale-1,
                            width=1, outline=c, fill=c,
                            )
@@ -875,12 +863,12 @@ class ForLua:
     def getNESColors(self, c):
         if type(c) is str:
             c=c.replace(' ','').strip()
-            c = [nesPalette[x] for x in unhexlify(c)]
+            c = [self.palette.get()[x] for x in unhexlify(c)]
             if len(c) == 1:
                 return c[0]
             return c
         else:
-            c = [nesPalette[v] for i,v in sorted(c.items())]
+            c = [self.palette.get()[v] for i,v in sorted(c.items())]
             if len(c) == 1:
                 return c[0]
             return c
@@ -1178,7 +1166,7 @@ class ForLua:
                         c=c+1
                     if (fileData[tile*16+y+8] & (1<<x)):
                         c=c+2
-                    a[y1][x1] = nesPalette[colors[c]]
+                    a[y1][x1] = self.palette.get()[colors[c]]
         
         img = Image.fromarray(a)
         
@@ -1227,7 +1215,7 @@ class ForLua:
                         c=c+1
                     if (fileData[tile*16+y+8] & (1<<x)):
                         c=c+2
-                    a[y1][x1] = nesPalette[colors[c]]
+                    a[y1][x1] = self.palette.get()[colors[c]]
         
         img = Image.fromarray(a)
         img.save(filename)
@@ -1510,6 +1498,7 @@ class ForLua:
         ctrl = QtDave.TextEdit(t.text, self.tabQt)
         ctrl.init(t)
         #ctrl.clicked.connect(makeCmdNew(t))
+        ctrl.textChanged.connect(ctrl._changed)
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
@@ -1756,8 +1745,8 @@ ForLua.decorate(ForLua)
 lua_func = lua.eval('function(o) {0} = o return o end'.format('NESBuilder'))
 lua_func(ForLua)
 
-lua_func = lua.eval('function(o) {0} = o return o end'.format('nesPalette'))
-lua_func(lua.table(nesPalette))
+#lua_func = lua.eval('function(o) {0} = o return o end'.format('nesPalette'))
+#lua_func(lua.table(QtDave.nesPalette.get()))
 
 def coalesce(*arg): return next((a for a in arg if a is not None), None)
 
@@ -1895,6 +1884,10 @@ ctrl.mousePressEvent = makeCmdNew(t)
 main.tabParent.currentChanged.connect(makeCmdNoEvent(t))
 
 ctrl.onCloseTab = makeCmdNew(lua.table(name = 'closeTabButton', control=ctrl))
+
+#if cfg.getValue("main","dev"):
+#    toolbar = main.addToolBar("File")
+#    toolbar.addAction(QtDave.QAction('test', toolbar))
 
 windows={}
 

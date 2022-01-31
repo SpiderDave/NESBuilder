@@ -3315,6 +3315,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 values = line.split(' ',1)[1]
                 
                 values = assembler.tokenize(values)
+                if '' in values and False: # disable detection of empty values for now
+                    l = line.split(' ',1)[1]
+                    assembler.errorLinePos = len(','.join(l.split(',')[:values.index('')])) + len(line.split(' ',1)[0]) + 2
+                    errorText = "missing value"
                 values = [getValue(x) for x in values]
                 values = flattenList(values)
                 
@@ -3322,19 +3326,19 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     if k != 'dl' and clampdb == False:
                         assembler.errorLinePos = len(line.split(' ',1)[0])+1
                         errorText = "invalid value"
-                    #values = [max(0, x) % 256 for x in values]
                     values = [x % 256 for x in values]
                 
                 l = len(values)
                 
-                assembler.errorLinePos = len(line.split(' ',1)[0])+1
                 if l==-1:
+                    assembler.errorLinePos = len(line.split(' ',1)[0])+1
                     errorText = assembler.errorHint or 'value out of range'
                 else:
                     values = makeList(values)
                     
                     for value in values:
                         if value>255:
+                            assembler.errorLinePos = len(line.split(' ',1)[0])+1
                             errorText = "value out of range"
                             break
                         if value < 0:

@@ -26,6 +26,7 @@ ToDo/Issues:
 from array import array
 
 import math, os, sys
+
 try:
     from . import include
 except:
@@ -418,8 +419,10 @@ class Assembler():
     insert = False
     gg = False
     outputFilename = False
+    printFilename = False
     listFilename = False
     bankData = {}
+    commentBlock = 0
     
     nesRegisters = Map(
         PPUCTRL = 0x2000, PPUMASK = 0x2001, PPUSTATUS = 0x2002,
@@ -466,6 +469,74 @@ class Assembler():
         for q in self.quotes:
             if text.startswith(q) and text.endswith(q):
                 return text[len(q):-len(q)]
+        return text
+    def stripComments(self, text=''):
+        # inside a comment block, so just check for block close indicators
+        if self.commentBlock:
+            pos = -1
+            for c in self.commentBlockClose:
+                if c in text:
+                    if pos == -1:
+                        pos = text.find(c) + len(c)
+                    else:
+                        pos = min(pos, text.find(c) + len(c))
+            if pos == -1:
+                # inside a block comment so return empty string
+                return ""
+            else:
+                self.commentBlock -= 1
+                return self.stripComments(text[pos:].strip())
+        
+        commentSep = self.commentSep + self.commentBlockOpen
+        
+        # check for any quotes or comments to handle
+        # if none found, we're done; return text
+        if not any(q in text for q in self.quotes):
+            if not any(sep in text for sep in commentSep):
+                return text
+        
+        qIndex = -1
+        q = ''
+        for quote in self.quotes:
+            i = text.find(quote)
+            if i != -1:
+                # conditions are:
+                # 1. first quote found
+                # 2. quote found at lesser position in string
+                # 3. quote found at same position in string (handles " vs """ etc)
+                if (qIndex == -1) or (i < qIndex) or ((i == qIndex) and len(quote) > len(q)):
+                    qIndex = i
+                    q = quote
+        
+        # check if comment comes before first string
+        cIndex = len(text)
+        cType = False
+        for sep in commentSep:
+            i = text.find(sep)
+            if i !=-1:
+                if (qIndex == -1) and (i < cIndex):
+                    # no quotes found, just mark comment start
+                    cType = sep
+                    cIndex = i
+                elif (i < qIndex) and (i < cIndex):
+                    # comments found before quotes, mark start
+                    cType = sep
+                    cIndex = i
+        
+        # no need for more tokenization; trim and exit
+        if cIndex < len(text):
+            text = text[:cIndex]
+            if cType in self.commentBlockOpen:
+                self.commentBlock += 1
+                print('comment block open')
+            return text
+        
+        # find end of string
+        i = text.find(q, qIndex + len(q))
+        if i != -1:
+            i = i + len(q)
+            text = text[:i] + self.stripComments(text[i:])
+            
         return text
     def tokenize(self, text='', tokens=[], splitter=','):
         tokens = tokens or [text]
@@ -627,14 +698,14 @@ directives = [
     'db','dw','byte','byt','word','hex','dc.b','dc.w',
     'dsb','dsw','ds.b','ds.w','dl','dh','res',
     'enum','ende','endenum',
-    'print','warning','error',
+    'print','warning','error','printtofile',
     'setincludefolder','setcurrentfile',
     'macro','endm','endmacro',
     'if','ifdef','ifndef','else','elseif','endif','iffileexist','iffile',
     'arch','table','loadtable','cleartable','mapdb','clampdb',
     'index','mem','bank','lastbank','banksize','chrsize','header','noheader','stripheader',
     'define', '_find',
-    'seed','outputfile','listfile','textmap','text','insert','delete','truncate',
+    'seed','outputfile','listfile','textmap','text','insert','delete','truncate','printfile',
     'inesprg','ineschr','inesmir','inesmap','inesbattery','inesfourscreen',
     'inesworkram','inessaveram','ines2',
     'orgpad', 'padorg', 'quit','incchr','chr','setpalette','loadpalette',
@@ -643,7 +714,7 @@ directives = [
     'return','namespace','break','expected',
     'findtext','lastpass', 'endoffunction', '_wipe',
     'loadld65cfg','loadld65cfg?','segment',
-    'start','end','exportmap','importmap',
+    'start','end','exportmap','importmap','_test',
 ]
 
 filters = [
@@ -1727,6 +1798,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
     assembler.initialFolder = os.path.split(filename)[0]
     assembler.currentFolder = assembler.initialFolder
     assembler.initialFilename = filename
+    
+    printFilename = False
 
     # Doing it this way removes the line endings
     lines = file.read().splitlines()
@@ -1761,7 +1834,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
     macros = Map()
     functions = Map()
     tilemaps = Map()
-    blockComment = 0
+    assembler.commentBlock = 0
     #aLabelSearch = Map(up=Map(), down=Map())
     
     labels = Map()
@@ -1795,6 +1868,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         commentSep = makeList(cfg.getValue('main', 'comment'))
         commentBlockOpen = makeList(cfg.getValue('main', 'commentBlockOpen'))
         commentBlockClose = makeList(cfg.getValue('main', 'commentBlockClose'))
+        assembler.commentSep = makeList(cfg.getValue('main', 'comment'))
+        assembler.commentBlockOpen = makeList(cfg.getValue('main', 'commentBlockOpen'))
+        assembler.commentBlockClose = makeList(cfg.getValue('main', 'commentBlockClose'))
         fillValue = getValue(cfg.getValue('main', 'fillValue'))
         localPrefix = makeList(cfg.getValue('main', 'localPrefix'))
         assembler.localPrefix = makeList(cfg.getValue('main', 'localPrefix'))
@@ -1865,11 +1941,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             out = np.array(out, dtype="B")
         
         outputText = ''
+        outputText2 = ''
 
         startAddress = False
         assembler.currentFolder = assembler.initialFolder
         ifLevel = 0
         ifData = Map()
+        
+        depth = 0
+        
         arch = 'nes.cpu'
         headerSize = 0
         bankSize = 0x10000
@@ -1936,23 +2016,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     if line.startswith(item):
                         line = line.split(item,1)[1].lstrip()
             
-            # remove single line comments
-            for sep in commentSep:
-                line = line.strip().split(sep,1)[0].strip()
-            
-            # remove comment blocks
-            for sep in commentBlockOpen:
-                if sep in line:
-                    line = line.strip().split(sep,1)[0].strip()
-                    blockComment+=1
-            for sep in commentBlockClose:
-                if sep in line:
-                    line = line.strip().split(sep,1)[1].strip()
-                    blockComment-=1
-                    if cfg.isFalse(cfg.getValue('main', 'nestedComments')):
-                        blockComment = 0
-            if blockComment>0:
-                line = ''
+            # remove comments
+            line = assembler.stripComments(line.strip())
             
             # used to help hide internal directive lines
             if line.startswith(assembler.hidePrefix):
@@ -2587,6 +2652,14 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     listFilename = False
                 else:
                     listFilename = filename
+            elif k == 'printfile':
+                data = (line.split(" ",1)+[''])[1].strip()
+                filename = getValueAsString(data) or getString(data)
+
+                if filename.lower() in ('false','0','none', ''):
+                    printFilename = False
+                else:
+                    printFilename = filename
             # hidden internally used directive used with include paths
             if k == "setincludefolder":
                 assembler.currentFolder = (line.split(" ",1)+[''])[1].strip()
@@ -2874,7 +2947,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             elif k == 'rept':
                 reptCount = getValue(line.split(" ",1)[1].strip())
                 startIndex = i
-                depth = 1
+                #depth = 1
+                depth += 1
                 for j in range(i+1, len(lines)):
                     l = lines[j]
                     k = l.strip().split(" ",1)[0].strip().lower()
@@ -3018,9 +3092,15 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     assembler.echoLine = True
                 else:
                     assembler.echoLine = False
+            elif k == '_test' and passNum == lastPass:
+                pass
             elif k == 'print' and passNum == lastPass:
                 v = (line+' ').split(" ",1)[1].strip()
                 print(getString(v))
+            elif k == 'printtofile' and passNum == lastPass:
+                v = (line+' ').split(" ",1)[1].strip()
+                print('> ',getString(v))
+                outputText2 += getString(v) + "\n"
             elif k == 'warning' and passNum == lastPass:
                 v = line.split(" ",1)[1].strip()
                 print('Warning: ' + v)
@@ -3802,6 +3882,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
     
     assembler.outputFilename = outputFilename
     assembler.listFilename = listFilename
+    assembler.printFilename = printFilename
     
     if outputFilename:
         with open(outputFilename, "wb") as file:
@@ -3849,6 +3930,14 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             print('{} written.'.format(listFilename))
     else:
         print('No list file')
+    
+    if printFilename:
+        with open(printFilename, 'w') as file:
+            print(outputText2, file=file)
+            print('{} written.'.format(printFilename))
+    else:
+        pass
+        #print('No print file')
     
     if debug and not symbolsFile:
         symbolsFile = 'debug_symbols.txt'

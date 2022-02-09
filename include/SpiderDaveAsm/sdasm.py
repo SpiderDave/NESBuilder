@@ -7,7 +7,6 @@ ToDo/Issues:
     * text mapping
         - named textmaps, alternate formats
     * option to automatically localize labels in macros
-    * get standalone command line switches working
     * namespaces
         - namespace directive
         - use namespaces when defining/specifying labels or symbols
@@ -127,10 +126,11 @@ def bestColorMatch(rgb, colors):
         color_diffs.append((color_diff, color))
     return colors.index(min(color_diffs)[1])
 
-def imageToCHRData(f, colors=False, xOffset=0,yOffset=0, rows=False, cols=False, nTiles=False):
+def imageToCHRData(f, colors=False, xOffset=0,yOffset=0, rows=False, cols=False, nTiles=False, shatter = False):
     try:
         with Image.open(f) as im:
-            px = im.load()
+            px = im.convert('RGB').load()
+            #px = im.load()
     except:
         print("error loading image")
         return
@@ -146,6 +146,18 @@ def imageToCHRData(f, colors=False, xOffset=0,yOffset=0, rows=False, cols=False,
     if nTiles==False:
         nTiles = int(w/8 * h/8)
     
+    if shatter:
+        altPalettes = dict(
+            gray = [0x0f, 0x2d, 0x10, 0x30],
+            steve = [0x0f, 0x0b, 0x2a, 0x37],
+            steveAlt = [0x0f, 0x0b, [118,192,0], 0x37],
+            hud = [0x0f, 0x15, 0x26, 0x37],
+            brown = [0x0f, 0x17, 0x27, 0x37],
+            yychr = [0x0f, [0x8c, 0x63, 0x21], [0xad, 0xb5, 0x31], [0xc6, 0xe7, 0x9c]],
+        )
+        for k, pal in altPalettes.items():
+            altPalettes.update({k:[assembler.palette[x] if isinstance(x, int) else x for x in pal]})
+        
     out = []
     for t in range(nTiles):
         tile = [[]]*16
@@ -153,15 +165,21 @@ def imageToCHRData(f, colors=False, xOffset=0,yOffset=0, rows=False, cols=False,
             tile[y] = 0
             tile[y+8] = 0
             for x in range(8):
-                
-                #c = list(px[xOffset+x+(t*8) % w,yOffset+ y + math.floor(t/(w/8))*8])
-                #print(xOffset,x,yOffset,y)
                 try:
-                    #c = list(px[xOffset + x, yOffset + y + math.floor(t/(w/8))*8])
                     c = list(px[xOffset + x, yOffset + y])
                 except:
                     c = [0,0,0]
-                i = bestColorMatch(c, colors)
+                
+                i = False
+                
+                if shatter:
+                    for k, pal in altPalettes.items():
+                        if c[:3] in pal:
+                            i = pal.index(c[:3])
+                            break
+                
+                if i == False:
+                    i = bestColorMatch(c, colors)
                 
                 tile[y] += (2**(7-x)) * (i%2)
                 tile[y+8] += (2**(7-x)) * (math.floor(i/2))
@@ -204,7 +222,6 @@ def importTilemap(tilemap, filename="import.png", offsetX=0, offsetY=0, fileOffs
             tileOut[y] = 0
             tileOut[y+8] = 0
             for x in range(8):
-
                 if 'h' in tile.flip:
                     x1 = offsetX + tile.x * tilemap.gridsize + (7-x)
                 else:
@@ -423,6 +440,7 @@ class Assembler():
     listFilename = False
     bankData = {}
     commentBlock = 0
+    shatter = False
     
     nesRegisters = Map(
         PPUCTRL = 0x2000, PPUMASK = 0x2001, PPUSTATUS = 0x2002,
@@ -714,7 +732,7 @@ directives = [
     'return','namespace','break','expected',
     'findtext','lastpass', 'endoffunction', '_wipe',
     'loadld65cfg','loadld65cfg?','segment',
-    'start','end','exportmap','importmap','_test',
+    'start','end','exportmap','importmap','_test','_shatterhand_import',
 ]
 
 filters = [
@@ -723,6 +741,7 @@ filters = [
     'evalvar','pop','astext','len',
     'fileexist', 'nfileexist','py',
     'concat','coalesce',
+    'namespace',
 ]
 
 def clamp(n, smallest, largest): return max(smallest, min(n, largest))
@@ -1146,14 +1165,25 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         else:
             return
     def nsSymbol(s):
-        if namespaceSymbol in s:
+        if s.startswith(namespaceSymbol):
+            n = 0
+            while s.startswith(namespaceSymbol):
+                s = s[1:]
+                n -= 1
+            try:
+                ns = assembler.namespace[n]
+            except:
+                ns = assembler.namespace[-1]
+        else:
+            if namespaceSymbol in s:
+                return assembler.lower(s)
+            
+            ns = assembler.namespace[-1]
+        
+        if ns == '':
             return assembler.lower(s)
         
-        ns = assembler.namespace[-1]
-        if ns != '':
-            ns = ns + namespaceSymbol
-        
-        return assembler.lower(ns + s)
+        return assembler.lower(ns + namespaceSymbol + s)
     def getSpecial(s):
         if s == 'sdasm':
             v = 1
@@ -1249,6 +1279,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         if type(v) is float:
             l = 1 if v < 256 else 2
             return v,l
+        
+        if mode == 'namespace':
+            v = v.strip()
+            if v.startswith('.') and v == v[0]*len(v):
+                n = -len(v)
+                try:
+                    return assembler.namespace[n], n
+                except:
+                    return 0,1
+            return 0,1
         
         if mode == 'getbyte':
             a = getValue(v)
@@ -2708,7 +2748,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     else:
                         errorText = 'file not found'
                         assembler.errorLinePos = len(line.split(' ',1)[0])+1
-            elif k == 'incchr':
+            elif k == 'incchr' and passNum == lastPass:
+                #shatter = bool(symbols.get(nsSymbol('_shatterhand_import'), 0))
+                #shatter = bool(symbols.get('_shatterhand_import', 0))
+                shatter = getValue('_shatterhand_import')
+                
+                
                 if PIL:
                     imageX, imageY, nTiles, rows, cols = [False]*5
                     filename = line.split(" ",1)[1].strip()
@@ -2726,8 +2771,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     filename = getString(filename)
                     filename = assembler.findFile(filename)
                     if filename:
+                        #print(filename, shatter)
+                        
                         colors = [assembler.palette[x] for x in assembler.currentPalette]
-                        chrData = imageToCHRData(filename, colors=colors, xOffset=imageX,yOffset=imageY,rows=rows, cols=cols, nTiles=nTiles)
+                        chrData = imageToCHRData(filename, colors=colors, xOffset=imageX,yOffset=imageY,rows=rows, cols=cols, nTiles=nTiles, shatter=shatter)
                         
                         if assembler.Sprite8x16:
                             for y in range(0,rows, 2):
@@ -3086,6 +3133,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 files = [x for x in os.listdir(folder) if os.path.splitext(x.lower())[1] in ['.asm']]
                 files = [x for x in files if not x.startswith('_')]
                 lines = lines[:i]+['']+['include {}/{}'.format(folder, x) for x in files]+lines[i+1:]
+            elif k == '_shatterhand_import' and passNum == lastPass:
+                v = line.split(" ",1)[1].strip()
+                if (v.lower() in ['on','true']) or (getValue(v) == 1):
+                    assembler.shatter = True
+                else:
+                    assembler.shatter = False
             elif k == 'echo' and passNum == lastPass:
                 v = line.split(" ",1)[1].strip()
                 if (v.lower() in ['on','true']) or (getValue(v) == 1):
@@ -3976,7 +4029,9 @@ if __name__ == '__main__' or sys.argv[0] == 'NESBuilder:asm':
                         help='The file to assemble')
     parser.add_argument('outputfile', type=str, nargs='?',
                         help='The output file')
-
+    
+    print('sdasm {} by {}\n{}\n'.format(version.get('version'), version.get('author'), version.get('url')))
+    
     args = parser.parse_args()
 
     filename = args.sourcefile

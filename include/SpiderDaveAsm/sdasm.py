@@ -194,11 +194,6 @@ def imageToCHRData(f, colors=False, xOffset=0,yOffset=0, rows=False, cols=False,
     return ret
 
 def importTilemap(tilemap, filename="import.png", offsetX=0, offsetY=0, fileOffset = 0, fileData = False, palette = 'current'):
-#    if tilemap.palette:
-#        colors = [assembler.palette[x] for x in tilemap.palette]
-#    else:
-#        colors = [assembler.palette[x] for x in assembler.currentPalette]
-    
     maxX, maxY = 0, 0
     for tile in tilemap.data:
         maxX = max(maxX, offsetX + tile.x * tilemap.gridsize + 8)
@@ -1229,7 +1224,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         elif s == 'namespace':
             return assembler.namespace[-1]
         elif s == 'randword':
-            #return makeHex(random.randrange(0x10000))
             return '${:04x}'.format(random.randrange(0x10000))
         elif s == 'reptindex':
             return str(symbols.get('reptindex', 0))
@@ -1339,10 +1333,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             if s:
                 v,l = getValueAndLength(s.value, mode=mode)
                 return v,l
-#            if assembler.lower(v) in symbols:
-#                v = symbols[assembler.lower(v)].pop()
-#                l = 1
-#                return v,l
             else:
                 assembler.errorHint = "unknown symbol"
                 v = 0
@@ -1449,15 +1439,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         v = v.strip()
         l = False
         
-#        if '(' in v and v.endswith(')'):
-#            fName = v.split('(')[0]
-#            if fName in functions:
-#                print(functions[fName])
-                
-#                vToken = assembler.tokenize('foo,bar = foobar()')
-#                print(vToken)
-                
-        
         # list indexing like a[1]
         if '[' in v and v.endswith(']') and v.find(']') == v.rfind(']'):
             index = v.split('[',1)[1].split(']')[0]
@@ -1478,29 +1459,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 return v,l
         
         vToken = assembler.tokenize(v)
-#        while True:
-#            l = [i for i, x in enumerate(vToken) if '[' in x and ']' not in x]
-#            if len(l) > 0:
-#                i = l[0]
-#                if i+2>len(vToken):
-#                    break
-#                vToken[i:i+2]=[', '.join(vToken[i:i+2])]
-#            else:
-#                break
-                
         
-        #v = v.replace(", ",",").replace(" ,",",")
         if v.startswith("(") and v.endswith(")"):
             v = v[1:-1]
         
         if vToken[-1] in ('x','y','X','Y'):
             vToken = vToken[:-1]
             v = ', '.join(vToken)
-        
-#        if v.endswith(",x"):
-#            v = v.split(",x")[0]
-#        if v.endswith(",y"):
-#            v = v.split(",y")[0]
         
         if v.startswith("(") and v.endswith(")"):
             v = v[1:-1]
@@ -1518,7 +1483,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         
         # this will handle comma separated lists
         vToken = assembler.tokenize(v)
-        #if len(assembler.tokenize(v)) > 1:
         if len(vToken) > 1:
             v = [getValue(x) for x in vToken]
             l = len(v)
@@ -1577,17 +1541,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             l=len(v)
             return v, l
         
-#        if ',' in v:
-#            v = [getValue(x) for x in v.split(',')]
-#            l = len(v)
-#            if mode == 'shuffle':
-#                random.shuffle(v)
-#            elif mode == 'choose':
-#                random.shuffle(v)
-#                v=v[0]
-#                l=1
-                
-#            return v,l
         if v.startswith('-'):
             label = v.split(' ',1)[0]
             if passNum == lastPass:
@@ -1602,11 +1555,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     return l.address, 2
             else:
                 return 0,2
-#            if len(aLabels) > 0:
-#                foundAddresses = sorted([x[1] for x in list(aLabels) if x[0]==label and x[1]<=currentAddress], reverse=True)
-#                if len(foundAddresses) !=0:
-#                    return foundAddresses[0], 2
-#            return int(v), 0
             
         if v.startswith('+'):
             label = v.split(' ',1)[0]
@@ -1622,32 +1570,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     return l.address, 2
             else:
                 return 0,2
-        
-#            if passNum == lastPass and False:
-#                if not aLabelSearch.down.get(currentAddress, False):
-#                    aLabelSearch.down.update({currentAddress:Map(label=v, address=currentAddress, originalLine=originalLine)})
-                
-#                foundAddress = aLabelSearch.down.get(currentAddress).get('foundAddress', False)
-#                if foundAddress:
-#                    return foundAddress, 2
-#            label = v.split(' ',1)[0]
-            
-#            if len(aLabels) >0:
-#                foundAddresses = sorted([x[1] for x in aLabels if x[0]==label and x[1]>currentAddress])
-#                if len(foundAddresses) !=0:
-#                    return foundAddresses[0], 2
-#            return 0,0
-            
-#            try:
-#                return sorted([x[1] for x in aLabels if x[0]==label and x[1]>currentAddress])[0], 2
-#            except:
-#                return 0,0
-#        if v.startswith('+'):
-#            label = v.split(' ',1)[0]
-#            if len(aLabels) > 0:
-#                foundAddresses = sorted([x[1] for x in list(aLabels) if x[0]==label and x[1]>currentAddress])
-#                if len(foundAddresses) !=0:
-#                    return foundAddresses[0], 2
         
         if v.startswith(tuple(assembler.localPrefix)):
             s = getSymbolInfo(v)
@@ -1702,12 +1624,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         elif v.lower() == 'randbyte':
             v = random.randrange(0,256)
             l=1
-#        elif v.startswith('$'):
-#            v = int(v[1:],16)
-#            l = bytesForNumber(v)
-#        elif v.startswith('%'):
-#            l = 1
-#            v = int(v[1:],2)
         elif v.startswith('%'):
             # do this to avoid clogging things up with operations below
             v = '_0b_'+v[1:]
@@ -1788,7 +1704,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             l = len(v)
         
         if mode == 'getbytes':
-            #fileOffset = (addr + (v-currentAddress)) + headerSize
             fileOffset = int(getSpecial('fileoffset')) + (v-currentAddress)
             
             try:
@@ -1796,22 +1711,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 return v, param
             except:
                 return 0, 0
-#        if mode == 'getbyte':
-#            fileOffset = (addr + (v-currentAddress)) + headerSize
-#            try:
-#                v = int(out[fileOffset])
-#            except:
-#                v = 0
-#            l = 1
-#        if mode == 'getword':
-#            fileOffset = int(getSpecial('fileoffset')) + (v-currentAddress)
-            
-#            try:
-#                v = int(out[fileOffset]) + int(out[fileOffset+1]) * 0x100
-#            except:
-#                v = 0
-#            l = 2
-        
         return v, l
 
     def getValue(v, mode=False, param=False, hint=False):
@@ -1882,7 +1781,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
     functions = Map()
     tilemaps = Map()
     assembler.commentBlock = 0
-    #aLabelSearch = Map(up=Map(), down=Map())
     
     labels = Map()
     labels.anon = Map()
@@ -2049,14 +1947,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             
             line = line.replace('+:','+ ').replace('-:','- ')
             
-#            if '+:' in line or '-:' in line:
-#                pass
-#                print(line)
-#                line = line.replace('+:','+')
-#                line = line.replace('-:','-')
-#                print(line)            
-            #print(originalLine)
-            
             if assembler.echoLine and passNum == lastPass:
                 if line.strip().lower() != 'echo off':
                     print(originalLine)
@@ -2132,7 +2022,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                                 v = assembler.tokenize(line[start+2+len(item):end])
                                 v, l = getValueAndLength(v[0], mode=item, param = getValue(v[1]))
                             else:
-                                #v = getValue(line[start+2+len(item):end], mode=item)
                                 v, l = getValueAndLength(line[start+2+len(item):end], mode=item)
                                 assembler.errorLinePos = start+2+len(item)
                             
@@ -2212,7 +2101,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             if '(' in line and assembler.lower(line.split('(')[0]) in functions:
                 kf = line.split('(')[0].lower()
                 kfdata = line.split('(',1)[1].rsplit(')',1)[0].strip()
-                #kfdata = [x.strip() for x in kfdata.split(',')]
                 
                 kfdata = [x.strip() for x in assembler.tokenize(kfdata)]
                 k = ''
@@ -2237,25 +2125,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     
                     labels.anon[passNum-1][lineNumber] = l
                     
-#                    print(l)
-#                    input('...')
-            
             if k!='' and (k=="-"*len(k) or k=="+"*len(k)):
                 #if not [k,currentAddress] in aLabels:
                 if k.startswith('-') or (not [k,currentAddress] in aLabels):
                     aLabels.append([k, currentAddress])
-                    
-#                    l = Map(
-#                        label=assembler.lower(k),
-#                        lineNumber = lineNumber,
-#                        originalLine = originalLine,
-#                        address = currentAddress,
-#                    )
-                    
-#                    labels.anon[passNum-1][lineNumber] = l
-                    
-#                    print(l)
-#                    input('...')
                     
                     # update so rest of line can be processed
                     line = (line.split(" ",1)+[''])[1].strip()
@@ -2268,44 +2141,10 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 if k.startswith('-') or k.startswith('+'):
                     k0=k
                     
-#                    if k.startswith('+') and passNum == lastPass-1:
-#                        for a in aLabelSearch.down:
-#                            item = aLabelSearch.down[a]
-#                            if item.get('foundAddress', False)==False and assembler.lower(item.label) == assembler.lower(k0) and currentAddress>a:
-#                                aLabelSearch.down[a].update(foundAddress = currentAddress)
-#                                if 'foobar' in originalLine:
-#                                    print('line=',line)
-#                                    print(hex(a))
-#                                    print('l=',item.originalLine)
-                    
-                    
-#                    if k.startswith('+') and passNum == lastPass:
-#                        for a in aLabelSearch.down:
-#                            item = aLabelSearch.down[a]
-#                            if item.get('foundAddress', False)==False and assembler.lower(item.label) == assembler.lower(k0) and currentAddress>a:
-#                                aLabelSearch.down[a].update(foundAddress = currentAddress)
-                                
-#                                if 'foobar' in originalLine:
-#                                    print('line=',line)
-#                                    print(hex(a))
-#                                    print(hex(currentAddress))
-#                                    print((line+' ').split(' ',1)[1])
-#                                    print('k=',k)
-#                                    print('k0=',k0)
-                                #input('...')
-                    
-                    
                     aLabels.append([assembler.lower(k0), currentAddress])
                     line = (line+' ').split(' ',1)[1].strip()
                     k0 = line.split(" ",1)[0].strip()
                     k = k0.lower()
-#                    if 'foobar' in originalLine  and passNum == lastPass:
-#                        print(hex(currentAddress))
-#                        print('originalLine=',originalLine)
-#                        print('line=',line)
-#                        print('k=',k)
-#                        print('k0=',k0)
-#                        input('...')
                 else:
                     if debug: print('label without suffix: {}'.format(k))
                     k += labelSuffix[0]
@@ -2340,7 +2179,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             # prefix is optional for valid directives
             if k.startswith(".") and k[1:] in directives:
                 k=k[1:]
-            
             
             # optionally allow "then" at the end of some if directives
             if k in ifDirectives and k not in ('else', 'endif'):
@@ -2412,27 +2250,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         ifData[ifLevel].done = True
                     else:
                         ifData[ifLevel].bool = False
-
-#                if '!=' in data:
-#                    l,r = data.split('!=')
-#                    if ((getValue(l) == getValue(r)) and inv == False) or ((getValue(l) != getValue(r)) and inv == True):
-#                        ifData[ifLevel].bool = False
-#                    else:
-#                        ifData[ifLevel].bool = True
-#                        ifData[ifLevel].done = True
-#                elif '=' in data:
-#                    l,r = data.split('=')
-#                    if ((getValue(l) == getValue(r)) and inv == False) or ((getValue(l) != getValue(r)) and inv == True):
-#                        ifData[ifLevel].bool = True
-#                        ifData[ifLevel].done = True
-#                    else:
-#                        ifData[ifLevel].bool = False
-#                else:
-#                    if (getValue(data) and inv==False) or (not getValue(data) and inv==True):
-#                        ifData[ifLevel].bool = True
-#                        ifData[ifLevel].done = True
-#                    else:
-#                        ifData[ifLevel].bool = False
             if k == 'else':
                 ifData[ifLevel].bool = not ifData[ifLevel].done
             elif k == 'endif':
@@ -2487,14 +2304,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     assembler.bankData[bank] = assembler.bankData.get(bank, {})
                     currentAddress = assembler.bankData[bank].get('currentAddress', currentAddress)
                     addr = assembler.bankData[bank].get('addr', addr)
-                
-#                print('bank=',bank)
-#                print('banksize=',bankSize)
-#                print('addr=',hex(addr))
-#                print('currentAddress=',hex(currentAddress))
-#                print('startAddress=',hex(startAddress))
-#                print('fileOffset=',hex(int(getSpecial('fileoffset'))))
-                
+            
             elif k == 'segment':
                 if assembler.memcfg:
                     segId = line.split(" ")[1].strip()
@@ -2536,9 +2346,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 bank = int((getValue('prgbanks') * 0x4000) / bankSize)
                 bank = None
                 # bank resets
-                #currentAddress = chrSize*v
                 currentAddress = 0
-                #addr = chrSize*v
                 addr = getValue('prgbanks') * 0x4000 + chrSize*v + headerSize
             elif k == 'setpalette':
                 v = getValue(line.split(" ",1)[1].strip())
@@ -2601,9 +2409,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 txt = line.split(" ", 1)[1]
                 txt = getString(getValue(txt), strip = False) or getString(txt)
                 findValue = assembler.mapText(txt)
-                
-#                if passNum == lastPass:
-                
                 fileOffset = int(getSpecial('fileoffset'))
                 
                 index = fileOffset - 1
@@ -2638,11 +2443,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     fv = v[1]
                     v = v[0]
                 
-                #fileOffset = addr + bank * bankSize + headerSize
                 fileOffset = int(getSpecial('fileoffset'))
-                #print(f'addr={hex(addr)}, bank={hex(bank)}, bankSize={hex(bankSize)}, headerSize={headerSize}, fileOffset={hex(fileOffset)}')
-                #out = out[:fileOffset]+([fv] * v)+out[fileOffset:]
-                
                 out[fileOffset:fileOffset] = [fv] * v
                 
                 # This is used for display in list file
@@ -2651,7 +2452,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 if debug or True:
                     print('insert', v, 'bytes.')
             elif k == 'truncate':
-                fileOffset = addr + bank * bankSize + headerSize
+                #fileOffset = addr + bank * bankSize + headerSize
+                fileOffset = int(getSpecial('fileoffset'))
                 del out[fileOffset:]
             elif k == '_wipe':
                 out = []
@@ -2760,10 +2562,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         errorText = 'file not found'
                         assembler.errorLinePos = len(line.split(' ',1)[0])+1
             elif k == 'incchr' and passNum == lastPass:
-                #shatter = bool(symbols.get(nsSymbol('_shatterhand_import'), 0))
-                #shatter = bool(symbols.get('_shatterhand_import', 0))
                 shatter = getValue('_shatterhand_import')
-                
                 
                 if PIL:
                     imageX, imageY, nTiles, rows, cols = [False]*5
@@ -2881,8 +2680,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         diffOut='; {}\n'.format(filename)
                         n=0
                         for i,b1 in enumerate(out):
-#                            if i > len(diffData):
-#                                break
                             b2 = diffData[i]
                             if b1!=b2:
                                 if k == 'diff':
@@ -2992,7 +2789,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 functions[function].lines = []
                 noOutput = True
             elif k == 'endf' or k == 'endfunction':
-                #functions[function].lines.append( '{}endoffunction'.format(assembler.hidePrefix))
                 function = False
                 noOutput = False
             elif k == 'endoffunction':
@@ -3078,7 +2874,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     errorText = 'file not found'
             elif k == 'makeips' and passNum == lastPass:
                 filename = line.split(" ",1)[1].strip()
-                #filename = getString(filename)
                 filename = getValueAsString(filename, fallback=True)
                 
                 ipsData = False
@@ -3261,7 +3056,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                                 # lazy way to handle things like comments for now
                                 pass
                     tilemaps[tilemap].lines = None
-                    #print('Creating tilemap "{}"'.format(tilemap))
                     tilemap = False
             elif k == 'macro':
                 v = line.split(" ")[1].strip()
@@ -3314,9 +3108,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 noOutput = True
                 
                 oldAddr = addr
-#                addr = getValue(v)
-#                currentAddress = addr
-#                noOutput = True
             elif k == 'ende' or k == 'endenum':
                 addr = oldAddr
                 currentAddress = addr
@@ -3335,9 +3126,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 else:
                     addr = addr + (v-currentAddress)
                     currentAddress += (v-currentAddress)
-                    
-#                    if bank != None:
-#                        addr = addr % bankSize
                     
                     if startAddress==False:
                         startAddress = addr
@@ -3680,12 +3468,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                             b.append(v % 0x100)
                             b.append(math.floor(v/0x100))
             
-#            if originalLine.startswith('showsymb'):
-#                print('-'*20)
-#                for k,v in symbols.items():
-#                    print(k,'=',v)
-#                print('-'*20)
-
             if k == 'define':
                 k = line.split(" ")[1].strip()
                 v = line.split(" ",2)[-1].strip()
@@ -3719,8 +3501,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 if '(' in value and assembler.lower(value.split('(',1)[0]) in functions:
                     
                     t = assembler.tokenize(keyword)
-#                    fName = value.split('(',1)[0]
-#                    nParams = len(functions[fName].params)
                     
                     # hide what we can from output
                     prefix = assembler.hidePrefix
@@ -3801,37 +3581,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                             else:
                                 out = out + ([fv] * (fileOffset-len(out))) + b
                         elif fileOffset<len(out):
-                            #out = out[:fileOffset]+b+out[fileOffset+len(b):]
                             out[fileOffset:fileOffset+len(b)] = b
                     else:
-                        #fileOffset = addr % bankSize + bank*bankSize+headerSize
-                        fileOffset = addr + bank * bankSize + headerSize
-#                        fileOffset = addr % bankSize + bank*bankSize+headerSize
-#                        fileOffset = currentAddress - startAddress  + bank*bankSize+headerSize
-#                        fileOffset = addr + headerSize
-#                        fileOffset = addr + headerSize
-                        #fileOffset = addr
-                        fileOffset = addr + bank * bankSize + headerSize
-                        
-                        fileOffset = addr + headerSize
                         fileOffset = getValue('fileoffset')
-                        
-                        
-#                        print('*', originalLine)
-#                        if bank == 1 and not quiet:
-#                            print('currentAddress=',hex(currentAddress))
-#                            print('addr=',hex(addr))
-#                            print('bank=',bank)
-#                            print('bankSize=',hex(bankSize))
-#                            print('fileOffset=',hex(fileOffset))
                         
                         if fileOffset == len(out):
                             # We're in the right spot, just append
-
+                            
                             if usenp:
                                 out = np.append(out, np.array(b, dtype='B'))
                             else:
-                                #out = out + b
                                 out.extend(b)
                         elif fileOffset>len(out):
                             fv = fillValue
@@ -3841,7 +3600,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                             else:
                                 out = out + ([fv] * (fileOffset-len(out))) + b
                         elif fileOffset<len(out):
-                            #out = out[:fileOffset]+b+out[fileOffset+len(b):]
                             out[fileOffset:fileOffset+len(b)] = b
                 if noOutput==False and noOutputSingle==False:
                     addr = addr + len(b)
@@ -3919,7 +3677,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     outputText+='*** {}\n'.format(errorText)
                     outputText+='    {}\n'.format(assembler.currentFilename)
                     
-                    #print(line)
                     print(originalLine)
                     if assembler.errorLinePos:
                         print(' '*assembler.errorLinePos+'^')
@@ -3977,7 +3734,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
 
 
     if out[0:4] == list(bytearray("NES", 'utf8')) + [0x1a]:
-    #if headerSize > 0:
         outputTopper+= 'PRG Banks:{}\nCHR Banks:{}\nMapper: {}\n'.format(
             getSpecial('prgbanks'),
             getSpecial('chrbanks'),

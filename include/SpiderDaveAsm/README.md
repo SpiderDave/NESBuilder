@@ -10,15 +10,14 @@ Some features may be incomplete, have bugs, or change.
 ## Command line ##
 
 Usage:
-    py sdasm.py <asm file>
-    
-Currently, creates output.txt and output.bin.
-
+    py sdasm.py [-h] [-l <file>] [-bin <file>] [-cfg <file>] [-fulltb]
+                [-d <symbol>] [-q] [-symbols <file>]
+                sourcefile [outputfile]
 
 ## Features ##
 * Supports all (official) 6502 opcodes
 * Anonymous labels, local labels
-* macros
+* macros, functions
 
 # Syntax #
 
@@ -26,11 +25,11 @@ Configuration:
     After running once, a config.ini will be generated.  Some syntax may be changed with configuration.
 
 Opcodes:
-    Standard 6502 ocodes are supported.  Opcodes are case-insensitive.
+    Standard 6502 ocodes are supported.
 
 Comments:
-    Comments start with a semicolon or "//", and can also be used at the end of a line.
-    Block-level comments are enclosed in "/*" "*/" and may be nested.
+    Comments start with ";" or "//", and can also be used at the end of a line.
+    Block-level comments are enclosed in "/*" "*/".
     
 ```
     ; This is a comment

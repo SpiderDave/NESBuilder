@@ -207,7 +207,7 @@ def importTilemap(tilemap, filename="import.png", offsetX=0, offsetY=0, fileOffs
     # Load image
     try:
         with Image.open(filename) as img:
-            px = img.load()
+            px = im.convert('RGB').load()
     except:
         print("error loading image")
         return
@@ -946,7 +946,7 @@ timeSymbols = ['year','month','day','hour','minute','second']
 specialSymbols+= timeSymbols
 specialSymbols+= [x.lower() for x in assembler.nesRegisters.keys()]
 
-def assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False, symbolsFile=False, quiet=False):
+def assemble(filename, outputFilename = 'output.bin', listFilename = False, configFile=False, fileData=False, binFile=False, symbolsFile=False, quiet=False, defineSymbol=''):
     assembler.error = False
     #quiet=True
     
@@ -994,6 +994,7 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     cfg.setDefault('main', 'fullTraceback', False)
     cfg.setDefault('main', 'loadld65cfg', True)
     cfg.setDefault('main', 'rememberBankAddress', False)
+    cfg.setDefault('main', 'oldPrint', False)
     
     assembler.quotes = tuple(makeList(cfg.getValue('main', 'quotes')))
 
@@ -1005,7 +1006,8 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     startTime = time.time()
     
     try:
-        ret = _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile, symbolsFile=symbolsFile, quiet=quiet)
+        ret = _assemble(filename, outputFilename, listFilename, cfg=cfg, fileData=fileData, binFile=binFile, symbolsFile=symbolsFile, quiet=quiet, defineSymbol=defineSymbol)
+        
         if type(ret) is tuple:
             success, errorText = ret
             
@@ -1058,7 +1060,11 @@ def assemble(filename, outputFilename = 'output.bin', listFilename = False, conf
     
     return not assembler.error, assembler.errorText
 
-def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, symbolsFile, quiet):
+def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, symbolsFile, quiet, defineSymbol):
+    
+    if not defineSymbol:
+        defineSymbol = ''
+    defineSymbol = defineSymbol.replace(',',' ').split()
     
     def createHeader():
         header = (list(out[:16]) + [0] * 16)[:16]
@@ -1864,6 +1870,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
     originalLines = lines
     
     symbols = Map()
+    
     symbols.sdasm = 1
     equ = Map()
     
@@ -1934,8 +1941,12 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         fullTraceback = cfg.isTrue(cfg.getValue('main', 'fullTraceback'))
         loadld65cfg = cfg.isTrue(cfg.getValue('main', 'loadld65cfg'))
         rememberBankAddress = cfg.isTrue(cfg.getValue('main', 'rememberBankAddress'))
+        oldPrint = cfg.isTrue(cfg.getValue('main', 'oldPrint'))
         
         assembler.namespace = Stack([''])
+        
+        for s in defineSymbol:
+            symbols[assembler.lower(s)] = 1
         
         # This is important for consistancy in each pass
         random.setstate(rndState)
@@ -2114,9 +2125,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                                 v, l = getValueAndLength(line[fmtEnd+1:end])
                                 
                                 if type(v) is list:
-                                    print("can't format a list")
-                                
-                                v = fmtString.format(v)
+                                    v = ', '.join([fmtString.format(x) for x in v])
+                                else:
+                                    v = fmtString.format(v)
                             elif item == 'getbytes':
                                 v = assembler.tokenize(line[start+2+len(item):end])
                                 v, l = getValueAndLength(v[0], mode=item, param = getValue(v[1]))
@@ -3148,8 +3159,22 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             elif k == '_test' and passNum == lastPass:
                 pass
             elif k == 'print' and passNum == lastPass:
-                v = (line+' ').split(" ",1)[1].strip()
-                print(getString(v))
+                if oldPrint:
+                    v = (line+' ').split(" ",1)[1].strip()
+                    print(getString(v))
+                else:
+                    v = (line+' ').split(" ",1)[1].strip()
+                    values = assembler.tokenize(v)
+                    for i, value in enumerate(values):
+                        if assembler.isString(value):
+                            values[i] = assembler.stripQuotes(value)
+                        else:
+                            gv = getValue(value)
+                            if type(gv) is list:
+                                values[i] = getValue(value, mode='astext')
+                            else:
+                                values[i] = str(gv)
+                    print(' '.join(values))
             elif k == 'printtofile' and passNum == lastPass:
                 v = (line+' ').split(" ",1)[1].strip()
                 print('> ',getString(v))
@@ -4020,11 +4045,12 @@ if __name__ == '__main__' or sys.argv[0] == 'NESBuilder:asm':
                         help='Specify config file')
     parser.add_argument('-fulltb', action='store_true',
                         help='Show full traceback')
+    parser.add_argument('-d', type=str, metavar="<symbol>",
+                        help='Define symbol')
     parser.add_argument('-q', action='store_true',
                         help='Quiet mode')
     parser.add_argument('-symbols', type=str, metavar="<file>",
                         help='Specify export symbols file')
-
     parser.add_argument('sourcefile', type=str,
                         help='The file to assemble')
     parser.add_argument('outputfile', type=str, nargs='?',
@@ -4040,9 +4066,10 @@ if __name__ == '__main__' or sys.argv[0] == 'NESBuilder:asm':
     configFile = args.cfg
     binFile = args.bin
     symbolsFile = args.symbols
+    defineSymbol = args.d
     quiet = args.q
     
-    success, errorText = assemble(filename, outputFilename = outputFilename, listFilename = listFilename, configFile = configFile, binFile = binFile, symbolsFile = symbolsFile, quiet=quiet)
+    success, errorText = assemble(filename, outputFilename = outputFilename, listFilename = listFilename, configFile = configFile, binFile = binFile, symbolsFile = symbolsFile, quiet=quiet, defineSymbol=defineSymbol)
     
     if not success:
         print(errorText)

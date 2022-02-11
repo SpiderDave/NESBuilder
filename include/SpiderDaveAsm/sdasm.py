@@ -207,7 +207,7 @@ def importTilemap(tilemap, filename="import.png", offsetX=0, offsetY=0, fileOffs
     # Load image
     try:
         with Image.open(filename) as img:
-            px = im.convert('RGB').load()
+            px = img.convert('RGB').load()
     except:
         print("error loading image")
         return

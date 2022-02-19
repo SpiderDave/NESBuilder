@@ -296,16 +296,14 @@ function init()
     placeY = top
     
     x=left
-    y=top + 100+pad*1.5
+    y=y+control.height+pad
+    
     local buttonHeight = config.buttonHeight
     
     control = NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="SpinChangePalette"}
     
-    x = x + control.width + pad
-    b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthSmall*7.5*1.5,name="ButtonAddPalette",text="Add"}
-    
     x = left
-    y = y + b.height + pad
+    y = y + control.height + pad
     
     p = {[0]=0x0f,0x21,0x11,0x01}
     palette = {}
@@ -330,16 +328,17 @@ function init()
     
     y=y+pad
     
-    --if false then
-    
     control = NESBuilder:makeComboBox{x=x,y=y,w=buttonWidth, name="paletteSet", itemList = {'set 0','set 1'}}
     control.helpText = "Select a palette set"
     x = x + control.width + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth*.4,name="addPaletteSet",text="Add"}
-    control.helpText = "Add a palette set"
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth*.4,name="newPaletteSet",text="New"}
+    control.helpText = "Create a new palette set"
     x = x + control.width + pad
     control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth*.4,name="renamePaletteSet",text="Rename"}
     control.helpText = "Rename palette set"
+    x = x + control.width + pad
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth*.4,name="deletePaletteSet",text="Delete"}
+    control.helpText = "Delete palette set"
     x = left
     y = y + control.height + pad
     
@@ -352,7 +351,7 @@ function init()
     for i = 0,15 do
         paletteControl[i] = {}
         
-        c = NESBuilder:makeLabelQt{x=x,y=y+pad,clear=true, text=string.format('   %02x', i), name=string.format('paletteLabelLeft%02x', i), index=i}
+        c = NESBuilder:makeLabelQt{x=x,y=y+pad,clear=true, text=string.format('   %02x', i), name=string.format('paletteLabelLeft%02x', i),functionName = 'paletteLabelLeft', index=i}
         c.setFont("Verdana", 10)
         x = x + c.width + pad
         paletteControl[i].labelControlLeft = c
@@ -373,7 +372,13 @@ function init()
         end
     end
     
-    --end
+    if devMode() then
+        NESBuilder:setTabQt("Palette")
+        y = scroll.y() + scroll.height + pad
+        x = left
+        control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,name="test",text="test"}
+    end
+    
     
     NESBuilder:setTabQt("Image")
     p = {[0]=0x0f,0x21,0x11,0x01}
@@ -410,6 +415,11 @@ function init()
     
     b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthNew,name="ExportCHR",text="Export"}
     y = y + b.height + pad
+    
+    if devMode() then
+        b=NESBuilder:makeButton{x=x,y=y,w=config.buttonWidthNew,name="test2",text="test"}
+        y = y + b.height + pad
+    end
     
     x=128*3+pad*3
     y=top
@@ -966,15 +976,50 @@ function ButtonMakeCHR_cmd()
     end
 end
 
-function ButtonAddPalette_cmd()
-    p = {0x0f,0x20,0x10,0x00}
-    table.insert(data.project.palettes, p)
+function test2_cmd()
+    print(data.project.chr.index)
+end
 
-    local control = getControl('SpinChangePalette')
-    control.max = #data.project.palettes
+function test_cmd()
+    print(NESBuilder:folders(data.folders.projects))
+end
 
+
+function loadPaletteFile(f)
+    if f then
+        f = NESBuilder:findFile(f, list(NESBuilder:cfgGetValue("main", "defaultPaletteFolder")))
+        if not f then
+            print("File not found: "..f)
+            return
+        end
+    else
+        print(NESBuilder:cfgGetValue("main", "defaultPaletteFolder"))
+        f = NESBuilder:openFile{filetypes={{"Palette files", ".pal"}}, initial=NESBuilder:cfgGetValue("main", "defaultPaletteFolder")}
+        if f == "" then
+            print("Open cancelled.")
+            return
+        end
+    end
+    
+    print("file: "..f)
+
+    NESBuilder.palette.load(f)
+    
+    -- update main palette control
+    getControl('PaletteQt').setAll(pythonEval("list(range(0x3f))"))
+    -- update palette sets
+    updatePaletteSets()
+    -- update selected palette control
     PaletteEntryUpdate()
-    dataChanged()
+    -- update metatile image
+    updateSquareoid()
+    
+    -- update selected tile in metatiles tab
+    if data.selectedTile then
+        local control = getControl('tsaTileCanvasQt')
+        control.drawTile(0,0, data.selectedTile, currentChr(), currentPalette(), control.columns, control.rows)
+        control.update()
+    end
 end
 
 function Palette_cmd(t, index)
@@ -985,86 +1030,100 @@ function Palette_cmd(t, index)
     local topIndex = 0
     
     local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
-    local pSetIndex = pSet.paletteIndex[topIndex + index + 1]
-    if not pSetIndex then return end
+    if not pSet then return end
     
     if event.button == 2 then
-        print(string.format("Selected palette %02x",t.cellNum))
-        p = currentPalette(pSetIndex)
-        p = {p[1], p[2], p[3], p[4]}
-        data.selectedColor = p[t.cellNum+1]
+        data.selectedColor = pSet.palettes[index+1][t.cellNum+1]
+        print(string.format('pSet=%s, index=%02x, cell=%02x, selected color=%02x',pSet.name or '', index, t.cellNum, data.selectedColor))
     elseif event.button == 1 then
-        print(string.format("Set palette %02x",data.selectedColor or 0x0f))
+        if index>#pSet.palettes then return end
+        local oldColor
+        if not pSet.palettes[index+1] then
+            pSet.palettes[index+1] = {0x0f, 0x0f, 0x0f, 0x0f}
+        else
+            oldColor = pSet.palettes[index+1][t.cellNum+1]
+        end
+        print(index)
+        print(#pSet.palettes)
+        local newColor = data.selectedColor or 0x0f
         
-        p = currentPalette(pSetIndex)
-        
-        if not p then
-            p = {0x0f, 0x0f, 0x0f, 0x0f}
-            for i = #data.project.palettes+1, index + topIndex do
-                print(i)
-                data.project.palettes[i] = p
+        if oldColor ~= newColor then
+            print(string.format('pSet=%s, index=%02x, cell=%02x, newColor=%02x',pSet.name or '', index, t.cellNum, newColor))
+            pSet.palettes[index+1][t.cellNum+1] = newColor
+            t.setAll(pSet.palettes[index+1])
+            dataChanged()
+            
+            -- if changing currently selected palette,
+            -- do an update
+            if index == pSet.index then
+                PaletteEntryUpdate()
             end
-            --updatePaletteLabels()
         end
-        p = {p[1], p[2], p[3], p[4]}
-        p[t.cellNum+1] = data.selectedColor
-        t.setAll(p)
-        data.project.palettes[pSetIndex] = p
-        
-        if pSetIndex == 0 then
-            getControl('PaletteEntryQt').setAll(p)
-        end
-        dataChanged()
     end
     updatePaletteLabels()
-    print(pSet)
 end
 
-function paletteLabel_cmd(t)
-    data.project.paletteSets.selectedIndex = t.index
-    updatePaletteLabels()
+function paletteLabelLeft_cmd(t)
+    local event = t.control.event
+    
+    if event.type == 'ButtonPress' and event.button == 1 then
+        local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
+        if t.index == #pSet.palettes then
+            pSet.palettes[t.index+1] = {0x0f, 0x0f, 0x0f, 0x0f}
+            
+            paletteControl[t.index].control.setAll(pSet.palettes[t.index+1])
+            dataChanged()
+        end
+        data.project.paletteSets.selectedIndex = t.index
+        updatePaletteLabels()
+        
+        pSet.index = t.index
+        
+        PaletteEntryUpdate()
+    end
+
+
+--        local pSet = {
+--          name = n,
+--          palettes = {
+--          },
+--          index = 0,
+--        }
+--        data.project.paletteSets[#data.project.paletteSets+1] = pSet
+--        updatePaletteSets(#data.project.paletteSets-1)
+
+
 end
 
 function updatePaletteLabels()
     local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
-    local selectedIndex = data.project.paletteSets.selectedIndex
+    local selectedIndex = pSet.index
     
     for i = 0, #paletteControl do
-        if i >= #pSet.paletteIndex then
+        if i == #pSet.palettes then
+            paletteControl[i].labelControlLeft.setText('    +')
+            paletteControl[i].labelControlLeft.helpText = 'Click to add a palette'
+        elseif i > #pSet.palettes then
             paletteControl[i].labelControlLeft.setText('')
         elseif i == selectedIndex then
             paletteControl[i].control.highlight(true)
-            --paletteControl[i].control.setProperty('highlight', 1)
             paletteControl[i].labelControlLeft.setText(string.format('\u{1f449} %02x ', i ))
+            paletteControl[i].labelControlLeft.helpText = ''
         else
             paletteControl[i].control.highlight(false)
-            --paletteControl[i].control.setProperty('highlight', 0)
             paletteControl[i].labelControlLeft.setText(string.format('   %02x', i ))
+            paletteControl[i].labelControlLeft.helpText = 'Click to select palette'
         end
     end
 end
 
---function updatePaletteLabels()
---    local v, c
---    print('updatePaletteLabels')
---    for i = 0, #paletteControl do
---        v = paletteControl[i]
---        c = v.control
---        if data.project.palettes[i+data.project.palettes.index] then
---            v.labelControl.setText(string.format('%02x', i+data.project.palettes.index))
---            v.labelControlLeft.setText(string.format('   %02x', i ))
---        else
---            v.labelControl.setText('')
---            v.labelControlLeft.setText('')
---        end
---    end
---end
-
-
 function PaletteEntryUpdate()
+    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
+    
     local control = getControl('SpinChangePalette')
-    control.max = #data.project.palettes
-    control.value = data.project.palettes.index
+    
+    control.max = #pSet.palettes-1
+    control.value = pSet.index
     
     p=currentPalette()
     
@@ -1072,13 +1131,27 @@ function PaletteEntryUpdate()
     getControl('CHRPalette').setAll(p)
     
     c = getControl('PaletteEntryLabelQt')
-    c.text = string.format("Palette%02x",data.project.palettes.index)
+    --c.text = string.format("Palette%02x",data.project.palettes.index)
+    c.text = string.format("Palette%02x",pSet.index)
     
     updatePaletteLabels()
     
     handlePluginCallback("onPaletteChange")
     
     refreshCHR()
+end
+
+function deletePaletteSet_cmd()
+    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
+    if NESBuilder:askYesNoCancel("Delete palette set", string.format('Are you sure you want to delete palette set\n"%s"?', pSet.name)) then
+        table.remove(data.project.paletteSets, data.project.paletteSets.index+1)
+        
+        if (data.project.paletteSets.index > 0) and (data.project.paletteSets.index == #data.project.paletteSets) then
+            data.project.paletteSets.index = #data.project.paletteSets - 1
+        end
+        
+        updatePaletteSets()
+    end
 end
 
 function renamePaletteSet_cmd()
@@ -1090,20 +1163,19 @@ function renamePaletteSet_cmd()
     updatePaletteSets()
 end
 
-function addPaletteSet_cmd(t)
+function newPaletteSet_cmd(t)
     local control
-    local n
-    
-    n = #data.project.paletteSets
-    
-    local pSet = {
-      name = string.format("palette set test %02x", n),
-      paletteIndex = {0,0,1,2,4},
-      index = 0,
-    }
-    data.project.paletteSets[n+1] = pSet
-    
-    updatePaletteSets(n)
+    local n = askText('New Palette Set', 'Enter a name for the palette set.', string.format("palette set test %02x", #data.project.paletteSets))
+    if n then
+        local pSet = {
+          name = n,
+          palettes = {
+          },
+          index = 0,
+        }
+        data.project.paletteSets[#data.project.paletteSets+1] = pSet
+        updatePaletteSets(#data.project.paletteSets-1)
+    end
 end
 
 function paletteSet_cmd(t)
@@ -1111,6 +1183,7 @@ function paletteSet_cmd(t)
     
     data.project.paletteSets.index = t.control.currentIndex()
     paletteListUpdate()
+    PaletteEntryUpdate()
 end
 
 -- update the palette sets dropdown
@@ -1129,55 +1202,52 @@ function updatePaletteSets(index)
 end
 
 function paletteListUpdate()
-    local topIndex = 0
-    local index = 0
-    
     local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
     
     for i = 0, #paletteControl do
         v = paletteControl[i]
         c = v.control
-        if pSet or 1 then pSet.index = topIndex end
         
-        if pSet and pSet.paletteIndex[i+pSet.index+1] then
-            c.setAll(data.project.palettes[pSet.paletteIndex[i+pSet.index+1]])
-            v.labelControl.setText(string.format('%02x', pSet.paletteIndex[i+pSet.index+1]))
+        if pSet and pSet.palettes[i+1] then
+            c.setAll(pSet.palettes[i+1])
+            v.labelControl.setText('???')
         else
             c.setAll({[0]=0x0f,0x0f,0x0f,0x0f})
+            c.clear()
             v.labelControl.setText('')
         end
     end
+    
+--    local control = getControl('SpinChangePalette')
+--    control.max = #pSet.palettes
+--    control.value = pSet.index
+--    control.refresh()
+    
     updatePaletteLabels()
 end
 
-
 function SpinChangePalette_cmd(t)
-    t.control.max = #data.project.palettes
-    t.control.refresh()
+    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
     
-    data.project.palettes.index = t.control.value
-    --print('------')
+    data.project.paletteSets[data.project.paletteSets.index+1].index = t.control.value
     PaletteEntryUpdate()
 end
 
 function ButtonPrevPalette_cmd()
-    c = NESBuilder:getControl('PaletteEntry')
-    
-    data.project.palettes.index = data.project.palettes.index-1
-    if data.project.palettes.index < 0 then data.project.palettes.index= 0 end
-    print(data.project.palettes.index)
-    
+    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
+    local i = pSet.index-1
+    if i<0 then i = 0 end
+    if i > #pSet.palettes-1 then i = #pSet.palettes-1 end
+    data.project.paletteSets[data.project.paletteSets.index+1].index = i
     PaletteEntryUpdate()
 end
 
 function ButtonNextPalette_cmd(t)
-    c = NESBuilder:getControl('PaletteEntry')
-    
-    data.project.palettes.index = data.project.palettes.index+1
-    if data.project.palettes.index > #data.project.palettes then data.project.palettes.index = #data.project.palettes end
-    if data.project.palettes.index > 255 then data.project.palettes.index = 255 end
-    print(data.project.palettes.index)
-    
+    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
+    local i = pSet.index+1
+    if i<0 then i = 0 end
+    if i > #pSet.palettes-1 then i = #pSet.palettes-1 end
+    data.project.paletteSets[data.project.paletteSets.index+1].index = i
     PaletteEntryUpdate()
 end
 
@@ -1236,11 +1306,21 @@ function NewProject_cmd()
         return
     end
     
-    -- Currently, must start with letter or number, and can contain 
-    -- letters, numbers, underscore, dash
-    if not NESBuilder:regexMatch("^[A-Za-z0-9]+[A-Za-z0-9_-]*$",n) then
-        NESBuilder:showError("Error", string.format('Invalid project name: "%s"',n))
-        return
+    
+    if devMode() then
+        -- Currently, must start with letter or number, and can contain 
+        -- letters, numbers, underscore, dash, space
+        if not NESBuilder:regexMatch("^[A-Za-z0-9]+[ A-Za-z0-9_-]*$",n) then
+            NESBuilder:showError("Error", string.format('Invalid project name: "%s"',n))
+            return
+        end
+    else
+        -- Currently, must start with letter or number, and can contain 
+        -- letters, numbers, underscore, dash
+        if not NESBuilder:regexMatch("^[A-Za-z0-9]+[A-Za-z0-9_-]*$",n) then
+            NESBuilder:showError("Error", string.format('Invalid project name: "%s"',n))
+            return
+        end
     end
     
     -- check if the project folder already exists
@@ -1814,16 +1894,6 @@ function BuildProject()
     
     data.buildFail = false
     
-    print('*****************')
-    print(getOutputBinaryFilename())
-    print(ppGet('binaryFilename'))
-    print(data.project.binaryFilename)
-    print(ppGet('binaryFilename') or data.project.binaryFilename)
-    print(data.project.buildBinaryFilename)
-    print('*****************')
-    
-    --ppUpdate()
-    
     NESBuilder:setWorkingFolder()
     
     -- make sure folders exist for this project
@@ -1841,23 +1911,18 @@ function BuildProject()
         BuildProject_cmd()
         return
     end
-    print('** test0')
     if data.project.type == 'romhack' then
         print(data.project.rom.filename)
         print(data.project.rom.data)
         if data.project.rom.filename and not data.project.rom.data then
-            print('** test1')
             loadRom(data.project.rom.filename)
-            print('** test2')
             print('loading rom data')
             
             if not data.project.rom.data then return end
         end
-        print('** test3')
 
         -- export chr to rom and build binary
         exportAllChr()
-        print('** test4')
     end
     
     if ppGet('exportPalettes', 'bool') then
@@ -2040,7 +2105,7 @@ function BuildProject()
         -- Start assembling with sdasm
         print("Assembling with sdasm...")
         
-        local success, errorText = sdasm.assemble('project.asm', getOutputBinaryFilename(), 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'), romData)
+        local success, errorText = sdasm.assemble('project.asm', getOutputBinaryFilename(), 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'), romData, nil, nil, nil, "NESBuilder")
         if not success then
             data.buildFail = true
             print(errorText)
@@ -2164,7 +2229,6 @@ function BuildProject_cmd()
     filename = data.folders.projects..data.project.folder.."code/palettes.asm"
 
     out=""
-    
     local lowHigh = {{"low","<"},{"high",">"}}
     for i = 1,2 do
         out=out..string.format("Palettes_%s:\n",lowHigh[i][1])
@@ -2328,7 +2392,7 @@ function BuildProject_cmd()
                 
                 local fixPath = python.eval('fixPath2')
                 
-                sdasm.assemble('project.asm', getOutputBinaryFilename(), 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'))
+                sdasm.assemble('project.asm', getOutputBinaryFilename(), 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'), romData, nil, nil, nil, "NESBuilder")
             else
                 handlePluginCallback("onAssemble", data.project.assembler)
                 --print('invalid assembler '..data.project.assembler)
@@ -2430,23 +2494,48 @@ function LoadProject(templateFilename)
     data.project.binaryFilename = data.project.binaryFilename or "game.nes"
     
     -- use default palettes if not found
-    data.project.palettes = data.project.palettes or util.deepCopy(data.palettes)
+    --data.project.palettes = data.project.palettes or util.deepCopy(data.palettes)
     
-    --data.project.paletteSets = data.project.paletteSets or {}
+    data.project.paletteSets = data.project.paletteSets or {}
+--    data.project.paletteSets = data.project.paletteSets or {
+--        index = 0,
+--        {
+--            name = "palette set 00",
+--            palettes = {
+--            },
+--            index = 0,
+--        },
+--    }
+    data.project.paletteSets.index = data.project.paletteSets.index or 0
+    for i,pSet in ipairs(data.project.paletteSets) do
+        pSet.palettes = pSet.palettes or {}
+    end
     
-    data.project.paletteSets = {
-        index=0,
-        {
-            name = "default",
-            paletteIndex = {0,1,2,3,4,5,6,7,8},
-            index = 0,
-        },
-        {
-            name = "palette set two",
-            paletteIndex = {0,0,1,2,4},
-            index = 0,
-        },
-    }
+    if data.project.palettes then
+        -- convert old palettes to palette set format
+        local pSet = {
+          name = 'converted',
+          palettes = {
+          },
+          index = 0,
+        }
+        for i, item in ipairs_sparse(data.project.palettes) do
+            pSet.palettes[#pSet.palettes+1] = item
+        end
+        data.project.paletteSets[#data.project.paletteSets+1] = pSet
+        data.project.palettes = nil
+    end
+    
+    
+    if #data.project.paletteSets == 0 then
+        local pSet = {
+          name = 'main',
+          palettes = {
+          },
+          index = 0,
+        }
+        data.project.paletteSets[#data.project.paletteSets+1] = pSet
+    end
     
     if not data.project.mTileSets then
         data.project.mTileSets = {index=0}
@@ -2546,7 +2635,7 @@ function LoadProject(templateFilename)
     handlePluginCallback("onLoadProject")
     
     PaletteEntryUpdate()
-    updatePaletteSets(0)
+    updatePaletteSets()
     
     -- refresh metatile tile canvas
     local control = getControl('tsaTileCanvasQt')
@@ -2584,18 +2673,6 @@ function SaveProject()
     -- make sure folder exists for this project
     NESBuilder:makeDir(data.folders.projects..data.project.folder)
     
-    -- Convert python lists so they can be serialized.
---    print("converting chr...")
---    for i=0, #data.project.chr do
---        data.project.chr[i] = NESBuilder:listToTable(data.project.chr[i])
---    end
-    for i,v in ipairs(data.project.palettes) do
-        data.project.palettes[i] = NESBuilder:listToTable(data.project.palettes[i])
-    end
-    
-    -- make sure project properties update if the tab is open
-    --ppUpdate()
-    
     -- Convert symbols table
     print("converting symbols...")
     local d = getControl('symbolsTable1').getData()
@@ -2613,19 +2690,6 @@ function SaveProject()
         end
     end
     
---    local romData
---    if data.project.rom then
---        romData = data.project.rom.data
---        data.project.rom.data = nil
---    end
-    
-    --local toBytes = python.eval("lambda x:bytes(x).decode('utf')")
-    --if data.project.rom then
-        --romData = data.project.rom.data
-        --data.project.rom.data = toBytes(data.project.rom.data)
-        --data.project.rom.data = nil
-    --end
-    
     -- Save tabs
     data.project.visibleTabs = {}
     data.project.tabsList = {}
@@ -2637,21 +2701,11 @@ function SaveProject()
     
     handlePluginCallback("onSaveProject")
     
-    --print(type(data.project.screenTool.nameTable))
-    
     local time = python.eval("time.time")
     local t = time()
     
     local filename = data.folders.projects..data.project.folder.."project.dat"
     util.writeToFile(filename,0, util.serialize(data.project), true)
-    
-    --print(time()-t)
-    
-    --NESBuilder:writeToFile(filename, util.serialize(data.project))
-    
---    local filename2 = data.folders.projects..data.project.folder.."project2.dat"
---    NESBuilder:writeToFile(filename2, util.serialize(data.rom))
---    util.writeToFile(filename2,0, util.serialize(data.rom), true)
     
     if data.project.rom then
         data.project.rom.data = romData
@@ -3328,7 +3382,7 @@ function updateSquareoid()
     
     
     if (chrIndex or data.project.chr.index) ~= data.project.chr.index then
-        setChr(chrIndex)
+        --setChr(chrIndex)
     end
     
 --    local control = getControl("mTileList")
@@ -3352,7 +3406,8 @@ function updateSquareoid()
     
     data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] = data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] or {[0]=0,0,0,0}
     
-    local p = data.project.palettes[data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].palette or 0]
+    --local p = data.project.palettes[data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].palette or 0]
+    local p = currentPalette()
     
     local mtileOffsets = m.map or mTileSet.map or {[0]=0,2,1,3}
     --local mtileOffsets = data.project.mTileSets[data.project.mTileSets.index].map or {[0]=0,2,1,3}
@@ -3821,7 +3876,18 @@ function ppUpdate()
 end
 
 -- Convenience functions
-function currentPalette(n) return data.project.palettes[n or data.project.palettes.index] end
+function currentPalette(n)
+    local pSet = data.project.paletteSets[(n or data.project.paletteSets.index) + 1]
+    if not pSet then return {0x0f, 0x01, 0x11, 0x21} end
+    return pSet.palettes[(pSet.index or 0)+1] or {0x0f, 0x01, 0x11, 0x21}
+    
+    --return data.project.palettes[n or data.project.palettes.index]
+end
+function getPaletteSet(n)
+    local pSet = data.project.paletteSets[(n or data.project.paletteSets.index) + 1]
+    return pSet
+end
+
 function currentChr(n) return data.project.chr[n or data.project.chr.index] end
 function setChr(n) data.project.chr.index = n end
 function loadChr(f, n)
@@ -3904,6 +3970,7 @@ rstrip = pythonEval("lambda x:x.rstrip()")
 
 set = pythonEval("lambda *x:set([item for item in x])")
 bool = pythonEval("bool")
+range = pythonEval('range')
 
 -- Get integer keys from a list (including 0, sparse arrays)
 iKeys = pythonEval("lambda l:sorted([x for x in l if type(x)==int]) or False")
@@ -3912,6 +3979,16 @@ min = pythonEval("lambda x:min(x)")
 
 pyItems = pythonEval("lambda x: x.items()")
 function iterItems(x) return python.iter(pyItems(x)) end
+
+function numericOnly(t, base)
+    local newTable = {}
+    local i = base or 0
+    for _, item in ipairs_sparse(t) do
+        newTable[i] = item
+        i = i + 1
+    end
+    return newTable
+end
 
 function removeEmpty(t, base)
     local newTable = {}
@@ -4452,39 +4529,41 @@ function exportPalettes(filename)
     filename = data.folders.projects..data.project.folder..filename
     local out=""
     
-    out = out .. makePointerTable('Palettes', 'Palette', iLength(data.project.palettes))
+    out = out .. "; ========================================\n"
+    out = out .. "; Palettes\n"
+    out = out .. "; ========================================\n"
+    out = out .. makePointerTableNoSplit('PaletteSets', 'PalSet', iLength(data.project.paletteSets))
     
---    local lowHigh = {{"low","<"},{"high",">"}}
---    for i = 1,2 do
---        out=out..string.format("Palettes_%s:\n",lowHigh[i][1])
---        for palNum=0, #data.project.palettes do
---            if palNum == 0 then
---                out=out.."    .db "
---            elseif palNum % 4 == 0 then
---                out=out.."\n    .db "
---            else
---                out=out..", "
---            end
---            out=out..string.format("%sPalette%02x",lowHigh[i][2], palNum)
---            if palNum==#data.project.palettes then
---                out=out.."\n"
---            end
---        end
---        out=out.."\n"
---    end
     
-    for palNum=0, #data.project.palettes do
-        local pal = data.project.palettes[palNum]
-        out=out..string.format("Palette%02x: .db ",palNum)
-        for i=1,4 do
-            out=out..string.format("$%02x",pal[i])
-            if i==4 then
-                out=out.."\n"
-            else
-                out=out..", "
+    for k, pSet in ipairs(data.project.paletteSets) do
+        local palNum = k-1
+        out = out .. "; ----------------------------------------\n"
+        out = out .. string.format("; %s\n",pSet.name)
+        out = out .. "; ----------------------------------------\n"
+        
+        out = out .. makePointerTableNoSplit(string.format("PalSet%02x",palNum), string.format("PalSet%02x_",palNum), iLength(pSet.palettes))
+        
+        for index, pal in iterItems(pSet.palettes) do
+            out=out..string.format("PalSet%02x_%02x: db ", palNum, index-1)
+            for i=1,4 do
+                out=out..string.format("$%02x",pal[i])
+                if i==4 then
+                    out=out.."\n"
+                else
+                    out=out..", "
+                end
             end
         end
+        out=out.."\n"
     end
+    
+    -- for compatability
+--    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
+--    out = out .. "; ========================================\n"
+--    out = out .. string.format("; default palette / compatability\n; (%s)\n",pSet.name)
+--    out = out .. "; ========================================\n"
+    
+--    out = out .. makePointerTable('Palettes', string.format("PalSet%02x_",pSet.index), iLength(pSet.palettes))
     
     print("File created "..filename)
     util.writeToFile(filename,0, out, true)
@@ -4522,6 +4601,28 @@ function makePointerTable(mainLabel, subLabel, nItems)
         end
         out=out.."\n"
     end
+    return out
+end
+
+function makePointerTableNoSplit(mainLabel, subLabel, nItems)
+    local out = ''
+    subLabel = subLabel or mainLabel
+    
+    out=out..string.format("%s:\n",mainLabel)
+    for itemIndex=0, nItems-1 do
+        if itemIndex == 0 then
+            out=out.."    dw "
+        elseif itemIndex % 4 == 0 then
+            out=out.."\n    dw "
+        else
+            out=out..", "
+        end
+        out=out..string.format("%s%02x", subLabel, itemIndex)
+        if itemIndex==nItems-1 then
+            out=out.."\n"
+        end
+    end
+    out=out.."\n"
     return out
 end
 

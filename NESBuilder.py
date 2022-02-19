@@ -564,6 +564,12 @@ class ForLua:
         if not pattern:
             pattern = fixPath2('')+'*'
         return glob(pattern)
+    def folders(self, path=''):
+        p = pathlib.Path(path)
+        if p.is_dir():
+            return [x.parts[-1] for x in p.iterdir() if x.is_dir()]
+        else:
+            print(f'Error: not a folder: {path}')
     def findFile(self, filename, folderList=[]):
         # Search for files in this order:
         #   Exact match

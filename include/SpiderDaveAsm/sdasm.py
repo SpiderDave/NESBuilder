@@ -20,6 +20,7 @@ ToDo/Issues:
         * DONE *, should add tests
     * handle expressions in macro arguments
     * make it so insert shows added bytes in list file
+    * fix issue with using org in chr space as the first thing
 """
 
 from array import array
@@ -717,7 +718,7 @@ directives = [
     'if','ifdef','ifndef','else','elseif','endif','iffileexist','iffile',
     'arch','table','loadtable','cleartable','mapdb','clampdb',
     'index','mem','bank','lastbank','banksize','chrsize','header','noheader','stripheader',
-    'define', '_find',
+    'define', '_find','absorg',
     'seed','outputfile','listfile','textmap','text','insert','delete','truncate','printfile',
     'inesprg','ineschr','inesmir','inesmap','inesbattery','inesfourscreen',
     'inesworkram','inessaveram','ines2',
@@ -1731,7 +1732,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         print("Error: could not open file.")
         return False
     
-    print('sdasm {} by {}\n{}'.format(version.get('version'), version.get('author'), version.get('url')))
     print(dedent("""
     ------------------------------------------------------------
     WARNING: This project is currently in {} stage.
@@ -2274,6 +2274,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     # Don't let it have zero prg
                     header[4] = 1
                 out[0:16] = header
+                
+                # also set position back to start of header
+                bank = None
+                currentAddress = 0
+                addr = 0
             elif k == 'stripheader':
                 headerSize = 16
                 assembler.stripHeader = True
@@ -2288,6 +2293,11 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 # bank resets
                 currentAddress = 0x8000
                 addr = bank * bankSize
+            elif k == 'absorg':
+                v = getValue(line.split()[1].strip())
+                bank = None
+                currentAddress = 0
+                addr = v
             elif k == 'bank':
                 if rememberBankAddress and (bank != None):
                     assembler.bankData[bank] = assembler.bankData.get(bank, {})

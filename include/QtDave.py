@@ -123,6 +123,12 @@ def fix(item):
     else:
         return item
 
+def numericTableOrList(item):
+    if item.__class__.__name__ == '_LuaTable':
+        return [y for x,y in item.items() if type(x) == int]
+    else:
+        return item
+
 clamp = lambda value, minv, maxv: max(min(value, maxv), minv)
 def coalesce(*arg): return next((a for a in arg if a is not None), None)
 
@@ -923,7 +929,10 @@ class ClipOperations():
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
     def save(self, f, fmt="PNG"):
-        self.pixmap().scaled(self.width/self.scale, self.height/self.scale).save(f, fmt)
+        if hasattr(self, 'scale'):
+            self.pixmap().scaled(self.width/self.scale, self.height/self.scale).save(f, fmt)
+        else:
+            self.pixmap().scaled(self.width, self.height).save(f, fmt)
     def copy(self, x=0, y=0, w=False, h=False):
         """
         Copy pixmap to a "clipboard" type thing to later be
@@ -1143,7 +1152,10 @@ class PaletteControl(Base, QFrame):
     def setAll(self, colors):
         if not colors:
             return
-        colors = [x for _,x in colors.items()]
+        
+        # strip away non-numeric entries if it was a lua table
+        colors = numericTableOrList(colors)
+        
         for i, c in enumerate(colors):
             self.set(index=i, c=c)
     def highlight(self, h=False, cellNum=False):
@@ -1154,7 +1166,10 @@ class PaletteControl(Base, QFrame):
         else:
             self.setProperty('highlight', 'false')
             self.removeCssClass('highlight')
+    def clear(self):
+        self.setVisible(False)
     def set(self, index=0, c=0x0f):
+        self.setVisible(True)
         if not (0 <= c < len(nesPalette.get())):
             print('Invalid palette index {}'.format(c))
             c = 0
@@ -1350,8 +1365,8 @@ class NESPixmap(ClipOperations, Base, QPixmap):
             [0,0,255],
             ]
         
-        
-        palette = fix(palette)
+        palette = numericTableOrList(palette)
+        #palette = fix(palette)
         palette = [nesPalette.palette[x] for x in palette]
         pens = [QColor(*palette[x]) for x in range(4)]
         masks = []

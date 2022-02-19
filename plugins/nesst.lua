@@ -53,6 +53,8 @@ function plugin.onInit()
     control = NESBuilder:makeButton{x=x,y=y,w=30,h=buttonHeight, name="nesstCHR0",text="A", toggle=1, toggleSet = "chrAB"}
     x = x + control.width + pad
     control = NESBuilder:makeButton{x=x,y=y,w=30,h=buttonHeight, name="nesstCHR1",text="B", toggle=1, toggleSet = "chrAB"}
+    x = x + control.width + pad
+    control = NESBuilder:makeButton{x=x,y=y,w=30,h=buttonHeight, name="nesstCHRCurrent",text="*"}
     --control.setValue(1)
     y = y + control.height + pad
     x=pop()
@@ -128,6 +130,9 @@ end
 
 function plugin.nesstCHR0_cmd(t) nesstCHR(0) end
 function plugin.nesstCHR1_cmd(t) nesstCHR(1) end
+function plugin.nesstCHRCurrent_cmd(t)
+    nesstCHR(data.project.chr.index)
+end
 
 function plugin.onTabChanged(t)
     if t.window.name == "Main" then
@@ -143,8 +148,8 @@ end
 function plugin.loadDefault()
     local control,p,d,f,chr
     
-    if not data.project.chr then return end
-    if not data.project.palettes then return end
+    if not currentChr() then return end
+    if not getPaletteSet() then return end
     
     p=currentPalette()
     control = NESBuilder:getControlNew("nesstTileset")
@@ -288,12 +293,15 @@ function nesstRefreshScreen()
     
     local tile,p, attr,n
     
+    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
+    
     for y=0, control.rows-1 do
         for x=0, control.columns-1 do
             tile = plugin.data.nameTable[y*control.columns+x]
             n = NESBuilder:getAttribute(plugin.data.attrTable, x,y)
             
-            p = data.project.palettes[n]
+            --p = data.project.palettes[n]
+            p = pSet.palettes[n+1] or {0x0f, 0x01, 0x11, 0x21}
             control.drawTile(x*8,y*8, tile, currentChr(), p, control.columns, control.rows)
         end
         control.repaint()
@@ -315,8 +323,8 @@ function nesstRefreshScreen()
 
     -- Fixes an issue where the app stays open if you quit while refreshing.
     -- Need a better solution.
-    local main = NESBuilder:getControlNew('main')
-    if main.closing then NESBuilder:forceClose() end
+--    local main = NESBuilder:getControlNew('main')
+--    if main.closing then NESBuilder:forceClose() end
 end
 
 
@@ -391,7 +399,9 @@ function plugin.nesstCanvas_cmd(t)
         if event.button == 1 then
             plugin.data.nameTable[tileNum] = plugin.data.selectedTile or 0
             
-            NESBuilder:setAttribute(plugin.data.attrTable, tileX, tileY, data.project.palettes.index)
+            --NESBuilder:setAttribute(plugin.data.attrTable, tileX, tileY, data.project.palettes.index)
+            NESBuilder:setAttribute(plugin.data.attrTable, tileX, tileY, getPaletteSet().index)
+            
             
             control = NESBuilder:getControlNew("nesstCanvas")
             for x=0,1 do
@@ -421,9 +431,9 @@ function plugin.nesstCanvas_cmd(t)
 --            attr = a[i]
             
             local c = NESBuilder:getAttribute(plugin.data.attrTable, tileX, tileY)
-            if data.project.palettes.index ~=c then
-                
-                data.project.palettes.index = c
+            
+            if data.project.paletteSets[data.project.paletteSets.index+1].index ~=c then
+                data.project.paletteSets[data.project.paletteSets.index+1].index = c
                 
                 --plugin.paletteControls.select(data.project.palettes.index+1)
                 PaletteEntryUpdate()
@@ -444,8 +454,10 @@ function plugin.nesstPalette3_cmd(t) plugin.nesstPalette_cmd(t, t.control.data.i
 function plugin.nesstPalette4_cmd(t) plugin.nesstPalette_cmd(t, t.control.data.index-1) end
 
 function plugin.onPaletteChange()
+    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
     for i=0,3 do
-        plugin.paletteControls[i+1].setAll(data.project.palettes[i])
+        --plugin.paletteControls[i+1].setAll(data.project.palettes[i])
+        plugin.paletteControls[i+1].setAll(pSet.palettes[i+1])
         plugin.paletteControls[i+1].index = i
     end
 end
@@ -455,7 +467,9 @@ function plugin.nesstPalette_cmd(t, index)
     
     plugin.paletteControls.select(index+1, t.cellNum)
     
-    data.project.palettes.index = index
+    data.project.paletteSets[data.project.paletteSets.index+1].index = index
+    
+    --data.project.palettes.index = index
     
     PaletteEntryUpdate()
 end

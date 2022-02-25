@@ -47,18 +47,6 @@ function plugin.onInit()
     
     y = y + control.height + pad
     
-    push(x)
-    control=NESBuilder:makeLabelQt{x=x,y=y+3,clear=true,text="Pattern table"}
-    x = x + control.width + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=30,h=buttonHeight, name="nesstCHR0",text="A", toggle=1, toggleSet = "chrAB"}
-    x = x + control.width + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=30,h=buttonHeight, name="nesstCHR1",text="B", toggle=1, toggleSet = "chrAB"}
-    x = x + control.width + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=30,h=buttonHeight, name="nesstCHRCurrent",text="*"}
-    --control.setValue(1)
-    y = y + control.height + pad
-    x=pop()
-    
     p = {[0]=0x0f,0x0f,0x0f,0x0f}
     palette = {}
     for i=0,#p do
@@ -74,6 +62,7 @@ function plugin.onInit()
         control.setFont("Verdana", 10)
         x = x + control.width + pad
         control = NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="nesstPalette"..i, palette=palette}
+        control.helpText = "Click to select this palette"
         control.data.index = i
         table.insert(plugin.paletteControls, control)
         x = x + control.width + pad * 1.5
@@ -82,6 +71,7 @@ function plugin.onInit()
             y = y + control.height+pad
         end
     end
+    
     plugin.paletteControls.select = function(index, cell)
         for i,control in ipairs(plugin.paletteControls) do
             if i==index then
@@ -93,6 +83,13 @@ function plugin.onInit()
     end
     
     x=pop()
+    y = y + control.height+pad
+    
+    control = NESBuilder:makeCheckbox{x=x,y=y,name="nesstApplyTiles", text="Apply tiles", value=true}
+    control.helpText = "Apply tiles when drawing/selecting"
+    y = y + control.height+pad
+    control = NESBuilder:makeCheckbox{x=x,y=y,name="nesstApplyAttr", text="Apply attributes", value=true}
+    control.helpText = "Apply attributes when drawing/selecting"
     y = y + control.height+pad
     
 --    push(x)
@@ -113,6 +110,14 @@ function plugin.onInit()
 --    plugin.status = control
     
     plugin.loadDefault()
+end
+
+function nesstApplyTiles_cmd(t)
+    plugin.data.applyTiles = t.isChecked()
+end
+
+function nesstApplyAttr_cmd(t)
+    plugin.data.applyAttr = t.isChecked()
 end
 
 function plugin.testRefresh_cmd()
@@ -337,10 +342,10 @@ end
 
 function plugin.nesstTileset_cmd(t)
     local event = t.control.event
-    local x = math.floor(event.x/t.scale)
-    local y = math.floor(event.y/t.scale)
-    local mtileX = math.floor(x/8)
-    local mtileY = math.floor(y/8)
+    local x = event.x // t.scale
+    local y = event.y // t.scale
+    local mtileX = x // 8
+    local mtileY = y // 8
     local mtileNum = mtileY*16+mtileX
     
     if event and event.type == "ButtonPress" then
@@ -349,7 +354,7 @@ function plugin.nesstTileset_cmd(t)
         control.setCursor('pencil')
         --control.setCursor("pencil")
         plugin.data.selectedTile = mtileNum
-        print('Tile '..mtileNum)
+        printl('Tile ', mtileNum)
     end
 end
 
@@ -362,16 +367,16 @@ function plugin.nesstCanvas_cmd(t)
         return
     end
     local tile
-    local x = math.floor(event.x/t.scale)
-    local y = math.floor(event.y/t.scale)
+    local x = event.x // t.scale
+    local y = event.y // t.scale
     x,y=math.max(x,0),math.max(y,0)
     x,y=math.min(x,t.columns*8-1),math.min(y,t.rows*8-1)
     
-    local tileX = math.floor(x/8)
-    local tileY = math.floor(y/8)
-    local attrX = math.floor(tileX / 2)
-    local attrY = math.floor(tileY / 2)
-    local attrIndex = math.floor(tileY / 4) * 8 + math.floor(tileX / 4)
+    local tileX = x // 8
+    local tileY = y // 8
+    local attrX = tileX // 2
+    local attrY = tileY // 2
+    local attrIndex = tileY // 4 * 8 + tileX // 4
     
     local tileNum = tileY*t.columns+tileX
     
@@ -395,52 +400,43 @@ function plugin.nesstCanvas_cmd(t)
     end
     
     if (plugin.data.tool or "draw") == "draw" then
-        --if t.event.button == 1 then
         if event.button == 1 then
-            plugin.data.nameTable[tileNum] = plugin.data.selectedTile or 0
-            
-            --NESBuilder:setAttribute(plugin.data.attrTable, tileX, tileY, data.project.palettes.index)
-            NESBuilder:setAttribute(plugin.data.attrTable, tileX, tileY, getPaletteSet().index)
-            
+            local c = NESBuilder:getAttribute(plugin.data.attrTable, tileX, tileY)
+            if plugin.data.applyTiles then
+                plugin.data.nameTable[tileNum] = plugin.data.selectedTile or 0
+            end
+            if plugin.data.applyAttr then
+                NESBuilder:setAttribute(plugin.data.attrTable, tileX, tileY, getPaletteSet().index)
+            end
             
             control = NESBuilder:getControlNew("nesstCanvas")
+            
             for x=0,1 do
                 for y=0,1 do
                     tile = plugin.data.nameTable[(attrY*2+y)*t.columns+(attrX*2+x)]
-                    control.drawTile((attrX*2+x)*8,(attrY*2+y)*8, tile, currentChr(), currentPalette(), 32,32)
+                    control.drawTile((attrX*2+x)*8,(attrY*2+y)*8, tile, currentChr(), currentPalette(c), 32,32)
                 end
             end
             control.repaint()
         end
         
         if event.button == 2 then
-            plugin.data.selectedTile = plugin.data.nameTable[tileNum]
-            --print(string.format("%04b",plugin.data.attrTable[attrY*4+attrX]))
-            
-            local bin = python.eval('lambda x:"{0:08b}".format(x)')
-            print(bin(plugin.data.attrTable[attrY*4+attrX]))
-            
---            local x1= math.floor(x/32)
---            local y1= math.floor(y/32)
---            local attr = plugin.data.attrTable[y1*8+x1]
---            local a = {}
---            for i = 0,3 do
---                a[i] = math.floor(attr/(2^(i*2))) % 4
---            end
---            local i = (tileY % 2)*2+(tileX % 2)
---            attr = a[i]
-            
-            local c = NESBuilder:getAttribute(plugin.data.attrTable, tileX, tileY)
-            
-            if data.project.paletteSets[data.project.paletteSets.index+1].index ~=c then
-                data.project.paletteSets[data.project.paletteSets.index+1].index = c
-                
-                --plugin.paletteControls.select(data.project.palettes.index+1)
-                PaletteEntryUpdate()
+            if plugin.data.applyTiles then
+                plugin.data.selectedTile = plugin.data.nameTable[tileNum]
+                printl("selected tile:", plugin.data.selectedTile)
+                --print(bin(plugin.data.attrTable[attrY*4+attrX]))
             end
-            
-            print("selected tile "..plugin.data.selectedTile)
-            print("palette: "..c)
+            if plugin.data.applyAttr then
+                local c = NESBuilder:getAttribute(plugin.data.attrTable, tileX, tileY)
+                
+                if data.project.paletteSets[data.project.paletteSets.index+1].index ~=c then
+                    data.project.paletteSets[data.project.paletteSets.index+1].index = c
+                    
+                    --plugin.paletteControls.select(data.project.palettes.index+1)
+                    PaletteEntryUpdate()
+                end
+                printl("selected palette:", c)
+            end
         end
     end
 end
@@ -534,6 +530,8 @@ function plugin.onSaveProject()
         nameTable = NESBuilder:listToTable(plugin.data.nameTable),
         attrTable = NESBuilder:listToTable(plugin.data.attrTable),
         selectedTile = plugin.data.selectedTile,
+        applyTiles = plugin.data.applyTiles,
+        applyAttr = plugin.data.applyAttr,
     }
 end
 
@@ -541,6 +539,8 @@ function plugin.onLoadProject()
     plugin.data.nameTable = nil
     plugin.data.attrTable = nil
     plugin.data.selectedTile = 0
+    plugin.data.applyTiles = true
+    plugin.data.applyAttr = true
     control = NESBuilder:getControlNew("nesstCanvas")
     control.clear()
 
@@ -548,7 +548,11 @@ function plugin.onLoadProject()
         plugin.data.nameTable = NESBuilder:tableToList(data.project.screenTool.nameTable,0)
         plugin.data.attrTable = NESBuilder:tableToList(data.project.screenTool.attrTable,0)
         plugin.data.selectedTile = data.project.screenTool.selectedTile
+        plugin.data.applyTiles = data.project.screenTool.applyTiles
+        plugin.data.applyAttr = data.project.screenTool.applyAttr
     end
+    getControl('nesstApplyTiles').setChecked(bool(plugin.data.applyTiles))
+    getControl('nesstApplyAttr').setChecked(bool(plugin.data.applyAttr))
 end
 
 function plugin.onTabChanged(t)

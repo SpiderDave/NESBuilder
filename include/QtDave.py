@@ -19,8 +19,12 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
         QSlider, QSpinBox, QStyleFactory, QTableWidget, QTabWidget, QTextEdit,
         QVBoxLayout, QWidget, QAction, QMainWindow, QMessageBox, QFileDialog, 
         QInputDialog, QErrorMessage, QFrame, QPlainTextEdit, QListWidget, QListWidgetItem,
-        QVBoxLayout,QTableWidgetItem, QMenu, QScrollArea
+        QVBoxLayout,QTableWidgetItem, QMenu, QScrollArea, QListView
         )
+
+#from PyQt5.QtWidgets import QColorDialog
+from PyQt5.QtWidgets import QFontDialog
+from PyQt5.Qt import QStaticText
 
 from PyQt5.Qsci import QsciScintilla, QsciLexerCustom
 
@@ -225,6 +229,43 @@ class Base_Light():
             self.resize(super().width(), v)
         else:
             super().__setattr__(key,v)
+    def setCssClass(self, value):
+        super().setProperty('class', value.strip())
+    def getCssClass(self):
+        return super().property('class')
+    def addCssClass(self, value):
+        value = value.strip()
+        classes = super().property('class') or ''
+        
+        if value.lower() in classes.lower().split():
+            pass
+        else:
+            super().setProperty('class', classes+" "+value)
+            self.update()
+    def removeCssClass(self, value):
+        value = value.strip()
+        classes = super().property('class') or ''
+        
+        if value.lower() in classes.lower().split():
+            classes = ' '.join([x for x in classes.split() if x.lower()!=value.lower()])
+            super().setProperty('class', classes)
+            self.update()
+
+
+class Sizing():
+    def move(self, x,y):
+        if not x:
+            x = 0
+        if not y:
+            y = 0
+        super().move(int(x),int(y))
+    def resize(self, w=False,h=False):
+        if not w:
+            w = self.sizeHint().width()*1.5
+        if not h:
+            h = self.sizeHint().height()*1.2
+        super().resize(int(w),int(h))
+
 
 class Base():
     def __init__(self, *args, **kw):
@@ -365,7 +406,7 @@ class Base():
         c = cursors.get(cursor)
         if c:
             filename = c.get('filename', False)
-            print(filename)
+            #print(filename)
             if filename:
                 x,y = c.get('hotspot')
                 super().setCursor(QtGui.QCursor(QtGui.QPixmap(filename),x,y))
@@ -444,9 +485,7 @@ class Base():
                     if func:
                         func()
 
-
-
-class ComboBox(Base, QComboBox):
+class ComboBox(Sizing, Base_Light, QComboBox):
     def __getattribute__(self, key):
         if key == 'value':
             return super().currentText()
@@ -459,6 +498,45 @@ class ComboBox(Base, QComboBox):
             self.setCurrentIndex(self.findText(txt))
         except:
             pass
+    def showEvent(self, *args, **kwargs):
+        # this is awkward.  fixes some display issues, but
+        # breaks getting the proper height
+#        w = self.width
+#        self.resize(w)
+        super().showEvent(*args, **kwargs)
+
+class MenuBox(ComboBox):
+    def __getattribute__(self, key):
+        if key == 'helpText':
+            return self.labelCtrl.helpText
+        else:
+            return super().__getattribute__(key)
+    def menuActivate(self, event):
+        self.setCurrentIndex(-1)
+        self.hidePopup()
+        self.showPopup()
+    def init(self, t):
+        view = QListView()
+        view.setFixedWidth(200)
+        self.setView(view)
+        self.SizeAdjustPolicy(QComboBox.AdjustToContentsOnFirstShow)
+        super().init(t)
+        
+        self.addCssClass('menubox')
+        self.hide()
+        
+        ctrl = Label(t.text or '', self.parent())
+        ctrl.autoSize = False
+        ctrl.removeCssClass("label")
+        ctrl.init(t)
+        ctrl.resize(None, self.height)
+        ctrl.addCssClass("menubox_menu")
+        ctrl.onMousePress = self.menuActivate
+        self.labelCtrl = ctrl
+    def showEvent(self, *args, **kwargs):
+        self.resize(w)
+        super().showEvent(*args, **kwargs)
+
 
 class LineEdit(Base, QLineEdit):
     def __init__(self, *args, **kw):
@@ -890,7 +968,9 @@ class Dialog():
         d = QInputDialog(None, Qt.WindowCloseButtonHint)
         
         text, okPressed = d.getText(None, title, label, QLineEdit.Normal, defaultText)
-        if okPressed and text != '':
+        
+        #if okPressed and text != '':
+        if okPressed:
             return text.strip()
         else:
             return False
@@ -922,6 +1002,10 @@ class Painter(QPainter):
             for y in range(256):
                 self.setPen(QColor(randrange(0,255), randrange(0,255), randrange(0,255)))
                 self.drawPoint(x, y)
+    def test4(self):
+        self.setPen(QColor(168,34,3))
+        self.setFont(QFont('Decorative', 10))
+        self.drawText("test")
 
 QPixmap = QPixmap
 
@@ -1042,6 +1126,18 @@ class Canvas(ClipOperations, Base, QLabel):
         p=Painter(self.pixmap())
         p.drawPixmap(QRect(0,0,self.width,self.height), pix)
         p.end()
+        self.repaint()
+    def testText(self, font = None):
+        if not font:
+            #font = QFont('Decorative', 10)
+            font = QFont('MV Boli', 24)
+        painter = Painter(self.pixmap())
+        painter.scale(self.scale, self.scale)
+        painter.setPen(QColor(255,255,255))
+        painter.setFont(font)
+        #painter.drawText(QRect(0,0,self.width,self.height), Qt.AlignTop | Qt.AlignLeft, 'test')
+        painter.drawStaticText(0,0, QStaticText('test'))
+        painter.end()
         self.repaint()
     def changeColor(self):
         pix = self.pixmap()
@@ -1271,12 +1367,15 @@ class NESPixmap(ClipOperations, Base, QPixmap):
     def loadCHRFromImage(self, filename, colors = False):
         colors = fix(colors)
         
+        img = None
         if filename:
-            if not self.load(filename):
-                print("could not load image")
-                return False
-        
-        img = self.toImage()
+            if isinstance(filename, str):
+                if not self.load(filename):
+                    print("could not load image")
+                    return False
+                img = self.toImage()
+            else:
+                img = filename
         
         w = math.floor(self.width/8)*8
         h = math.floor(self.height/8)*8
@@ -1381,6 +1480,18 @@ class NESPixmap(ClipOperations, Base, QPixmap):
                     r = QRect(x*16,y*16,16,16)
                     painter.drawPixmap(r, mask, r)
         painter.end()
+    def testText(self, font = None, text='', x=0, y=0, color=False):
+        if not font:
+            font = QFont('MV Boli', 24)
+            font.setStyleStrategy(QFont.NoAntialias)
+        painter = Painter(self)
+#        painter.scale(self.scale, self.scale)
+        painter.setPen(QColor(*color))
+        painter.setFont(font)
+        #painter.drawText(QRect(0,0,self.width,self.height), Qt.AlignTop | Qt.AlignLeft, 'test')
+        painter.drawStaticText(x,y, QStaticText(text))
+        painter.end()
+#        self.repaint()
 
 class listItemLabel(Label, QListWidgetItem):pass
 

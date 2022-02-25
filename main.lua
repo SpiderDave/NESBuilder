@@ -174,12 +174,7 @@ function init()
     }
     control = NESBuilder:makeMenuQt{name="menuFile", text="File", menuItems=items}
     
-    items = {
-        {name="hFlip", text="\u{2194} Flip tile horizontally"},
-        {name="vFlip", text="\u{2195} Flip tile vertically"},
-    }
-    control = NESBuilder:makeMenuQt{name="menuEdit", text="Edit", menuItems=items}
-    
+    control = NESBuilder:makeMenuQt{name="menuEdit", text="Edit", menuItems={}}
     
     --control.control.setEnable(false)
     --local f = python.eval("lambda x: x[0]")
@@ -259,13 +254,7 @@ function init()
     x=x+control.width
     y=y+control.height+pad
     
-    local menuItems = {
-        {name='cut', action = function() canvasTileAction('cut') end},
-        {name='copy', action = function() canvasTileAction('copy') end},
-        {name='paste', action = function() canvasTileAction('paste') end},
-    }
-    
-    control = NESBuilder:makeCanvasQt{x=x,y=y,w=8,h=8,name="canvasTile", scale=8}
+    control = NESBuilder:makeCanvasQt{x=x,y=y,w=8,h=8,name="canvasTile", scale=10}
     control.helpText = "Left-click: apply color, right-click: select color"
     control.setCursor('pencil')
     
@@ -274,7 +263,21 @@ function init()
     
     x=x-control.width
     y=y+control.height + pad
-    b=NESBuilder:makeButton{x=x,y=y,w=20,h=20,name="buttonCanvasTileActions",text="\u{25bc}", contextMenuItems = menuItems}
+    local itemList = {
+        "Cut",
+        "Copy",
+        "Paste",
+        "\u{2194} Flip Tile Horizontally",
+        "\u{2195} Flip Tile Vertically",
+        "Shift Tile Up",
+        "Shift Tile Down",
+        "Shift Tile Left",
+        "Shift Tile Right",
+    }
+    control = NESBuilder:makeMenuBox{x=x,y=y, name="buttonCanvasTileActions", text="actions \u{25bc}", itemList = itemList}
+    control.helpText = "Tile actions"
+    
+    
     
     x,y = left,top
     
@@ -300,27 +303,27 @@ function init()
     
     local buttonHeight = config.buttonHeight
     
-    control = NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="SpinChangePalette"}
+    --control = NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="SpinChangePalette"}
     
-    x = left
-    y = y + control.height + pad
+    --x = left
+    --y = y + control.height + pad
     
-    p = {[0]=0x0f,0x21,0x11,0x01}
-    palette = {}
-    for i=0,#p do
-        palette[i] = getNESPalette()[p[i]]
-    end
-    control=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="PaletteEntryQt", palette=palette}
-    control.helpText = "Click to apply a color, right click to select a color"
+--    p = {[0]=0x0f,0x21,0x11,0x01}
+--    palette = {}
+--    for i=0,#p do
+--        palette[i] = getNESPalette()[p[i]]
+--    end
+--    control=NESBuilder:makePaletteControlQt{x=x,y=y,cellWidth=config.cellWidth,cellHeight=config.cellHeight, name="PaletteEntryQt", palette=palette}
+--    control.helpText = "Click to apply a color, right click to select a color"
     
-    push(y+control.height+pad)
+    --push(y+control.height+pad)
 
-    x=x+control.width+pad
-    c=NESBuilder:makeLabelQt{x=x,y=y+pad,name="PaletteEntryLabelQt",clear=true,text="foobar"}
-    c.setFont("Verdana", 10)
+--    x=x+control.width+pad
+--    c=NESBuilder:makeLabelQt{x=x,y=y+pad,name="PaletteEntryLabelQt",clear=true,text="foobar"}
+--    c.setFont("Verdana", 10)
 
-    x=left
-    y=pop()
+--    x=left
+--    y=pop()
     
 --    for i=0,#p do
 --        palette[i] = getNESPalette()[p[i]]
@@ -328,21 +331,24 @@ function init()
     
     y=y+pad
     
-    control = NESBuilder:makeComboBox{x=x,y=y,w=buttonWidth, name="paletteSet", itemList = {'set 0','set 1'}}
-    control.helpText = "Select a palette set"
-    x = x + control.width + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth*.4,name="newPaletteSet",text="New"}
-    control.helpText = "Create a new palette set"
-    x = x + control.width + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth*.4,name="renamePaletteSet",text="Rename"}
-    control.helpText = "Rename palette set"
-    x = x + control.width + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth*.4,name="deletePaletteSet",text="Delete"}
-    control.helpText = "Delete palette set"
-    x = left
+    local itemList = {
+        "New",
+        "Rename",
+        "Delete",
+        "Move Up",
+        "Move Down",
+        "Duplicate",
+    }
+    control = NESBuilder:makeMenuBox{x=x,y=y, name="paletteSetActions", text="actions \u{25bc}", itemList = itemList}
+    control.helpText = "Palette set actions"
     y = y + control.height + pad
     
-    local scroll = NESBuilder:makeScrollFrame{x=x,y=y,w=300,h=400,name='scrollArea1'}
+    control = NESBuilder:makeComboBox{x=x,y=y,w=400, name="paletteSet", itemList = {'set 0','set 1'}}
+    control.helpText = "Select a palette set"
+    y = y + control.height + pad
+    
+    x = left
+    local scroll = NESBuilder:makeScrollFrame{x=x,y=y,w=400,h=400,name='scrollArea1'}
     NESBuilder:setContainer(scroll.frame)
     y=pad
     x=left
@@ -377,6 +383,11 @@ function init()
         y = scroll.y() + scroll.height + pad
         x = left
         control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,name="test",text="test"}
+        y = y + control.height + pad
+--        local control = pythonEval('QtDave.QComboBox')(NESBuilder:getTabQt())
+--        control.move(x,y)
+--        control.resize(buttonWidth, buttonHeight)
+--        control.addItems(list('item 1', 'item 2', 'item 3'))
     end
     
     
@@ -812,7 +823,6 @@ function onReady()
     else
         NESBuilder:switchTab("Launcher")
     end
-
 end
 
 function toggleTab(n, visible, switchTo)
@@ -977,11 +987,53 @@ function ButtonMakeCHR_cmd()
 end
 
 function test2_cmd()
-    print(data.project.chr.index)
+    --print(data.project.chr.index)
+    
+    local font = pythonEval('QtDave.QFontDialog').getFont()
+    font.setStyleStrategy(pythonEval('QtDave.QFont.NoAntialias'))
+    --getControl('canvasQt').testText(font)
+    --getControl('canvasQt').testText()
+    
+    
+    -- create a surface
+    local surface = NESBuilder:makeNESPixmap(128,128)
+    
+    -- load blank chr
+    --surface.loadCHR()
+    
+    -- load current chr data
+    surface.loadCHR(getChrData())
+    
+    local args = {text='Title', color=list(0,255,0), font=font}
+    pythonEval('lambda x, y:x(**y)')(surface.testText, args)
+    
+    -- get chr data and store in selected project bank
+    local chr = surface.loadCHRFromImage(surface.toImage(), NESBuilder:getNESmakerColors())
+    
+    local control = NESBuilder:getControl("canvasQt")
+    
+    -- apply current palette to it
+    surface.applyPalette(currentPalette())
+    
+    -- paste the surface on our canvas (it will be sized to fit)
+    control.paste(surface)
+    
+    setChrData(chr)
+    --refreshCHR()
 end
 
 function test_cmd()
-    print(NESBuilder:folders(data.folders.projects))
+    --print(NESBuilder:folders(data.folders.projects))
+    
+--    local control = pythonEval('QtDave.QComboBox')(NESBuilder:getTabQt())
+--    control.move(x,y)
+--    control.resize(buttonWidth, buttonHeight)
+--    control.addItems(list('item 1', 'item 2', 'item 3'))
+
+    --print(pythonEval('QtDave.QFontDialog').getFont())
+    
+    --getControl('canvasQt').create_text{10,10,fill="darkblue",font="Times 20 italic bold", text="text!"}
+    --getControl('canvasQt').testText()
 end
 
 
@@ -1063,6 +1115,19 @@ function Palette_cmd(t, index)
     updatePaletteLabels()
 end
 
+
+function paletteLabel_cmd(t)
+    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
+    
+    local n = askText('Palette Description', 'Enter a description for the palette.', pSet.palettesDesc[t.index] or '')
+    print(n)
+    if n then
+        if n == '' then n = nil end
+        data.project.paletteSets[data.project.paletteSets.index+1].palettesDesc[t.index] = n
+        paletteControl[t.index].labelControl.setText(pSet.palettesDesc[t.index] or '---')
+    end
+end
+
 function paletteLabelLeft_cmd(t)
     local event = t.control.event
     
@@ -1096,7 +1161,8 @@ function paletteLabelLeft_cmd(t)
 end
 
 function updatePaletteLabels()
-    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
+    local pSet = data.project.paletteSets[data.project.paletteSets.index+1] or {index=0, palettes={}}
+    
     local selectedIndex = pSet.index
     
     for i = 0, #paletteControl do
@@ -1118,64 +1184,67 @@ function updatePaletteLabels()
 end
 
 function PaletteEntryUpdate()
-    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
-    
-    local control = getControl('SpinChangePalette')
-    
-    control.max = #pSet.palettes-1
-    control.value = pSet.index
-    
-    p=currentPalette()
-    
-    getControl('PaletteEntryQt').setAll(p)
-    getControl('CHRPalette').setAll(p)
-    
-    c = getControl('PaletteEntryLabelQt')
-    --c.text = string.format("Palette%02x",data.project.palettes.index)
-    c.text = string.format("Palette%02x",pSet.index)
-    
+    getControl('CHRPalette').setAll(currentPalette())
     updatePaletteLabels()
-    
     handlePluginCallback("onPaletteChange")
-    
     refreshCHR()
 end
 
-function deletePaletteSet_cmd()
+function paletteSetActions_cmd(t)
+    local action = t.itemList[t.control.index+1]
     local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
-    if NESBuilder:askYesNoCancel("Delete palette set", string.format('Are you sure you want to delete palette set\n"%s"?', pSet.name)) then
-        table.remove(data.project.paletteSets, data.project.paletteSets.index+1)
-        
-        if (data.project.paletteSets.index > 0) and (data.project.paletteSets.index == #data.project.paletteSets) then
-            data.project.paletteSets.index = #data.project.paletteSets - 1
-        end
-        
-        updatePaletteSets()
-    end
-end
-
-function renamePaletteSet_cmd()
-    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
-    local n = askText('Rename Palette Set', 'Enter a new name for the palette set.', pSet.name)
-    if n then
-        data.project.paletteSets[data.project.paletteSets.index+1].name = n
-    end
-    updatePaletteSets()
-end
-
-function newPaletteSet_cmd(t)
-    local control
-    local n = askText('New Palette Set', 'Enter a name for the palette set.', string.format("palette set test %02x", #data.project.paletteSets))
-    if n then
+    print(action)
+    
+    if action == "New" then
+        local n = askText('New Palette Set', 'Enter a name for the palette set.', string.format("palette set test %02x", #data.project.paletteSets))
+        if not n then return end
         local pSet = {
           name = n,
-          palettes = {
-          },
+          palettes = {},
+          palettesDesc = {},
           index = 0,
         }
         data.project.paletteSets[#data.project.paletteSets+1] = pSet
         updatePaletteSets(#data.project.paletteSets-1)
+        return
+    elseif action == "Rename" then
+        if not pSet then return end
+        local n = askText('Rename Palette Set', 'Enter a new name for the palette set.', pSet.name)
+        if not n then return end
+        data.project.paletteSets[data.project.paletteSets.index+1].name = n
+    elseif action == "Delete" then
+        if not pSet then return end
+        if NESBuilder:askYesNoCancel("Delete palette set", string.format('Are you sure you want to delete palette set\n"%s"?', pSet.name)) then
+            table.remove(data.project.paletteSets, data.project.paletteSets.index+1)
+            if (data.project.paletteSets.index > 0) and (data.project.paletteSets.index == #data.project.paletteSets) then
+                data.project.paletteSets.index = #data.project.paletteSets - 1
+            end
+        else
+            return
+        end
+    elseif action == "Move Up" then
+        if not pSet then return end
+        local index = data.project.paletteSets.index
+        if (index == 0) then return end
+        data.project.paletteSets[index], data.project.paletteSets[index+1] = data.project.paletteSets[index+1], data.project.paletteSets[index]
+        data.project.paletteSets.index = index - 1
+    elseif action == "Move Down" then
+        if not pSet then return end
+        local index = data.project.paletteSets.index
+        if (index+1 >= #data.project.paletteSets) then return end
+        
+        data.project.paletteSets[index+2], data.project.paletteSets[index+1] = data.project.paletteSets[index+1], data.project.paletteSets[index+2]
+        data.project.paletteSets.index = index + 1
+    elseif action == "Duplicate" then
+        if not pSet then return end
+        
+        local n = askText('New Palette Set', 'Enter a name for the palette set.', pSet.name .. ' copy')
+        if not n then return end
+        data.project.paletteSets[#data.project.paletteSets+1] = util.deepCopy(pSet)
+        updatePaletteSets(#data.project.paletteSets-1)
+        return
     end
+    updatePaletteSets()
 end
 
 function paletteSet_cmd(t)
@@ -1196,6 +1265,7 @@ function updatePaletteSets(index)
     for i, item in ipairs(data.project.paletteSets) do
         control.addItem(item.text or item.name)
     end
+    
     control.setCurrentIndex(index)
     data.project.paletteSets.index = index
     paletteListUpdate()
@@ -1210,7 +1280,7 @@ function paletteListUpdate()
         
         if pSet and pSet.palettes[i+1] then
             c.setAll(pSet.palettes[i+1])
-            v.labelControl.setText('???')
+            v.labelControl.setText(pSet.palettesDesc[i] or '---')
         else
             c.setAll({[0]=0x0f,0x0f,0x0f,0x0f})
             c.clear()
@@ -1226,12 +1296,12 @@ function paletteListUpdate()
     updatePaletteLabels()
 end
 
-function SpinChangePalette_cmd(t)
-    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
+--function SpinChangePalette_cmd(t)
+--    local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
     
-    data.project.paletteSets[data.project.paletteSets.index+1].index = t.control.value
-    PaletteEntryUpdate()
-end
+--    data.project.paletteSets[data.project.paletteSets.index+1].index = t.control.value
+--    PaletteEntryUpdate()
+--end
 
 function ButtonPrevPalette_cmd()
     local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
@@ -1300,7 +1370,7 @@ function NewProject_cmd()
         end
     end
 
-    n = NESBuilder:askText("New Project", "Please enter a name for the project")
+    n = askText("New Project", "Please enter a name for the project")
     if (not n) or n=='' then
         print('cancelled')
         return
@@ -1776,7 +1846,7 @@ function Save_cmd() SaveProject() end
 
 function SaveAs_cmd()
     local n, f
-    n = NESBuilder:askText("Save As", "Please enter a name for the project")
+    n = askText("Save As", "Please enter a name for the project")
     if (not n) or n=='' then
         print('cancelled')
         return
@@ -1809,7 +1879,7 @@ end
 
 function loadTemplate(templateFileName)
     local n, f
-    n = NESBuilder:askText("New Project", "Please enter a name for the project")
+    n = askText("New Project", "Please enter a name for the project")
     if (not n) or n=='' then
         print('cancelled')
         return
@@ -2509,14 +2579,15 @@ function LoadProject(templateFilename)
     data.project.paletteSets.index = data.project.paletteSets.index or 0
     for i,pSet in ipairs(data.project.paletteSets) do
         pSet.palettes = pSet.palettes or {}
+        pSet.palettesDesc = pSet.palettesDesc or {}
     end
     
     if data.project.palettes then
         -- convert old palettes to palette set format
         local pSet = {
           name = 'converted',
-          palettes = {
-          },
+          palettes = {},
+          palettesDesc = {},
           index = 0,
         }
         for i, item in ipairs_sparse(data.project.palettes) do
@@ -2530,8 +2601,8 @@ function LoadProject(templateFilename)
     if #data.project.paletteSets == 0 then
         local pSet = {
           name = 'main',
-          palettes = {
-          },
+          palettes = {},
+          palettesDesc = {},
           index = 0,
         }
         data.project.paletteSets[#data.project.paletteSets+1] = pSet
@@ -2739,20 +2810,20 @@ function PaletteEntry_cmd(t)
 end
 
 function PaletteEntryQt_cmd(t)
-    local event = t.cell.event
-    local p
-    if event.button == 2 then
-        print(string.format("Selected palette %02x",t.cellNum))
-        p=currentPalette()
-        data.selectedColor = p[t.cellNum+1]
-    elseif event.button == 1 then
-        print(string.format("Set palette %02x",data.selectedColor or 0x0f))
-        p=data.project.palettes[data.project.palettes.index]
-        p[t.cellNum+1] = data.selectedColor
-        t.setAll(p)
-        refreshCHR()
-        dataChanged()
-    end
+--    local event = t.cell.event
+--    local p
+--    if event.button == 2 then
+--        print(string.format("Selected palette %02x",t.cellNum))
+--        p=currentPalette()
+--        data.selectedColor = p[t.cellNum+1]
+--    elseif event.button == 1 then
+--        print(string.format("Set palette %02x",data.selectedColor or 0x0f))
+--        p=data.project.palettes[data.project.palettes.index]
+--        p[t.cellNum+1] = data.selectedColor
+--        t.setAll(p)
+--        refreshCHR()
+--        dataChanged()
+--    end
 end
 
 function PaletteList_cmd(t)
@@ -3054,7 +3125,7 @@ function renameMTileSet()
 
     local n = askText('Rename Metatile Set', 'Enter a new name for the metatile set.')
     local index = data.project.mTileSets.index
-    if n then
+    if n and (n~='') then
         data.project.mTileSets[index].name = n
         control.item(index).setText(n)
     end
@@ -3425,8 +3496,13 @@ function updateSquareoid()
     end
     
     local tile = mTileSet[mTileSet.index]
+    
     local txt = data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].desc
-    getControl('metatileName').setText(txt)
+    if txt == '' then
+        txt = nil
+        data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].desc = txt
+    end
+    getControl('metatileName').setText(txt or "---")
     
     local offset = tile.offset or mTileSet.offset or {x=0, y=0}
     getControl('metatileOffset').setText(string.format('offset: (%d, %d)', offset.x, offset.y))
@@ -3496,9 +3572,11 @@ function metatileName_cmd(t)
         local defaultText = data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].desc
         local txt = askText('Metatile Description', 'Enter a new description for this metatile.', defaultText)
         local index = data.project.mTileSets.index
+        
         if txt then
-            control.setText(txt)
+            if txt == '' then txt = nil end
             data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].desc = txt
+            control.setText(txt or "---")
         end
     end
 end
@@ -3604,12 +3682,10 @@ function MainQttabs_cmd(t,a)
     
 end
 
-function hFlip_cmd()
-    local tile = data.selectedTile
-    local tileOffset = 16*tile
+function hFlip()
+    local tileOffset = 16*data.selectedTile
+    local y
     
-    local y=0
-    local c=0
     for y=0,7 do
         for i = 0,1 do
             local b = data.project.chr[data.project.chr.index][tileOffset+((i)*8)+y%8]
@@ -3619,12 +3695,9 @@ function hFlip_cmd()
     refreshCHR()
 end
 
-function vFlip_cmd()
-    local tile = data.selectedTile
-    local tileOffset = 16*tile
-    
-    local y=0
-    local c=0
+function vFlip()
+    local tileOffset = 16*data.selectedTile
+    local y
     local bytes = {}
     
     for y=0,7 do
@@ -3641,18 +3714,76 @@ function vFlip_cmd()
     refreshCHR()
 end
 
-function canvasTileAction(t, action)
-    print(t)
-    print(action)
-end
-
 function buttonCanvasTileActions_cmd(t)
-    local t = NESBuilder:showInfo('Info', 'Use right-click until I can figure out how to put this on left-click.')
-    if (not t) or t=='' then
-        print('cancelled')
-        return
+    local y
+    local tileOffset = 16*data.selectedTile
+    local action = t.itemList[t.control.index+1]
+    print(action)
+    
+    if action == "\u{2194} Flip Tile Horizontally" then
+        hFlip()
+    elseif action == "\u{2195} Flip Tile Vertically" then
+        vFlip()
     end
-    return t
+
+    if (action == "Copy") or (action == "Cut") then
+        local tileData = {}
+        for y=0,7 do
+            for i = 0,1 do
+                local b = data.project.chr[data.project.chr.index][tileOffset+((i)*8)+y%8]
+                table.insert(tileData, b)
+            end
+        end
+        data.tileCopyData = tileData
+    elseif action == "Paste" then
+        for y=0,7 do
+            for i = 0,1 do
+                local b = data.tileCopyData[y*2+i+1]
+                data.project.chr[data.project.chr.index][tileOffset+((i)*8)+y%8] = b
+            end
+        end
+    end
+    
+    if (action == "Delete") or (action == "Cut") then
+        for y=0,7 do
+            for i = 0,1 do
+                data.project.chr[data.project.chr.index][tileOffset+((i)*8)+y%8] = 0
+            end
+        end
+    end
+    
+    if (action == "Shift Tile Up") or (action == "Shift Tile Down") then
+        local n = 7
+        if action == "Shift Tile Down" then n = 1 end
+        
+        local tileData = {}
+        for y=0,7 do
+            for i = 0,1 do
+                local b = data.project.chr[data.project.chr.index][tileOffset+((i)*8)+y%8]
+                table.insert(tileData, b)
+            end
+        end
+        for y=0,7 do
+            for i = 0,1 do
+                local b = tileData[y*2+i+1]
+                data.project.chr[data.project.chr.index][tileOffset+((i)*8)+(y+n)%8] = b
+            end
+        end
+    elseif (action == "Shift Tile Left") or (action == "Shift Tile Right") then
+        local n = 7
+        if action == "Shift Tile Right" then n = 1 end
+        local tileData = {}
+        for y=0,7 do
+            for i = 0,1 do
+                local b = data.project.chr[data.project.chr.index][tileOffset+((i)*8)+y%8]
+                data.project.chr[data.project.chr.index][tileOffset+((i)*8)+y%8] = NESBuilder:ror(b, n, 8)
+            end
+        end
+    end
+    
+    if action == "Copy" then return end
+    refreshCHR()
+    
 end
 
 function canvasTile_cmd(t)
@@ -3877,9 +4008,9 @@ end
 
 -- Convenience functions
 function currentPalette(n)
-    local pSet = data.project.paletteSets[(n or data.project.paletteSets.index) + 1]
+    local pSet = data.project.paletteSets[(data.project.paletteSets.index or 0) + 1]
     if not pSet then return {0x0f, 0x01, 0x11, 0x21} end
-    return pSet.palettes[(pSet.index or 0)+1] or {0x0f, 0x01, 0x11, 0x21}
+    return pSet.palettes[(n or pSet.index or 0)+1] or {0x0f, 0x01, 0x11, 0x21}
     
     --return data.project.palettes[n or data.project.palettes.index]
 end
@@ -3942,6 +4073,30 @@ pythonEval = function(s)
     return python.eval(s)
 end
 
+-- print formatted string
+function printf(...)
+    print(string.format(...))
+end
+
+-- prints arguments separated by a space
+function printl(...)
+    local out = ''
+    
+    -- to catch None/nil even if it's the last 
+    -- argument, we use a py eval
+    local args = pythonEval('lambda *x:list(x)')(...)
+    
+    for i, item in python.enumerate(args) do
+        if i > 0 then
+            out = out .. ' '
+        end
+        out=out..NESBuilder:getPrintable(item)
+    end
+    print(out)
+end
+
+
+
 str = pythonEval('str')
 split = pythonEval('str.split')
 rsplit = pythonEval('str.rsplit')
@@ -3950,6 +4105,7 @@ pathSplit = pythonEval("lambda x:list(os.path.split(x))")
 splitExt = pythonEval("lambda x:list(os.path.splitext(x))")
 stem = pythonEval("lambda x:pathlib.Path(x).stem")
 int = pythonEval("lambda x:int(x)")
+bin = python.eval('lambda x:"{0:08b}".format(x)')
 sliceList = pythonEval("lambda x,y,z:x[y:z]")
 joinList = pythonEval("lambda x,y:x+y")
 reverseList = pythonEval("lambda x:list(reversed(x))")
@@ -4571,7 +4727,8 @@ end
 
 function askText(title, text, defaultText)
     local t = NESBuilder:askText(title or "Text Entry", text, defaultText)
-    if (not t) or t=='' then
+    --if (not t) or t=='' then
+    if (not t) then
         print('cancelled')
         return
     end

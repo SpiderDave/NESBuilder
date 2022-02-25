@@ -281,6 +281,33 @@ QComboBox {
     font-size:12pt;
 }
 
+
+.menubox_menu {
+    padding:2px;
+    font-size:10pt;
+    font:Verdana;
+    font-size:9pt;
+    background-color:_menuBk_;
+    border:none;
+}
+
+.menubox_menu::hover {
+    background-color:_bkMenuHighlight_;
+}
+
+.menubox QAbstractItemView {
+    background-color:_menuBk_;
+    border:3px outset _bk_;
+}
+
+.menubox::down-arrow {
+    width: 0px;
+    border-style: none;
+    border:none;
+    image: none;
+    display:none;
+}
+
 .link {
     color:_link_;
 }

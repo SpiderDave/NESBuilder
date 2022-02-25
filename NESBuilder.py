@@ -1464,6 +1464,19 @@ class ForLua:
         controlsNew.update({ctrl.name:ctrl})
         return ctrl
     @lupa.unpacks_lua_table
+    def makeMenuBox(self, t):
+        ctrl = QtDave.MenuBox(self.tabQt)
+        if t.itemList:
+            ctrl.addItems(t.itemList.values())
+        
+        t.control = ctrl
+        ctrl.init(t)
+        
+        ctrl.activated.connect(makeCmdNoEvent(t))
+        
+        controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
     def makeLineEdit(self, t):
         ctrl = QtDave.LineEdit(self.tabQt)
         t.text = coalesce(t.text, '')
@@ -1743,6 +1756,10 @@ class ForLua:
 
     def setTitle(self, title=''):
         main.setWindowTitle(title)
+    def ror(self, n,rotations,width):
+        n = int(n)
+        return (2**width-1)&(n>>rotations|n<<(width-rotations))
+    
     
 # Return it from eval so we can execute it with a 
 # Python object as argument.  It will then add "NESBuilder"

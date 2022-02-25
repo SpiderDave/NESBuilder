@@ -244,6 +244,7 @@ Section "NESBuilder Source"
     !insertmacro dl "include/SpiderDaveAsm/include/config.py"
     !insertmacro dl "include/SpiderDaveAsm/include/gg.py"
     !insertmacro dl "include/SpiderDaveAsm/include/ips.py"
+    !insertmacro dl "include/SpiderDaveAsm/include/ld65cfg.py"
 
 SectionEnd
 

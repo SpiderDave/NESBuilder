@@ -31,7 +31,7 @@ function plugin.onAssemble(assembler)
             local folder = data.folders.projects..data.project.folder
             local cmd = plugin.tools.forAssemble('project.s', '-g', '-o', 'project.o')
             NESBuilder:run(folder, cmd[0], cmd[1])
-            cmd = plugin.tools.forLink('-C', 'project.cfg', 'project.o', '-o', data.project.binaryFilename)
+            cmd = plugin.tools.forLink('-C', 'project.cfg', 'project.o', '-o', getOutputBinaryFilename())
             NESBuilder:run(folder, cmd[0], cmd[1])
         end
     end

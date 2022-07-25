@@ -27,6 +27,11 @@ from array import array
 
 import math, os, sys
 
+# hacky fix for import getting confused
+# with NESBuilder's include module
+if 'include' in sys.modules:
+    sys.path.append('/SpiderDaveAsm')
+
 try:
     from . import include
 except:
@@ -437,6 +442,8 @@ class Assembler():
     bankData = {}
     commentBlock = 0
     shatter = False
+    pcStack = False
+    baseStack = False
     
     nesRegisters = Map(
         PPUCTRL = 0x2000, PPUMASK = 0x2001, PPUSTATUS = 0x2002,
@@ -729,6 +736,7 @@ directives = [
     'findtext','lastpass', 'endoffunction', '_wipe',
     'loadld65cfg','loadld65cfg?','segment',
     'start','end','exportmap','importmap','_test','_shatterhand_import',
+    'pushpc','pullpc','pushbase','pullbase',
 ]
 
 filters = [
@@ -1842,6 +1850,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
         oldPrint = cfg.isTrue(cfg.getValue('main', 'oldPrint'))
         
         assembler.namespace = Stack([''])
+        assembler.pcStack = Stack()
+        assembler.baseStack = Stack()
+        
         
         for s in defineSymbol:
             symbols[assembler.lower(s)] = 1
@@ -2971,7 +2982,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     v = (line+' ').split(" ",1)[1].strip()
                     values = assembler.tokenize(v)
                     for i, value in enumerate(values):
-                        if assembler.isString(value):
+                        if value == "":
+                            pass
+                        elif assembler.isString(value):
                             values[i] = assembler.stripQuotes(value)
                         else:
                             gv = getValue(value)
@@ -3112,6 +3125,25 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 symbols['return']=None
                 
                 lines = lines[:i]+['']+functions[kf].lines+[assembler.hidePrefix+'namespace _pop_']+lines[i+1:]+ ['{}endoffunction {}'.format(assembler.hidePrefix, ifLevel)]
+            
+            if k == 'pushpc':
+                assembler.pcStack.push(currentAddress)
+            elif k == 'pushbase':
+                assembler.baseStack.push(currentAddress)
+            elif k == 'pullpc':
+                if assembler.pcStack:
+                    k = 'org'
+                    v = '${:04x}'.format(assembler.pcStack.pop())
+                    line = '{} {}'.format(k,v)
+                else:
+                    errorText = 'stack is empty'
+            elif k == 'pullbase':
+                if assembler.baseStack:
+                    k = 'base'
+                    v = '${:04x}'.format(assembler.baseStack.pop())
+                    line = '{} {}'.format(k,v)
+                else:
+                    errorText = 'stack is empty'
             if k == 'enum':
                 v = getValue(line.split(' ',1)[1])
                 currentAddress = getValue(v)
@@ -3130,7 +3162,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 
             elif k == 'org':
                 v = getValue(line.split(' ',1)[1])
-
+                
                 if (orgPad == 1) and (startAddress!=False):
                     k = 'org pad'
                 else:

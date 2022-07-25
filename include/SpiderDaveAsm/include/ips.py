@@ -1,11 +1,27 @@
+log = False
+#log = True
+
+logFile = False
+if log:
+    open('ipslog.txt', 'w').close()
+    logFile = open('ipslog.txt', 'a')
+
+def logPrint(*args, **kwargs):
+    if not log:
+        return
+    print(*args, **kwargs, file=logFile)
+
 # Apply IPS patch given ips file data and target file data.
 # Returns patched file data or False.
 def applyIps(ipsData, fileData):
+    if log:
+        print("logging to ipslog.txt")
+    
     if type(ipsData) == str:
         ipsData = list(ipsData.encode())
     if type(fileData) == str:
         fileData = list(fileData.encode())
-        
+    
     # Check for IPS header
     if bytes(ipsData[:5]) == b'PATCH':
         ipsData = ipsData[5:]
@@ -28,22 +44,28 @@ def applyIps(ipsData, fileData):
             ipsData = ipsData[3:]
             truncate = int.from_bytes(ipsData[:4], 'big', signed=False)
             ipsData = ipsData[4:]
+            logPrint('EOF detected.')
             if truncate == 0:
                 # Doesn't usually make sense to truncate the whole file via ips patch.
+                logPrint('Ignoring truncate of entire file')
                 pass
             elif truncate == len(fileData):
                 # It's already the right size, do nothing
+                logPrint('File size unchanged by eof')
                 pass
             elif truncate > len(fileData):
                 # Expand file
                 fileData = fileData + [0] * (truncate - len(fileData))
+                logPrint('Expanding file')
             else:
                 # Truncate file
                 fileData = fileData[:truncate]
+                logPrint('Truncating file')
             break
         
         if len(ipsData) == 0:
             # end of data
+            logPrint('end of data')
             break
         
         offset = int.from_bytes(ipsData[:3], 'big', signed=False)
@@ -52,25 +74,49 @@ def applyIps(ipsData, fileData):
         chunkSize = int.from_bytes(ipsData[:2], 'big', signed=False)
         ipsData = ipsData[2:]
         
+        rleSize = False
         if chunkSize == 0:
             # RLE
+            logPrint('RLE Entry:')
             chunkSize = int.from_bytes(ipsData[:2], 'big', signed=False)
             ipsData = ipsData[2:]
             
             if chunkSize == 0:
                 print('Error: Bad RLE size')
+                logPrint('Error: Bad RLE size')
                 return False
+            else:
+                logPrint('${:02x} bytes'.format(chunkSize))
             
-            replaceData = ipsData[:1] * chunkSize
+            # cast to a list here to make sure a np array wont break it
+            replaceData = list(ipsData[:1]) * chunkSize
             ipsData = ipsData[1:]
+            
+            rleSize = chunkSize
+            
         else:
+            logPrint('Normal Entry:')
+            logPrint('${:02x} bytes'.format(chunkSize))
             replaceData = ipsData[:chunkSize]
             ipsData = ipsData[chunkSize:]
         
         # Apply the new data
+        logPrint('${:04x}:'.format(offset))
         for i,b in enumerate(replaceData):
+            if (rleSize) and (i > 64):
+                pass
+            elif (rleSize) and (i == 64):
+                logPrint('...')
+            elif (i % 16 == 15) or i == len(replaceData)-1:
+                logPrint('${:02x}'.format(b))
+            else:
+                logPrint('${:02x}'.format(b), end = ' ')
+            
+            if offset+i >= len(fileData):
+                fileData += [0] * ((offset+i) - len(fileData) + 1)
+            
             fileData[offset+i] = b
-    
+        logPrint()
     return fileData
 
 def createIps(oldData, newData):

@@ -31,13 +31,14 @@ function plugin.onInit()
     control.helpText = "Load a .nss file created with Shiru's NES Screen tool."
     push(x, y+control.height+pad)
     x = x + control.width + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="testRefresh",text="refresh"}
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstRefresh",text="Refresh"}
     y,x=pop(2)
     
     
     push(y)
     control = NESBuilder:makeCanvasQt{x=x,y=y,w=32*8,h=30*8,name="nesstCanvas", scale=2, columns=32, rows=30}
     control.helpText = "Click to draw tiles, right-click to select a tile"
+    control.setCursor('pencil')
     
     x = x + control.width + pad*2
     y=pop()
@@ -92,15 +93,19 @@ function plugin.onInit()
     control.helpText = "Apply attributes when drawing/selecting"
     y = y + control.height+pad
     
---    push(x)
---    control = NESBuilder:makeButton{x=x,y=y,w=6*7.5,h=buttonHeight, name="testHand",text="split"}
---    y = y + control.height+pad
-    
---    control=NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="splitNum", index=i}
---    x = x + control.width+pad
---    control=NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="splitY", index=i}
-    
---    x=pop()
+    if devMode() then
+        push(x)
+        control = NESBuilder:makeButton{x=x,y=y,w=6*7.5,h=buttonHeight, name="testHand",text="split"}
+        y = y + control.height+pad
+        
+        control=NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="splitNum", index=i}
+        control.helpText = "Split number"
+        x = x + control.width+pad
+        control=NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="splitY", index=i}
+        control.helpText = "Split y position"
+        
+        x=pop()
+    end
     
 --    y = y + control.height+pad
     
@@ -120,7 +125,7 @@ function nesstApplyAttr_cmd(t)
     plugin.data.applyAttr = t.isChecked()
 end
 
-function plugin.testRefresh_cmd()
+function plugin.nesstRefresh_cmd()
     nesstRefreshScreen()
 end
 
@@ -300,15 +305,20 @@ function nesstRefreshScreen()
     
     local pSet = data.project.paletteSets[data.project.paletteSets.index+1]
     
+    control.clear()
     for y=0, control.rows-1 do
         for x=0, control.columns-1 do
             tile = plugin.data.nameTable[y*control.columns+x]
             n = NESBuilder:getAttribute(plugin.data.attrTable, x,y)
             
-            --p = data.project.palettes[n]
-            p = pSet.palettes[n+1] or {0x0f, 0x01, 0x11, 0x21}
+            if pSet then
+                p = pSet.palettes[n+1] or {0x0f, 0x01, 0x11, 0x21}
+            else
+                p = currentPalette()
+            end
             control.drawTile(x*8,y*8, tile, currentChr(), p, control.columns, control.rows)
         end
+        --control.update()
         control.repaint()
         NESBuilder:updateApp()
         if plugin.resetRefresh then break end
@@ -324,7 +334,9 @@ function nesstRefreshScreen()
     
     PaletteEntryUpdate()
     plugin.refresh = false
-
+    
+--    control.drawLine2(0, 16*8,control.width+1,16*8)
+--    control.update()
 
     -- Fixes an issue where the app stays open if you quit while refreshing.
     -- Need a better solution.
@@ -382,18 +394,25 @@ function plugin.nesstCanvas_cmd(t)
     
     if plugin.data.tool == "split" then
         if event.button == 1 then
+            nesstRefreshScreen()
             local control = NESBuilder:getControlNew("nesstCanvas")
-            control.horizontalLine(y)
-            print(y)
+            
+            control.drawLine2(0, y,control.width+1,y)
             control.repaint()
+            
+            
+            
+--            control.horizontalLine(y)
+--            print(y)
+--            control.repaint()
 
-            local value = math.floor(NESBuilder:getControl("splitNum").get())
-            NESBuilder:getControl("splitY").set(y)
+            local value = math.floor(NESBuilder:getControl("splitNum").value)
+            NESBuilder:getControl("splitY").value = y
             
             plugin.splits[value+1] = y
         elseif event.button==2 and event.type == "ButtonPress" then
-            local value = math.floor(NESBuilder:getControl("splitNum").get())
-            NESBuilder:getControl("splitY").set(0)
+            local value = math.floor(NESBuilder:getControl("splitNum").value)
+            NESBuilder:getControl("splitY").value = 0
             
             table.remove(plugin.splits, value+1)
         end

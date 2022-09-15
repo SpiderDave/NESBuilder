@@ -99,7 +99,11 @@ function debugMenu_copySdasm_cmd()
     
     NESBuilder:copyFile(fixPath('findpython.bat'), fixPath(folder..'findpython.bat'))
     
-    local baseRom = pathSplit(data.project.rom.filename)[1]
+    local baseRom = getRomFilename()
+    local baseRomString = ""
+    if baseRom then
+        baseRomString = string.format('-bin "%s" ', baseRom)
+    end
 out = [[
 @echo off
 rem -- Settings ----------------------------
@@ -108,7 +112,7 @@ rem pause when done
 rem (note: errors will always pause)
 set dopause=0
 
-set script=sdasm/sdasm.py -bin "_baseRom_" project.asm
+set script=sdasm/sdasm.py _baseRomString_project.asm
 
 rem ----------------------------------------
 
@@ -136,7 +140,7 @@ if %dopause% NEQ 0 pause
 
 :theend
 ]]
-    out = replace(out, '_baseRom_', baseRom)
+    out = replace(out, '_baseRomString_', baseRomString)
 
     local f = folder.."build.bat"
     if NESBuilder:fileExists(f) then

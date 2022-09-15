@@ -112,7 +112,6 @@ data.folders = {
 data.project = {chr={}}
 data.assemblers = {'sdasm','asm6','xkasplus'}
 
-
 function init()
     local x,y,pad
     local control, b, c
@@ -122,14 +121,14 @@ function init()
     left = config.left
     x,y=left,top
     
+    print("init")
+    
     -- load default palette file if found
     local f = NESBuilder:findFile(NESBuilder:cfgGetValue("main", "defaultPaletteFile"), list(NESBuilder:cfgGetValue("main", "defaultPaletteFolder")))
     NESBuilder.palette.load(f)
     
     local buttonWidth = config.buttonWidth*7.5
     local buttonHeight = 27
-    
-    print("init")
     
 --    local main = NESBuilder:getWindowQt()
 --    main.tabParent.self.setTabsClosable(false)
@@ -148,9 +147,8 @@ function init()
     
     -- This dummy tab fixes an issue with create-on-demand tabs showing up
     -- blank if all other tabs are closed.
+    -- We hide it at the end of this init()
     local dummyTab = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="dummy",text="dummy", showInList = false}
-    local control = NESBuilder:getWindowQt()
-    control.tabParent.setTabVisible(control.tabParent.indexOf(dummyTab), false)
     
     if cfgGet('alphawarning')==1 then
         control = NESBuilder:makeTab{x=x,y=y,w=config.width,h=config.height,name="Warning",text="Warning"}
@@ -661,7 +659,7 @@ function init()
     x = x + control.width+pad
     
     push(y)
-    control=NESBuilder:makeLineEdit{x=x,y=y,w=20,h=buttonHeight, name="metatileNumber",text="0"}
+    control=NESBuilder:makeLineEdit{x=x,y=y,w=24,h=buttonHeight, name="metatileNumber",text="0"}
     control.helpText = "Current metatile index"
     y=pop()
     x= x + control.width+pad
@@ -724,6 +722,9 @@ function init()
     data.launchFrames.set('recent')
     
     loadSettings()
+
+    local tabParent = NESBuilder:getWindowQt().tabParent
+    tabParent.setTabVisible(tabParent.indexOf(dummyTab), false)
 end
 
 function onPluginsLoaded()
@@ -1450,9 +1451,7 @@ end
 
 function launcherProjectType_cmd(t)
     data.projectType = data.projectTypes[t.index+1].name
-    if data.projectType == 'dev' then
-        NewProject_cmd()
-    elseif data.projectType == 'romhack' then
+    if (data.projectType == "dev") or (data.projectType == "romhack") then
         NewProject_cmd()
     end
 end
@@ -1463,16 +1462,16 @@ function doTemplateActions()
         k=action[0]
         v=action[1] or ''
 
-        if k == 'loadRom' then
+        if k == "loadRom" then
             -- wipe rom data here to make sure 
             -- we're loading fresh when prompted.
             data.project.rom = {}
             loadRom()
         end
-        if k == 'showInfo' then 
+        if k == "showInfo" then 
             NESBuilder:showInfo(v.title or "Info", v)
         end
-        if k == 'importCHR' then 
+        if k == "importCHR" then 
             importAllChr() 
         end
         handlePluginCallback("onTemplateAction", {k, v})
@@ -1977,16 +1976,17 @@ function BuildProject()
     handlePluginCallback("onBuild")
     
     -- use old build project routine
-    if cfgGet('oldbuild')==1 and data.project.type == 'dev' then
-        BuildProject_cmd()
+    if cfgGet("oldbuild")==1 and data.project.type == 'dev' then
+        --BuildProject_cmd()
+        print("Error: oldbuild parameter no longer supported.")
         return
     end
-    if data.project.type == 'romhack' then
+    if data.project.type == "romhack" then
         print(data.project.rom.filename)
         print(data.project.rom.data)
         if data.project.rom.filename and not data.project.rom.data then
             loadRom(data.project.rom.filename)
-            print('loading rom data')
+            print("loading rom data")
             
             if not data.project.rom.data then return end
         end
@@ -1995,9 +1995,9 @@ function BuildProject()
         exportAllChr()
     end
     
-    if ppGet('exportPalettes', 'bool') then
+    if ppGet("exportPalettes", "bool") then
         -- Will use default if not defined
-        exportPalettes(ppGet('exportPaletteFile'))
+        exportPalettes(ppGet("exportPaletteFile"))
     end
     
     -- build_sdasm
@@ -2005,20 +2005,24 @@ function BuildProject()
     
     saveChr()
     
-    if not NESBuilder:fileExists(folder.."project.asm") and templateData('code') then
-        -- Copy entire folder
-        local src = data.folders.templates..templateData('code')
-        local dst = data.folders.projects..data.project.folder
-        print(string.format('Copying folder "%s" to "%s".',src, dst))
-        NESBuilder:copyFolder(src, dst)
-    end
-    
-    
-    -- create default code
-    if not NESBuilder:fileExists(folder.."project.asm") then
-        print("project.asm not found, extracting code template...")
-        --NESBuilder:extractAll('templates/romhack_xkasplus1.zip',folder)
-        NESBuilder:extractAll('templates/romhack_sdasm1.zip',folder)
+    if data.project.assembler == 'bB' then
+        -- dont make a bunch of default stuff for bB
+    else
+        if not NESBuilder:fileExists(folder.."project.asm") and templateData("code") then
+            -- Copy entire folder
+            local src = data.folders.templates..templateData("code")
+            local dst = data.folders.projects..data.project.folder
+            print(string.format('Copying folder "%s" to "%s".',src, dst))
+            NESBuilder:copyFolder(src, dst)
+        end
+        
+        
+        -- create default code
+        if not NESBuilder:fileExists(folder.."project.asm") then
+            print("project.asm not found, extracting code template...")
+            --NESBuilder:extractAll('templates/romhack_xkasplus1.zip',folder)
+            NESBuilder:extractAll("templates/romhack_sdasm1.zip",folder)
+        end
     end
     
     local filename = data.folders.projects..data.project.folder.."code/symbols.asm"
@@ -2026,7 +2030,7 @@ function BuildProject()
     
     out= out .. string.format('binaryFilename = "%s"\n', getOutputBinaryFilename())
     
-    local d = getControl('symbolsTable1').getData()
+    local d = getControl("symbolsTable1").getData()
     local line = ''
     for i, row in python.enumerate(d) do
         k,v,comment = row[0],row[1],row[2]
@@ -2142,11 +2146,36 @@ function BuildProject()
         
         NESBuilder:run(folder, cmd, args)
     elseif data.project.assembler == 'bB' then
-        local cmd = data.folders.tools.."bB/2600basic.exe"
-        local args = "project.bas"
+        local bBFolder = data.folders.tools..'bB/'
+        cmd = data.folders.tools.."bB/2600bas.bat"
+        
+        local args = string.format("project.bas %s", getOutputBinaryFilename())
         print("Starting bB...")
         
         NESBuilder:run(folder, cmd, args)
+        
+        cleanupFiles = {
+            "bB.asm",
+            "2600basic_variable_redefs.h",
+            "includes.bB",
+            "project.bas.sym",
+            "project.bas.lst",
+        }
+        
+        for _, file in ipairs(cleanupFiles) do
+            file = fixPath(data.folders.projects..data.project.folder..file)
+            NESBuilder:delete(file)
+        end
+        
+        NESBuilder:rename(data.folders.projects..data.project.folder.."project.bas.bin", getOutputBinaryFilename(true))
+        
+        
+        
+--        local cmd = data.folders.tools.."bB/2600basic.exe"
+--        local args = "project.bas"
+--        print("Starting bB...")
+        
+--        NESBuilder:run(folder, cmd, args)
     elseif data.project.assembler == 'xkasplus' then
         local cmd = data.folders.tools.."xkas-plus/xkas.exe"
         local args = string.format("-o %s project.asm", getOutputBinaryFilename())
@@ -2234,251 +2263,6 @@ function saveChr()
     util.writeToFile(filename,0, out, true)
 end
 
-function BuildProject_cmd()
-    local out = ""
-    local filename
-    local cmd,args
-    local input, output
-    print("building project...")
-    
-    refreshCHR()
-    
-    NESBuilder:setWorkingFolder()
-    
-    -- make sure folders exist for this project
-    NESBuilder:makeDir(data.folders.projects..data.project.folder)
-    NESBuilder:makeDir(data.folders.projects..data.project.folder.."chr")
-    NESBuilder:makeDir(data.folders.projects..data.project.folder.."code")
-    
-    local folder = data.folders.projects..data.project.folder
-    
-    handlePluginCallback("onBuild")
-    
-    -- create default code
-    if not NESBuilder:fileExists(folder.."project.asm") then
-        print("project.asm not found, extracting code template...")
-        --NESBuilder:extractAll('codeTemplate.zip',folder)
-        --NESBuilder:extractAll('codeTemplate2.zip',folder)
-        NESBuilder:extractAll('templates/codeTemplate3.zip',folder)
-    end
-    
-    local out = ''
-    
-    saveChr()
-    -- save CHR
---    for i=0,#data.project.chr do
---        if data.project.chr[i] then
---            local f = data.folders.projects..data.project.folder..string.format("chr/chr%02x.chr",i)
---            print("File created "..f)
---            print(data.project.chr[i][0])
---            NESBuilder:saveArrayToFile(f, data.project.chr[i])
---            out = out..string.format("    .incbin chr/chr%02x.chr\n",i)
---        end
---    end
-    
-    if #data.project.chr == 1 then
-        -- add 3 more
-        out = out..string.format("    .incbin chr/chr00.chr\n",i)
-        out = out..string.format("    .incbin chr/chr00.chr\n",i)
-        out = out..string.format("    .incbin chr/chr00.chr\n",i)
-    elseif #data.project.chr == 2 then
-        -- add 2 more
-        out = out..string.format("    .incbin chr/chr00.chr\n",i)
-        out = out..string.format("    .incbin chr/chr01.chr\n",i)
-    end
-    
-    out = out .. '\n'
-    
-    filename = data.folders.projects..data.project.folder.."code/chrlist.asm"
-    util.writeToFile(filename,0, out, true)
-    
-    data.project.const.nChr = len(data.project.chr)
-    if data.project.chr[0] then data.project.const.nChr = data.project.const.nChr+1 end
-    
-    local c = NESBuilder:getControl('PaletteList')
-    filename = data.folders.projects..data.project.folder.."code/palettes.asm"
-
-    out=""
-    local lowHigh = {{"low","<"},{"high",">"}}
-    for i = 1,2 do
-        out=out..string.format("Palettes_%s:\n",lowHigh[i][1])
-        for palNum=0, #data.project.palettes do
-            if palNum == 0 then
-                out=out.."    .db "
-            elseif palNum % 4 == 0 then
-                out=out.."\n    .db "
-            --elseif palNum~=#data.project.palettes then
-            else
-                out=out..", "
-            end
-            out=out..string.format("%sPalette%02x",lowHigh[i][2], palNum)
-            if palNum==#data.project.palettes then
-                out=out.."\n"
-            end
-        end
-        out=out.."\n"
-    end
-    
-    for palNum=0, #data.project.palettes do
-        local pal = data.project.palettes[palNum]
-        out=out..string.format("Palette%02x: .db ",palNum)
-        for i=1,4 do
-            out=out..string.format("$%02x",pal[i])
-            if i==4 then
-                out=out.."\n"
-            else
-                out=out..", "
-            end
-        end
-    end
-    
-    print("File created "..filename)
-    util.writeToFile(filename,0, out, true)
-    
-    local filename = data.folders.projects..data.project.folder.."code/version.asm"
-    
-    local t = os.date("*t")
-    out=string.format("; %s.%s.%s %s:%s\n",t.year, t.month, t.day, t.hour, t.min)
-    out=string.format('version:\n    .db "v%s.%s.%s"\n\n',t.year, t.month, t.day)
-    
-    util.writeToFile(filename,0, out, true)
-    
-    out = "Metatiles:\n"
-    filename = data.folders.projects..data.project.folder.."code/tiles.asm"
-    for i=0, #data.project.mTileSets[data.project.mTileSets.index] do
-        local tile = data.project.mTileSets[data.project.mTileSets.index][i]
-        if tile then
-            out=out..string.format('    .db $%02x, $%02x, $%02x, $%02x\n',tile[0], tile[1], tile[2], tile[3])
-        end
-    end
-    util.writeToFile(filename,0, out, true)
-    
-    local filename = data.folders.projects..data.project.folder.."code/constauto.asm"
-    out=""
-    
-    data.project.const.SELECTED_PALETTE = math.floor(data.project.palettes.index)
-    data.project.const.CURRENT_CHR = math.floor(data.project.chr.index)
-    for k,v in pairs(data.project.const) do
-        out = out .. string.format("%s = $%02x\n",k, v)
-    end
-
-    util.writeToFile(filename,0, out, true)
-    
-    local filename = data.folders.projects..data.project.folder.."code/symbols.asm"
-    out=""
-    
-    local d = getControl('symbolsTable1').getData()
-    for i, row in python.enumerate(d) do
-        k,v,comment = row[0],row[1],row[2]
-        if k~='' then
-            if comment~='' then
-                out = out .. string.format("%s = %s ; %s\n",k,v or 0,comment)
-            else
-                out = out .. string.format("%s = %s\n",k,v or 0)
-            end
-        end
-    end
-    util.writeToFile(filename,0, out, true)
-    
-    -- assemble project
-    
-    -- make sure project.asm exists, or dont bother
-    if NESBuilder:fileExists(folder.."project.asm") or NESBuilder:fileExists(folder.."project.bas") then
-        -- remove old binary
-        if NESBuilder:delete(getOutputBinaryFilename(true)) then
-            NESBuilder:setWorkingFolder(folder)
-            if data.project.assembler == 'asm6' then
-                local cmd = data.folders.tools.."asm6.exe"
-                local args = string.format("-L project.asm %s list.txt", getOutputBinaryFilename())
-                print("Starting asm 6...")
-                
-                NESBuilder:run(folder, cmd, args)
-            elseif data.project.assembler == 'bB' then
-                print("starting bB...")
-                local bBFolder = data.folders.tools..'bB/'
-                
-                --NESBuilder:setWorkingFolder(data.folders.projects..data.project.folder)
-                NESBuilder:setWorkingFolder(bBFolder..'includes')
-                
-                -- make bB.asm
-                cmd = bBFolder.."preprocess.exe"
-                args = ''
-                
-                local input = NESBuilder:getTextFileContents(fixPath(data.folders.projects..data.project.folder..'project.bas'))
-                local output = NESBuilder:run(folder, cmd, args, input, true)
-                
-                cmd = bBFolder.."2600basic.exe"
-                args = string.format('-i "%s"', bBFolder)
-                
-                input = output
-                output = NESBuilder:run(folder, cmd, args, input, true)
-                
-                NESBuilder:writeToFile(folder..'bB.asm', output)
-                
-                cmd = bBFolder.."postprocess.exe"
-                args = string.format('-i "%s"', bBFolder)
-                output = NESBuilder:run(folder, cmd, args, nil, true)
-                
-                NESBuilder:writeToFile(fixPath(data.folders.projects..data.project.folder..'project.bas.asm'), output)
-                
-                local f = fixPath(data.folders.projects..data.project.folder..'project')
-                local binFilename = fixPath(getOutputBinaryFilename(true))
-                cmd = bBFolder.."dasm.exe"
-                --args = string.format('"%s.bas" -I"%sincludes" -f3 -l"%s.lst" -s"%s.bas.sym" -o"%s.bin"', f, bBFolder, f, f, f)
-                args = string.format('%s.bas -I%sincludes -f1 -l%s.bas.lst -s%s.bas.sym -o%s', f, fixPath(bBFolder), f, f, binFilename)
-                print()
-                print(args)
-                print()
-                
-                NESBuilder:run(folder, cmd, args)
-                
-            elseif data.project.assembler == 'bB' then
-                local bBFolder = data.folders.tools..'bB/'
-                cmd = data.folders.tools.."bB/2600bas.bat"
-                
-                local args = string.format("project.bas %s", getOutputBinaryFilename())
-                print("Starting bB...")
-                
-                NESBuilder:run(folder, cmd, args)
-                
-                cleanupFiles = {
-                    "bB.asm",
-                    "2600basic_variable_redefs.h",
-                    "includes.bB",
-                    "project.bas.sym",
-                    "project.bas.lst",
-                }
-                
-                for _, file in ipairs(cleanupFiles) do
-                    file = fixPath(data.folders.projects..data.project.folder..file)
-                    NESBuilder:delete(file)
-                end
-                
-                NESBuilder:rename(data.folders.projects..data.project.folder.."project.bas.bin", getOutputBinaryFilename(true))
-                
-            elseif data.project.assembler == 'sdasm' then
-                local sdasm = python.eval('sdasm')
-                print("Starting sdasm...")
-                
-                local fixPath = python.eval('fixPath2')
-                
-                sdasm.assemble('project.asm', getOutputBinaryFilename(), 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'), romData, nil, nil, nil, "NESBuilder")
-            else
-                handlePluginCallback("onAssemble", data.project.assembler)
-                --print('invalid assembler '..data.project.assembler)
-            end
-        else
-            print("Did not assemble project.")
-        end
-        print("done.")
-    else
-        print("no project.asm")
-    end
-    
-    print("---- end of build ---")
-    NESBuilder:setWorkingFolder()
-end
-
 function LoadProject_cmd()
     LoadProject()
 end
@@ -2561,7 +2345,11 @@ function LoadProject(templateFilename)
     -- update project folder in case it's been moved
     data.project.folder = projectFolder
     
-    data.project.binaryFilename = data.project.binaryFilename or "game.nes"
+    if data.project.assembler == 'bB' then
+        data.project.binaryFilename = data.project.binaryFilename or "game.bin"
+    else
+        data.project.binaryFilename = data.project.binaryFilename or "game.nes"
+    end
     
     -- use default palettes if not found
     --data.project.palettes = data.project.palettes or util.deepCopy(data.palettes)
@@ -2789,41 +2577,6 @@ end
 
 function Label1_cmd(name, label)
     print(name)
-end
-
-function PaletteEntry_cmd(t)
-    if not t.cellNum then return end -- the frame was clicked.
-    
-    if t.event.button == 1 then
-        print(string.format("Selected palette %02x",t.cellNum))
-        data.selectedColor = t.cellNum
-    elseif t.event.button == 3 then
-        print(string.format("Set palette %02x",data.selectedColor or 0x0f))
-        --t.set(t.cellNum, data.selectedColor)
-
-        p=data.project.palettes[data.project.palettes.index]
-        p[t.cellNum+1] = data.selectedColor
-        t.setAll(p)
-        refreshCHR()
-        dataChanged()
-    end
-end
-
-function PaletteEntryQt_cmd(t)
---    local event = t.cell.event
---    local p
---    if event.button == 2 then
---        print(string.format("Selected palette %02x",t.cellNum))
---        p=currentPalette()
---        data.selectedColor = p[t.cellNum+1]
---    elseif event.button == 1 then
---        print(string.format("Set palette %02x",data.selectedColor or 0x0f))
---        p=data.project.palettes[data.project.palettes.index]
---        p[t.cellNum+1] = data.selectedColor
---        t.setAll(p)
---        refreshCHR()
---        dataChanged()
---    end
 end
 
 function PaletteList_cmd(t)
@@ -3234,7 +2987,7 @@ function tsaCanvas_cmd(t)
     
     if x<0 or y<0 or x>=128 or y>=128 then return end
     
-    local p=data.project.palettes[data.project.palettes.index]
+    local p = currentPalette()
     
     if t.event.type == "ButtonPress" then
         if t.event.button == 1 then
@@ -3249,65 +3002,6 @@ function tsaCanvas_cmd(t)
             data.project.tileData = TileData
             data.project.tileNum = tileNum
             getControl("tsaTileCanvas").loadCHRData(TileData, p)
-        end
-    end
-end
-
-function tsaCanvas2_cmd(t)
-    local x = math.floor(t.event.x/t.scale)
-    local y = math.floor(t.event.y/t.scale)
-    local tileX = math.floor(x/8)
-    local tileY = math.floor(y/8)
-    local tileNum = tileY*2+tileX
-    local tileOffset = 16*tileNum
-    local CHRData, TileData
-    
-    if x<0 or y<0 or x>=128 or y>=128 then return end
-    
-    local p=data.project.palettes[data.project.palettes.index]
-    
-    if t.event.type == "ButtonPress" then
-        if t.event.button == 1 then
-            
-            -- map the tiles to get the right offsets
-            local mtileOffsets = {[0]=0,2,1,2+1}
-            
-            -- this is the tile index as in the main image
-            local tileNum = data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index][mtileOffsets[tileNum]]
-            
-            NESBuilder:setCanvas("tsaTileCanvas")
-            local TileData = {}
-            
-            control = NESBuilder:getCanvas('tsaCanvas')
-            
-            for i=0,15 do
-                TileData[i+1] = control.chrData[16* tileNum +i+1]
-            end
-            
-            data.project.tileData = TileData
-            data.project.tileNum = tileNum
-            
-            getControl("tsaTileCanvas").loadCHRData(TileData, p)
-        elseif t.event.button == 3 and data.project.tileData then
-            NESBuilder:setCanvas(t.name)
-            
-            if t.name == "tsaCanvas2" then
-                for i=0,15 do
-                    t.chrData[tileOffset+i+1] = data.project.tileData[i+1]
-                end
-
-                data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] = data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] or {[0]=0,0,0,0}
-                if tileX<=1 and tileY<=1 then
-                    -- 02
-                    -- 13
-                    data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index][tileX*2+tileY] = data.project.tileNum
-                    data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].palette = data.project.palettes.index
-                end
-                getControl(t.name).loadCHRData{t.chrData, p, rows=2, columns=2}
-            else
-            end
-            
-            dataChanged()
         end
     end
 end
@@ -3358,7 +3052,7 @@ function metatileNew_cmd()
     
     m.map = makeMap(m.w, m.h)
     
-    m.palette = data.project.palettes.index
+    m.palette = data.project.paletteSets.index
     m.chrIndex = data.project.chr.index
     for i=0,m.w * m.h-1 do
         m[i] = 0
@@ -3409,7 +3103,6 @@ function updateSquareoid()
     local tileNum
     local tileOffset1, tileOffset2
     local m = currentMetatile()
-    
     local controlFrom = getControl("tsaCanvasQt")
     local controlTo = getControl("tsaCanvas2Qt")
     
@@ -3428,11 +3121,10 @@ function updateSquareoid()
     -- make sure current item is selected in list
     control.setCurrentRow(data.project.mTileSets.index)
     
-    local mTileSet = data.project.mTileSets[data.project.mTileSets.index]
+    local mTileSet = currentMetatileSet()
     
     local control = NESBuilder:getControl("metatileNumber")
     control.setText(string.format('%s',data.project.mTileSets[data.project.mTileSets.index].index))
-    
     if not m then
         controlTo.reset(2,2)
         controlTo.clear()
@@ -3443,29 +3135,16 @@ function updateSquareoid()
     
     local cols = m.w or mTileSet.w or 2
     local rows = m.h or mTileSet.h or 2
-    
-    
     controlTo.reset(cols,rows)
+    controlTo.clear()
     
-    if not m then return end
-    --local chrIndex = data.project.mTileSets[data.project.mTileSets.index].chrIndex
     local chrIndex = m.chrIndex or mTileSet.chrIndex
-    
     
     if (chrIndex or data.project.chr.index) ~= data.project.chr.index then
         --setChr(chrIndex)
     end
     
---    local control = getControl("mTileList")
---    if control.count() == 0 then return end
-    
---    if data.project.mTileSets.index == -1 then
---        data.project.mTileSets.index = 0
---        control.setCurrentRow(0)
---    end
-    
     if not data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] then
-        --local mtileOffsets = data.project.mTileSets[data.project.mTileSets.index].map or {[0]=0,2,1,3}
         local mtileOffsets = m.map or mTileSet.map or {[0]=0,2,1,3}
         
         for i, v in ipairs_sparse(mtileOffsets) do
@@ -3476,16 +3155,31 @@ function updateSquareoid()
     end
     
     data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] = data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index] or {[0]=0,0,0,0}
+    --local p = currentPalette()
+    local pSetIndex = m.pSet or 0
     
-    --local p = data.project.palettes[data.project.mTileSets[data.project.mTileSets.index][data.project.mTileSets[data.project.mTileSets.index].index].palette or 0]
-    local p = currentPalette()
+    print(string.format("pSetIndex=%s", pSetIndex))
+    print(string.format("m.palette=%s", m.palette))
+    print(getPaletteSet(pSetIndex))
+    
+    local p
+    if not pcall(function()
+        p = getPaletteSet(pSetIndex).palettes[(m.palette or 0)+1]
+        print("p -----")
+        print(p)
+        print("-------")
+    end) then
+        -- prevents a crash; how was this supposed to work again?
+        print("error")
+        p = currentPalette()
+    end
     
     local mtileOffsets = m.map or mTileSet.map or {[0]=0,2,1,3}
-    --local mtileOffsets = data.project.mTileSets[data.project.mTileSets.index].map or {[0]=0,2,1,3}
     for i, v in ipairs_sparse(mtileOffsets) do
         controlTo.drawTile(i%controlTo.columns *8,math.floor(i/controlTo.columns) *8, m[v], currentChr(), p, controlTo.columns, controlTo.rows)
-        controlTo.update()
+        
     end
+    controlTo.update()
     
     local control = NESBuilder:getControl("MTileAddress")
     local address = data.project.mTileSets[data.project.mTileSets.index].org
@@ -3511,7 +3205,6 @@ function updateSquareoid()
     if data.metatileCursorMode == 'offset' and m.offset then
         drawTargetCrosshairs(controlTo, m.offset.x, m.offset.y)
     end
-    
 end
 
 function drawTargetCrosshairs(control, x,y)
@@ -3529,7 +3222,6 @@ function drawTargetCrosshairs(control, x,y)
         control.drawLine2(x, y+centerPad,x,control.height+1)
     end
 end
-
 
 function metatileOffsetTest_cmd(t)
     local mTile = currentMetatile()
@@ -3675,7 +3367,7 @@ function MainQttabs_cmd(t,a)
         --print(tab.widget(tab.currentIndex()))
         --local dir = python.eval('lambda x:dir(x)')
         --print(dir(tab.name))
-        print(tab)
+        --print(tab)
         data.project.currentTab = tab.name
         handlePluginCallback("onTabChanged", t.control.currentWidget())
     end
@@ -3946,22 +3638,42 @@ function tsaCanvas2Qt_cmd(t)
         t.control.update()
         
         m[mtileOffsets[tileY*t.control.columns+tileX]] = data.selectedTile
-        print(tileY*t.control.columns+tileX)
-        print(mtileOffsets)
+--        printl("mtileOffsets:", mtileOffsets)
+--        print(m)
+--        printl("selected tile:", data.selectedTile)
+--        printl("palette:", currentPalette())
+        printl("xy:", tileY*t.control.columns+tileX)
+        printl("xy mapped:", mtileOffsets[tileY*t.control.columns+tileX])
+        
+--        print(mtileOffsets)
         
         --local m = currentMetatile()
         --local mtileOffsets = {[0]=0,2,1,3}
         --m[tileX*t.control.columns+tileY] = data.selectedTile
-        m.palette = data.project.palettes.index
+        
+        m.pSet = data.project.paletteSets.index
+        m.palette = data.project.paletteSets.index
         m.chrIndex = data.project.chr.index
+        
+        printl("m.pSet:", m.pSet)
+        printl("m.palette:", m.palette)
+        
         setMetatileData(m)
         --print(data.project.mTileSets[data.project.mTileSets.index])
     elseif event.button == 2 then
+--        printl("mtileOffsets:", mtileOffsets)
+--        printl("m.map:", m.map)
+--        printl("mTileSet.map:", mTileSet.map)
+--        printl("?:", m.map or mTileSet.map or {[0]=0,2,1,3})
+--        printl("xy?:", tileY*t.control.columns+tileX)
         --local m = currentMetatile()
         --local mtileOffsets = {[0]=0,2,1,3}
         --data.selectedTile = m[tileX*t.control.columns+tileY]
         data.selectedTile = m[mtileOffsets[tileY*t.control.columns+tileX]]
-        data.project.palettes.index = m.palette
+        
+--        print(m)
+        
+        data.project.paletteSets.index = m.palette
 
         local control = getControl('tsaTileCanvasQt')
         control.drawTile(0,0, data.selectedTile, currentChr(), currentPalette(), control.columns, control.rows)
@@ -4095,8 +3807,6 @@ function printl(...)
     print(out)
 end
 
-
-
 str = pythonEval('str')
 split = pythonEval('str.split')
 rsplit = pythonEval('str.rsplit')
@@ -4119,6 +3829,7 @@ makeLabel = pythonEval("lambda x:x.replace(' ','_')")
 makeNp = pythonEval("lambda x: np.array(x)")
 dictGet = pythonEval('lambda x,y:x.get(y, False)')
 startsWith = pythonEval('lambda x,y:x.startswith(tuple(y))')
+endsWith = pythonEval('lambda x,y:x.endswith(tuple(y))')
 
 strip = pythonEval("lambda x:x.strip()")
 lstrip = pythonEval("lambda x:x.lstrip()")
@@ -4575,6 +4286,12 @@ function getRomData()
     end
 end
 
+function getRomFilename()
+    if data.project.rom and data.project.rom.filename then
+        return data.project.rom.filename
+    end
+end
+
 function ppAssembler_cmd(t)
     data.project.assembler = t.control.value
 end
@@ -4721,6 +4438,15 @@ function exportPalettes(filename)
     
 --    out = out .. makePointerTable('Palettes', string.format("PalSet%02x_",pSet.index), iLength(pSet.palettes))
     
+    out = out .. "; ----------------------------------------\n"
+    out = out .. "; constants\n"
+    out = out .. "; (copy these to your constants)\n"
+    out = out .. "; ----------------------------------------\n"
+    for k, pSet in ipairs(data.project.paletteSets) do
+        out = out .. string.format(";%s = %s\n",makeSymbolName("palette", pSet.name), k-1)
+    end
+    
+    
     print("File created "..filename)
     util.writeToFile(filename,0, out, true)
 end
@@ -4802,3 +4528,26 @@ function getNESPalette()
     return pal
 end
 
+function makeSymbolName(prefix, txt)
+    txt = replace(txt, ' ','_')
+    if prefix then
+        prefix = replace(prefix, ' ','_')
+        txt = prefix..'_'..txt
+    end
+    
+    return txt
+end
+
+-- Get project folder
+function getProjectFolder()
+    return data.folders.projects..data.project.folder
+end
+
+-- Set working folder to project folder
+function setProjectFolder()
+    local folder = data.folders.projects..data.project.folder
+    NESBuilder:setWorkingFolder(folder)
+    
+    -- returns folder as a convenience
+    return folder
+end

@@ -1081,7 +1081,6 @@ class Canvas(ClipOperations, Base, QLabel):
         painter.brushColor = QColor(Qt.black)
         painter.fillRect(0,0,self.width,self.height,QBrush(Qt.black))
         painter.end()
-        self.repaint()
     def paintTest(self):
         painter = Painter(self.pixmap())
         painter.test3()
@@ -1166,6 +1165,34 @@ class Canvas(ClipOperations, Base, QLabel):
         
         a = np.zeros((8,8,3))
         
+        # Optimize solid tiles for speed
+        if 1:
+            tileData = imageData[tile*16:tile*16+16]
+            if np.all((tileData == 0)) or np.all((tileData == 0xff)):
+                c = tileData[0] & 3
+                brushColor = QColor(nesPalette.palette[colors[c]][0], nesPalette.palette[colors[c]][1], nesPalette.palette[colors[c]][2])
+                painter.fillRect(originX+7*self.scale,originY,self.scale*8,self.scale*8,QBrush(brushColor))
+                painter.end()
+                return
+
+            if np.all((tileData[:8] == 0)) and np.all((tileData[8:] == 0xff)):
+                c = 2
+                brushColor = QColor(nesPalette.palette[colors[c]][0], nesPalette.palette[colors[c]][1], nesPalette.palette[colors[c]][2])
+                painter.fillRect(originX+7*self.scale,originY,self.scale*8,self.scale*8,QBrush(brushColor))
+                painter.end()
+                return
+
+            if np.all((tileData[:8] == 0xff)) and np.all((tileData[8:] == 0x00)):
+                c = 1
+                brushColor = QColor(nesPalette.palette[colors[c]][0], nesPalette.palette[colors[c]][1], nesPalette.palette[colors[c]][2])
+                painter.fillRect(originX+7*self.scale,originY,self.scale*8,self.scale*8,QBrush(brushColor))
+                painter.end()
+                return
+        
+        brushColors = []
+        for c in range(4):
+            brushColors.append(QColor(nesPalette.palette[colors[c]][0], nesPalette.palette[colors[c]][1], nesPalette.palette[colors[c]][2]))
+        
         for y in range(8):
             for x in range(8):
                 c=0
@@ -1176,10 +1203,8 @@ class Canvas(ClipOperations, Base, QLabel):
                 if (imageData[tile*16+y+8] & (1<<x)):
                     c=c+2
                 a[y][(7-x)] = nesPalette.palette[colors[c]]
-                brushColor = QColor(nesPalette.palette[colors[c]][0], nesPalette.palette[colors[c]][1], nesPalette.palette[colors[c]][2])
-                painter.fillRect(originX+(7-x)*self.scale,originY+y*self.scale,self.scale,self.scale,QBrush(brushColor))
+                painter.fillRect(originX+(7-x)*self.scale,originY+y*self.scale,self.scale,self.scale,QBrush(brushColors[c]))
         painter.end()
-        #self.update()
 
 class PaletteButton(Label):
     def __init__(self, *args, **kw):
@@ -1286,6 +1311,7 @@ class PaletteControl(Base, QFrame):
             cell.setText("{0:02x}".format(c), autoSize=False)
         
 class SideSpin(Base, QFrame):
+    initialized = False
     def init(self, t):
         super().init(t)
         self.format = "{0:02x}"
@@ -1320,6 +1346,8 @@ class SideSpin(Base, QFrame):
         r.move(self.width-r.width,0)
         r.clicked.connect(self._onRight)
         self.addCssClass('sideSpin')
+        self.initialized = True
+        
         QTimer.singleShot(400, self.refresh)
     def _onLeft(self):
         self._value = v = self._value - 1
@@ -1338,6 +1366,12 @@ class SideSpin(Base, QFrame):
     def _changed(self):
         if self.onChange:
             self.onChange()
+    def __setattr__(self, key, v):
+        if self.initialized and key == 'helpText':
+            self.leftButton.helpText = v
+            self.rightButton.helpText = v
+            self.label.helpText = v
+        super().__setattr__(key,v)
     
     @property
     def value(self):

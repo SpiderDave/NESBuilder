@@ -156,6 +156,8 @@ Section "-DefaultStuff"
     !insertmacro dl "plugins/nesst.py"
     !insertmacro dl "plugins/ca65.lua"
     !insertmacro dl "plugins/ca65.py"
+    !insertmacro dl "plugins/ft.lua"
+    !insertmacro dl "plugins/ft_txt_to_asm_spiderdave.py"
     !insertmacro dl "templates/codeTemplate.zip"
     !insertmacro dl "templates/codeTemplate3.zip"
     !insertmacro dl "templates/romhack_xkasplus1.zip"
@@ -222,7 +224,6 @@ Section "NESBuilder Source"
     !insertmacro dl "include/ips.py"
     !insertmacro dl "include/random.py"
     !insertmacro dl "include/noise.py"
-    !insertmacro dl "chr.png"
     !insertmacro dl "icons/__init__.py"
     !insertmacro dl "icons/folder32.png"
     !insertmacro dl "icons/folderplus32.png"
@@ -296,7 +297,6 @@ Section "Uninstall"
     Delete "$INSTDIR\run script.bat"
     Delete $INSTDIR\build.bat
     Delete $INSTDIR\include
-    Delete $INSTDIR\chr.png
 
     RMDir /r /REBOOTOK $INSTDIR\__pycache__
     RMDir /r /REBOOTOK $INSTDIR\build

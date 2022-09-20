@@ -32,6 +32,11 @@ function plugin.onInit()
     push(x, y+control.height+pad)
     x = x + control.width + pad
     control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstRefresh",text="Refresh"}
+    x = x + control.width + pad
+    if devMode() then
+        control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstTest",text="Import from rom"}
+    end
+    
     y,x=pop(2)
     
     
@@ -100,11 +105,19 @@ function plugin.onInit()
         
         control=NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="splitNum", index=i}
         control.helpText = "Split number"
-        x = x + control.width+pad
+        x = x + control.width + pad
         control=NESBuilder:makeSideSpin{x=x,y=y,w=buttonHeight*3,h=buttonHeight, name="splitY", index=i}
         control.helpText = "Split y position"
+        y = y + control.height + pad
         
         x=pop()
+        
+        control = NESBuilder:makeComboBox{x=x,y=y,w=300, name="nesstCHRSelect", itemList = {'current CHR','specific CHR','custom CHR'}}
+        x = x + control.width + pad
+        control = NESBuilder:makeButton{x=x,y=y,w=6*7.5,h=buttonHeight, name="nesstCHRSelectSet",text="set"}
+        
+        y = y + control.height + pad
+
     end
     
 --    y = y + control.height+pad
@@ -130,7 +143,13 @@ function plugin.nesstRefresh_cmd()
 end
 
 function plugin.onCHRRefresh(surface)
-    NESBuilder:getControl("nesstTileset").paste(surface)
+    local index = plugin.getSelectedCHRType()
+    
+    if index == 0 then
+        NESBuilder:getControl("nesstTileset").paste(surface)
+    else
+        nesstRefreshTileset()
+    end
 end
 
 function nesstCHR(n)
@@ -281,6 +300,31 @@ function plugin.nesstLoad_cmd()
     dataChanged()
 end
 
+function nesstTest_cmd()
+    local defaultText = "0x9010" -- default for zombie nation title screen
+    local txt = askText('Import nametable from rom data', 'Enter a (hexidecimal) file offset of nametable data.', defaultText)
+    
+    -- cancelled
+    if not txt then return end
+    
+    local address = tonumber(txt)
+    if not address then return end
+    
+    if data.project.rom.filename and not data.project.rom.data then
+        loadRom(data.project.rom.filename)
+        print("loading rom data")
+        if not data.project.rom.data then return end
+    end
+    
+    -- we use toList to make sure the elements are regular ints
+    -- to avoid issues when converting from np arrays
+    local romData = NESBuilder:toList(getRomData())
+    plugin.data.nameTable = sliceList(romData, address, address + 0x3c0)
+    plugin.data.attrTable = sliceList(romData, address + 0x3c0, address + 0x3c0 + 0x40)
+    
+    nesstRefreshScreen()
+end
+
 function nesstRefreshScreen()
     if plugin.refresh then
         plugin.resetRefresh = true
@@ -299,7 +343,8 @@ function nesstRefreshScreen()
     control.columns = 32
     control.rows = 30
     
-    control.chrData = currentChr()
+    --control.chrData = currentChr()
+    control.chrData = plugin.getSelectedCHR()
     
     local tile,p, attr,n
     
@@ -316,7 +361,8 @@ function nesstRefreshScreen()
             else
                 p = currentPalette()
             end
-            control.drawTile(x*8,y*8, tile, currentChr(), p, control.columns, control.rows)
+            --control.drawTile(x*8,y*8, tile, currentChr(), p, control.columns, control.rows)
+            control.drawTile(x*8,y*8, tile, control.chrData, p, control.columns, control.rows)
         end
         --control.update()
         control.repaint()
@@ -344,6 +390,71 @@ function nesstRefreshScreen()
 --    if main.closing then NESBuilder:forceClose() end
 end
 
+function plugin.getSelectedCHRType()
+    local control = getControl("nesstCHRSelect")
+    if not control then return 0 end
+    
+    local index = control.currentIndex()
+    return index
+end
+
+function plugin.getSelectedCHR()
+    local index = plugin.getSelectedCHRType()
+    
+    if index == 0 then
+        -- current CHR
+        return currentChr()
+    elseif index == 1 then
+        -- specific CHR
+        return currentChr(0)
+    elseif index == 2 then
+        -- custom CHR
+        return currentChr(0)
+    end
+end
+
+function nesstRefreshTileset()
+    if not currentChr() then return end
+    if not getPaletteSet() then return end
+    
+    local p=currentPalette()
+    local control = getControl("nesstTileset")
+    
+    -- create an off-screen drawing surface
+    local surface = NESBuilder:makeNESPixmap(128, 128)
+    -- load CHR Data to the surface
+    surface.loadCHR(plugin.getSelectedCHR())
+    -- apply current palette to it
+    surface.applyPalette(currentPalette())
+    -- paste the surface on our canvas (it will be sized to fit)
+    control.paste(surface)
+end
+
+function nesstCHRSelect_cmd(t)
+    print(t.control.currentIndex())
+    
+    --nesstRefreshTileset()
+    nesstRefreshScreen()
+end
+
+function nesstCHRSelectSet_cmd(t)
+    local control = getControl("nesstCHRSelect")
+    
+    local index = plugin.getSelectedCHRType()
+    if index == 0 then
+        -- current CHR
+        
+        -- change to specific CHR using current index
+        control.setCurrentIndex(1)
+        nesstRefreshScreen()
+    elseif index == 1 then
+        -- specific CHR
+        nesstRefreshScreen()
+    elseif index == 2 then
+        -- custom CHR
+        nesstRefreshScreen()
+    end
+end
 
 function plugin.testHand_cmd(t)
     local control = NESBuilder:getControlNew("nesstCanvas")
@@ -489,9 +600,10 @@ function plugin.nesstPalette_cmd(t, index)
     PaletteEntryUpdate()
 end
 
+-- is this used?
 function plugin.updateTileset()
     local p = data.project.palettes[data.project.palettes.index]
-    control = NESBuilder:getControlNew("nesstTileset")
+    local control = NESBuilder:getControlNew("nesstTileset")
     control.loadCHRData{imageData=data.project.chr[data.project.chr.index], colors=p,columns=16,rows=16}
 end
 

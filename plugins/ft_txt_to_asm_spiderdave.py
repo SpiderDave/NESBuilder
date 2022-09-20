@@ -20,12 +20,9 @@
 #   * sys.argv is now handled outside of main() and main has a paramter
 #     to specify input_file.
 #   * put everything in a class
-#   * combine dpcm_note_to_sample_index, dpcm_note_to_sample_length, and
-#     dpcm_note_to_loop_pitch_index if identical.
+#   * removed all use of "global"
 #
 # Todo:
-#   * avoid using "global"
-#     Done!
 
 import os
 import sys
@@ -414,6 +411,7 @@ class FT():
         current_pattern = None
         current_track = None
         current_dpcm_sample = None
+        track_index = 1
         for line in lines:
             split_line = line.split()
             if len(split_line) >= 1:
@@ -467,9 +465,14 @@ class FT():
                     current_track["speed"] = int(track_split_line[2])
                     current_track["tempo"] = int(track_split_line[3])
                     current_track["name"] = self.sanitize_label(track_separate_params_name[1])
+                    current_track["displayName"] = track_separate_params_name[1]
                     if current_track["name"].startswith("_sfx_"):
+                        current_track['index'] = track_index
+                        track_index += 1
                         self.sfx_tracks.append(current_track)
                     else:
+                        current_track['index'] = track_index
+                        track_index += 1
                         self.song_tracks.append(current_track)
 
                 if split_line[0] == "ORDER":
@@ -793,7 +796,7 @@ class FT():
                 f.write(self.generate_asm_from_bytes(dpcm_note_to_loop_pitch_indices, 24))
                 f.write("\n")
 
-            all_tracks = self.song_tracks
+            all_tracks = self.song_tracks[:]
             all_tracks.extend(self.sfx_tracks)
 
             #all tracks

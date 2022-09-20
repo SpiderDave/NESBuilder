@@ -407,7 +407,7 @@ class ForLua:
                     attr = getattr(self, method_name)
                     wrapped = self.QtWrapper(attr)
                     setattr(self, method_name, wrapped)
-                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap','listToTable','tableToList','print','type', 'executeLuaFile', 'getPrintable', '_getPrintable']:
+                elif method_name in ['getNESColors', 'makeControl', 'getLen', 'makeMenuQt','makeNESPixmap','listToTable','tableToList','print','type', 'executeLuaFile', 'getPrintable', '_getPrintable', 'toList']:
                     # getNESColors: excluded because it may have a table as its first parameter
                     # makeControl: excluded because it's a decorator
                     pass
@@ -1029,6 +1029,10 @@ class ForLua:
         file.close()
         fileData = list(fileData)
         return fileData
+    def toList(self, a):
+        if type(a) == np.ndarray:
+            return a.tolist()
+        return list(a)
     def saveArrayToFile(self, f, fileData):
         fileData = self.tableToList(self, fileData, base=0)
         f = fixPath2(f)

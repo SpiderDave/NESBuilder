@@ -1163,7 +1163,7 @@ class Canvas(ClipOperations, Base, QLabel):
         originX=x*self.scale
         originY=y*self.scale
         
-        a = np.zeros((8,8,3))
+        #a = np.zeros((8,8,3))
         
         # Optimize solid tiles for speed
         if 1:
@@ -1182,12 +1182,14 @@ class Canvas(ClipOperations, Base, QLabel):
                 painter.end()
                 return
 
-            if np.all((tileData[:8] == 0xff)) and np.all((tileData[8:] == 0x00)):
-                c = 1
-                brushColor = QColor(nesPalette.palette[colors[c]][0], nesPalette.palette[colors[c]][1], nesPalette.palette[colors[c]][2])
-                painter.fillRect(originX+7*self.scale,originY,self.scale*8,self.scale*8,QBrush(brushColor))
-                painter.end()
-                return
+            # this next one needs work
+
+#            if np.all((tileData[:8] == 0xff)) and np.all((tileData[8:] == 0x00)):
+#                c = 1
+#                brushColor = QColor(nesPalette.palette[colors[c]][0], nesPalette.palette[colors[c]][1], nesPalette.palette[colors[c]][2])
+#                painter.fillRect(originX+7*self.scale,originY,self.scale*8,self.scale*8,QBrush(brushColor))
+#                painter.end()
+#                return
         
         brushColors = []
         for c in range(4):
@@ -1202,7 +1204,7 @@ class Canvas(ClipOperations, Base, QLabel):
                     c=c+1
                 if (imageData[tile*16+y+8] & (1<<x)):
                     c=c+2
-                a[y][(7-x)] = nesPalette.palette[colors[c]]
+                #a[y][(7-x)] = nesPalette.palette[colors[c]]
                 painter.fillRect(originX+(7-x)*self.scale,originY+y*self.scale,self.scale,self.scale,QBrush(brushColors[c]))
         painter.end()
 

@@ -27,15 +27,18 @@ function plugin.onInit()
     makeTab{name="nesst", text="Screen Tool"}
     NESBuilder:setTabQt("nesst")
     
-    control = NESBuilder:makeButton{x=x,y=y,w=config.buttonWidth*7.5, name="nesstLoad",text="Open Session"}
-    control.helpText = "Load a .nss file created with Shiru's NES Screen tool."
+
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstRefresh",text="Refresh"}
+    control.helpText = "Refresh/redraw the nametable."
     push(x, y+control.height+pad)
     x = x + control.width + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstRefresh",text="Refresh"}
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth, name="nesstLoad",text="Open Session"}
+    control.helpText = "Load a .nss file created with Shiru's NES Screen tool."
     x = x + control.width + pad
-    if devMode() then
-        control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstTest",text="Import from rom"}
-    end
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstImportFromRom",text="Import from rom data"}
+    control.helpText = "Import nametable data from current rom."
+--    x = x + control.width + pad
+--    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstLoadChr",text="Load CHR"}
     
     y,x=pop(2)
     
@@ -98,7 +101,8 @@ function plugin.onInit()
     control.helpText = "Apply attributes when drawing/selecting"
     y = y + control.height+pad
     
-    if devMode() then
+    --if devMode() then
+    if false then
         push(x)
         control = NESBuilder:makeButton{x=x,y=y,w=6*7.5,h=buttonHeight, name="testHand",text="split"}
         y = y + control.height+pad
@@ -111,18 +115,16 @@ function plugin.onInit()
         y = y + control.height + pad
         
         x=pop()
-        
-        control = NESBuilder:makeComboBox{x=x,y=y,w=300, name="nesstCHRSelect", itemList = {'current CHR','specific CHR','custom CHR'}}
-        x = x + control.width + pad
-        control = NESBuilder:makeButton{x=x,y=y,w=6*7.5,h=buttonHeight, name="nesstCHRSelectSet",text="set"}
-        
-        y = y + control.height + pad
-
     end
+    control = NESBuilder:makeComboBox{x=x,y=y,w=300, name="nesstCHRSelect", itemList = {'Use current CHR','Use CHR with index','Use loaded custom CHR', 'Use linked custom CHR'}}
+    control.helpText = "Select an option to help determine which CHR to use for the nametable."
+    y = y + control.height + pad
+    --control = NESBuilder:makeButton{x=x,y=y,w=6*7.5,h=buttonHeight, name="nesstCHRSelectSet",text="set"}
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstCHRSelectSet",text="set"}
     
---    y = y + control.height+pad
+    y = y + control.height + pad
     
-    y,x = pop(2)
+    y, x = pop(2)
     
 --    control=NESBuilder:makeLabelQt{x=x,y=y+3,clear=true,text="Status bar"}
 --    plugin.status = control
@@ -300,9 +302,31 @@ function plugin.nesstLoad_cmd()
     dataChanged()
 end
 
-function nesstTest_cmd()
+---function nesstLoadChr_cmd()
+function nesstLoadChr()
+    local f = NESBuilder:openFile{filetypes={{"All valid types", ".chr", ".png"}, {"CHR", ".chr"}, {"Images", ".png"}}}
+    if f == "" then
+        print("Open cancelled.")
+        return
+    else
+        print("file: "..f)
+    end
+    
+    plugin.data.customChr = getChrFromFile(f)
+    nesstRefreshScreen()
+    
+    return true
+end
+
+function nesstImportFromRom_cmd()
+    if (not data.project.rom.filename) and (not data.project.rom.data) then
+        NESBuilder:showError("Error", "No rom file or data.")
+        return
+    end
+    
+    
     local defaultText = "0x9010" -- default for zombie nation title screen
-    local txt = askText('Import nametable from rom data', 'Enter a (hexidecimal) file offset of nametable data.', defaultText)
+    local txt = askText('Import nametable from rom data', 'Enter a file offset of nametable data.', defaultText)
     
     -- cancelled
     if not txt then return end
@@ -331,8 +355,22 @@ function nesstRefreshScreen()
         return
     end
     
+    -- update chr select button
+    local control = getControl("nesstCHRSelectSet")
+    local index = getControl("nesstCHRSelect").currentIndex()
+    if index == 0 then
+        control.setText('Set to this CHR')
+    elseif index == 1 then
+        control.setText('Specify CHR Index')
+    elseif index == 2 then
+        control.setText('Load CHR from file')
+    elseif index == 3 then
+        control.setText('Specify external CHR')
+    end
+    
+    
     plugin.refresh = true
-    local control = NESBuilder:getControlNew("nesstCanvas")
+    control = NESBuilder:getControlNew("nesstCanvas")
     
     if not plugin.data.nameTable then
         print('setting nametable default')
@@ -392,24 +430,27 @@ end
 
 function plugin.getSelectedCHRType()
     local control = getControl("nesstCHRSelect")
-    if not control then return 0 end
+    if not control then return plugin.data.chrType or 0 end
     
     local index = control.currentIndex()
-    return index
+    
+    return plugin.data.chrType or index
 end
 
 function plugin.getSelectedCHR()
     local index = plugin.getSelectedCHRType()
+    
+    printf("getSelectedCHR %s", index)
     
     if index == 0 then
         -- current CHR
         return currentChr()
     elseif index == 1 then
         -- specific CHR
-        return currentChr(0)
+        return currentChr(plugin.data.chrIndex or 0)
     elseif index == 2 then
         -- custom CHR
-        return currentChr(0)
+        return plugin.data.customChr or currentChr(0)
     end
 end
 
@@ -431,9 +472,18 @@ function nesstRefreshTileset()
 end
 
 function nesstCHRSelect_cmd(t)
-    print(t.control.currentIndex())
+    local index = t.control.currentIndex()
+    print(index)
     
-    --nesstRefreshTileset()
+    if index == 3 then
+        notImplemented()
+        t.control.setCurrentIndex(plugin.data.chrType)
+        return
+    end
+    
+    
+    plugin.data.chrType = index
+    
     nesstRefreshScreen()
 end
 
@@ -445,14 +495,30 @@ function nesstCHRSelectSet_cmd(t)
         -- current CHR
         
         -- change to specific CHR using current index
+        plugin.data.chrIndex = currentChrIndex()
         control.setCurrentIndex(1)
         nesstRefreshScreen()
     elseif index == 1 then
         -- specific CHR
+        
+        local n = askText("Specify CHR Index", "Please enter a valid CHR index.")
+        if (not n) or n=='' then
+            print('cancelled')
+            return
+        end
+        
+        n = tonumber(n)
+        if (not n) or (n<0) or (n>#data.project.chr) then
+            print("invalid value.")
+            return 
+        end
+        
+        plugin.data.chrIndex = n
+        
         nesstRefreshScreen()
     elseif index == 2 then
         -- custom CHR
-        nesstRefreshScreen()
+        nesstLoadChr()
     end
 end
 
@@ -544,7 +610,8 @@ function plugin.nesstCanvas_cmd(t)
             for x=0,1 do
                 for y=0,1 do
                     tile = plugin.data.nameTable[(attrY*2+y)*t.columns+(attrX*2+x)]
-                    control.drawTile((attrX*2+x)*8,(attrY*2+y)*8, tile, currentChr(), currentPalette(c), 32,32)
+                    --control.drawTile((attrX*2+x)*8,(attrY*2+y)*8, tile, currentChr(), currentPalette(c), 32,32)
+                    control.drawTile((attrX*2+x)*8,(attrY*2+y)*8, tile, plugin.getSelectedCHR(), currentPalette(c), 32,32)
                 end
             end
             control.repaint()
@@ -650,6 +717,11 @@ function plugin.onBuild()
     
     print("File created "..filename)
     util.writeToFile(filename,0, out, true)
+    
+    if (plugin.getSelectedCHRType() == 2) and plugin.data.customChr then
+        filename = data.folders.projects..data.project.folder.."chr/custom.chr"
+        NESBuilder:saveArrayToFile(filename, plugin.data.customChr)
+    end
 end
 
 function plugin.onAutoSave()
@@ -663,6 +735,9 @@ function plugin.onSaveProject()
         selectedTile = plugin.data.selectedTile,
         applyTiles = plugin.data.applyTiles,
         applyAttr = plugin.data.applyAttr,
+        customChr = plugin.data.customChr,
+        chrIndex = plugin.data.chrIndex,
+        chrType = plugin.data.chrType,
     }
 end
 
@@ -672,6 +747,9 @@ function plugin.onLoadProject()
     plugin.data.selectedTile = 0
     plugin.data.applyTiles = true
     plugin.data.applyAttr = true
+    plugin.data.customChr = nil
+    plugin.data.chrIndex = nil
+    plugin.data.chrType = 0
     control = NESBuilder:getControlNew("nesstCanvas")
     control.clear()
 
@@ -681,7 +759,15 @@ function plugin.onLoadProject()
         plugin.data.selectedTile = data.project.screenTool.selectedTile
         plugin.data.applyTiles = data.project.screenTool.applyTiles
         plugin.data.applyAttr = data.project.screenTool.applyAttr
+        plugin.data.customChr = data.project.screenTool.customChr
+        plugin.data.chrIndex = data.project.screenTool.chrIndex
+        plugin.data.chrType = data.project.screenTool.chrType or 0
     end
+    
+    
+    getControl("nesstCHRSelect").setCurrentIndex(plugin.getSelectedCHRType())
+    
+    
     getControl('nesstApplyTiles').setChecked(bool(plugin.data.applyTiles))
     getControl('nesstApplyAttr').setChecked(bool(plugin.data.applyAttr))
 end

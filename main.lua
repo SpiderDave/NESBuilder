@@ -1504,7 +1504,7 @@ function ppInit()
         x = x + control.width + pad
     end
     x = x + pad * 2
-    NESBuilder:makeButton{x=x,y=y,w=buttonWidthSmall,h=buttonHeight,name="ppClose",text="close"}
+    --NESBuilder:makeButton{x=x,y=y,w=buttonWidthSmall,h=buttonHeight,name="ppClose",text="close"}
     
     y = y + control.height + pad
     
@@ -3689,9 +3689,9 @@ end
 --function buttonWarningClose_cmd() closeTab('Warning', 'Launcher') end
 function buttonWarningClose_cmd() toggleTab('Warning', false) end
 function buttonPreferencesClose_cmd() closeTab('tabPreferences', 'Launcher') end
-function ppClose_cmd()
-    toggleTab('tabProjectProperties', false)
-end
+--function ppClose_cmd()
+--    toggleTab('tabProjectProperties', false)
+--end
 
 function ppUpdate()
     local control
@@ -3732,6 +3732,8 @@ function getPaletteSet(n)
 end
 
 function currentChr(n) return data.project.chr[n or data.project.chr.index] end
+function currentChrIndex() return int(data.project.chr.index) end
+
 function setChr(n) data.project.chr.index = n end
 function loadChr(f, n)
     data.project.chr[n or data.project.chr.index] = makeNp(NESBuilder:getFileContents(f))
@@ -3747,6 +3749,23 @@ function loadChr(f, n)
 --    end
     
 end
+
+
+function getChrFromFile(f)
+    local ext = string.lower(splitExt(f)[1])
+    
+    if ext == '.chr' then
+        return makeNp(NESBuilder:getFileContents(f))
+    elseif ext == '.png' then
+        return NESBuilder:imageToCHRData(f,NESBuilder:getNESColors(currentPalette()))
+    end
+    
+    -- default to raw data
+    return makeNp(NESBuilder:getFileContents(f))
+end
+
+
+
 function getChrData(n) return data.project.chr[n or data.project.chr.index] end
 function setChrData(chrData, n) data.project.chr[n or data.project.chr.index]=chrData end
 function boolNumber(v) if v then return 1 else return 0 end end

@@ -668,8 +668,11 @@ class ForLua:
             print("Could not delete "+filename)
             return False
     def noise(self, *args):
-        
-        n = opensimplex.OpenSimplex()
+        try:
+            n = opensimplex.OpenSimplex()
+        except:
+            print("could not use noise method.")
+            return False
         
         if len(args) == 2:
             return n.noise2d(*args)

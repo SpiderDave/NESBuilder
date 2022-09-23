@@ -5,6 +5,7 @@ from . import QtDave
 from . import SpiderDaveAsm
 from . import noise
 from . import random
+from . import opensimplex
 
 __all__ = [
             'Calculator',
@@ -14,11 +15,13 @@ __all__ = [
             'sdasm',
             'noise',
             'RNG',
+            "opensimplex",
           ]
 
 Calculator = calc.Calculator
 Cfg = config.Cfg
 sdasm = SpiderDaveAsm.sdasm
+opensimplex = opensimplex.opensimplex
 RNG = random.RNG
 
 def _exportToLua(lua, module, n=None):

@@ -38,7 +38,7 @@ if %errorlevel% NEQ 0 set errormessage=Could not create version information file
 
 rem run pyinstaller
 echo starting pyinstaller...
-pyinstaller --onefile --noupx -%parameter% -i icons\icon.ico -n NESBuilder%suffix%.exe ^
+pyinstaller --clean --onefile --noupx -%parameter% -i icons\icon.ico -n NESBuilder%suffix%.exe ^
             --add-binary "main.lua;include" ^
             --add-binary "icons\__init__.py;icons" ^
             --add-binary "icons\folder32.png;icons" ^

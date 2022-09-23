@@ -133,6 +133,25 @@ def numericTableOrList(item):
     else:
         return item
 
+def filetypesToFilter(filetypes):
+    types = list()
+    if filetypes:
+        for t in filetypes:
+            l= fix(filetypes[t])
+            ext = ' '.join(l[1:])
+            ext = ext.replace('.', '*.')
+            types.append([l[0], ext])
+        types.append(["All files","*.*"])
+        filter = ";;".join([x+" ("+y+")" for x,y in types])
+        filter = filter.replace('(.', '(*.')
+        filter = filter.replace(' .', ' *.')
+#        print(filter)
+    else:
+        filter="All Files (*.*)"
+    
+    return filter
+
+
 clamp = lambda value, minv, maxv: max(min(value, maxv), minv)
 def coalesce(*arg): return next((a for a in arg if a is not None), None)
 
@@ -936,27 +955,16 @@ class Dialog():
     def openFile(self, filetypes=None, initial=None, title="Select File", filter="All Files (*.*)"):
         d = QFileDialog()
         
-        types = list()
         if filetypes:
-            for t in filetypes:
-                types.append([filetypes[t][1],filetypes[t][2]])
-            types.append(["All files","*.*"])
+            filter = filetypesToFilter(filetypes)
         
-            filter = ";;".join([x+" ("+y+")" for x,y in types])
-            filter=filter.replace("(.","(*.")
         file, _ = d.getOpenFileName(None, title, initial, filter)
         return file
     def saveFile(self, filetypes=None, initial=None, title="Save As...", filter="All Files (*.*)"):
         d = QFileDialog()
         
-        types = list()
         if filetypes:
-            for t in filetypes:
-                types.append([filetypes[t][1],filetypes[t][2]])
-            types.append(["All files","*.*"])
-        
-            filter = ";;".join([x+" ("+y+")" for x,y in types])
-            filter=filter.replace("(.","(*.")
+            filter = filetypesToFilter(filetypes)
         
         file, selectedFilter = d.getSaveFileName(None, title, initial, filter)
         if file:
@@ -1171,25 +1179,23 @@ class Canvas(ClipOperations, Base, QLabel):
             if np.all((tileData == 0)) or np.all((tileData == 0xff)):
                 c = tileData[0] & 3
                 brushColor = QColor(nesPalette.palette[colors[c]][0], nesPalette.palette[colors[c]][1], nesPalette.palette[colors[c]][2])
-                painter.fillRect(originX+7*self.scale,originY,self.scale*8,self.scale*8,QBrush(brushColor))
+                painter.fillRect(originX,originY,self.scale*8,self.scale*8,QBrush(brushColor))
                 painter.end()
                 return
 
             if np.all((tileData[:8] == 0)) and np.all((tileData[8:] == 0xff)):
                 c = 2
                 brushColor = QColor(nesPalette.palette[colors[c]][0], nesPalette.palette[colors[c]][1], nesPalette.palette[colors[c]][2])
-                painter.fillRect(originX+7*self.scale,originY,self.scale*8,self.scale*8,QBrush(brushColor))
+                painter.fillRect(originX,originY,self.scale*8,self.scale*8,QBrush(brushColor))
                 painter.end()
                 return
 
-            # this next one needs work
-
-#            if np.all((tileData[:8] == 0xff)) and np.all((tileData[8:] == 0x00)):
-#                c = 1
-#                brushColor = QColor(nesPalette.palette[colors[c]][0], nesPalette.palette[colors[c]][1], nesPalette.palette[colors[c]][2])
-#                painter.fillRect(originX+7*self.scale,originY,self.scale*8,self.scale*8,QBrush(brushColor))
-#                painter.end()
-#                return
+            if np.all((tileData[:8] == 0xff)) and np.all((tileData[8:] == 0x00)):
+                c = 1
+                brushColor = QColor(nesPalette.palette[colors[c]][0], nesPalette.palette[colors[c]][1], nesPalette.palette[colors[c]][2])
+                painter.fillRect(originX,originY,self.scale*8,self.scale*8,QBrush(brushColor))
+                painter.end()
+                return
         
         brushColors = []
         for c in range(4):

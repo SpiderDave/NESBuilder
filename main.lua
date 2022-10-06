@@ -111,6 +111,7 @@ data.folders = {
 
 data.project = {chr={}}
 data.assemblers = {'sdasm','asm6','xkasplus'}
+data.compression = {}
 
 function init()
     local x,y,pad
@@ -730,6 +731,10 @@ end
 function onPluginsLoaded()
     handlePluginCallback("onInit")
     handlePluginCallback("onRegisterAssembler")
+    handlePluginCallback("onRegisterCompression")
+    
+    -- This one is for compression plugins to update their controls
+    handlePluginCallback("onUpdateCompression")
     
     getControl('mTileTypeList').clear()
     local control = getControl('mTileTypeList')
@@ -873,6 +878,39 @@ function handlePluginCallback(f, arg)
             end
         end
     end
+end
+
+-- similar to handlePluginCallback but specific to compression
+-- aslo note it returns the first one it can
+function compress(method, arg)
+    local keys={}
+    arg = arg or {}
+    local f = arg.f or "compress" -- function name
+    for k,v in pairs(plugins or {}) do
+        table.insert(keys,k)
+    end
+    table.sort(keys)
+    
+    for _,n in pairs(keys) do
+        _getPlugin = function() return plugins[n] end
+        if plugins[n][f] then
+            if not plugins[n].hide then
+                print(string.format("(Plugin %s): %s",n, f))
+                return plugins[n][f](method, arg)
+--                if type(arg) == 'table' then
+--                    return plugins[n][f](method, table.unpack(arg))
+--                else
+--                    return plugins[n][f](method, arg)
+--                end
+            end
+        end
+    end
+end
+
+function decompress(method, arg)
+    arg = arg or {}
+    arg.f = "decompress" -- function name
+    return compress(method, arg)
 end
 
 function loadSettings()
@@ -3165,9 +3203,9 @@ function updateSquareoid()
     local p
     if not pcall(function()
         p = getPaletteSet(pSetIndex).palettes[(m.palette or 0)+1]
-        print("p -----")
-        print(p)
-        print("-------")
+--        print("p -----")
+--        print(p)
+--        print("-------")
     end) then
         -- prevents a crash; how was this supposed to work again?
         print("error")
@@ -3842,11 +3880,13 @@ reverseByte = pythonEval("lambda x:int(('{:08b}'.format(x))[::-1],2)")
 replace = pythonEval("lambda x,y,z:x.replace(y,z)")
 list = pythonEval("lambda *x:[item for item in x]")
 listAppend = pythonEval("lambda x,y:x.append(y)")
+listExtend = pythonEval("lambda x,y:x.extend(y)")
 tableAppend = function(...) util.tableAppendSparse(...) end
 maxTableIndex = function(...) util.maxTableIndex(...) end
 makeLabel = pythonEval("lambda x:x.replace(' ','_')")
 makeNp = pythonEval("lambda x: np.array(x)")
 dictGet = pythonEval('lambda x,y:x.get(y, False)')
+toDict = pythonEval("lambda x:dict(x)")
 startsWith = pythonEval('lambda x,y:x.startswith(tuple(y))')
 endsWith = pythonEval('lambda x,y:x.endswith(tuple(y))')
 
@@ -3901,6 +3941,8 @@ iLength = function(t)
         return 0
     end
 end
+
+function tableIsEmpty(t) return not next(t) end
 
 function makeTab(t)
     local ret = NESBuilder:makeTab{name=t.name, text=t.text}

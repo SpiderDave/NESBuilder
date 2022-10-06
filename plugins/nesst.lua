@@ -32,13 +32,21 @@ function plugin.onInit()
     control.helpText = "Refresh/redraw the nametable."
     push(x, y+control.height+pad)
     x = x + control.width + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth, name="nesstLoad",text="Open Session"}
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth, name="nesstLoad",text="Import from .nss"}
     control.helpText = "Load a .nss file created with Shiru's NES Screen tool."
     x = x + control.width + pad
-    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstImportFromRom",text="Import from rom data"}
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstSave",text="Export to .nss"}
+    x = x + control.width + pad
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstImportFromRom",text="Import From ROM Data"}
     control.helpText = "Import nametable data from current rom."
---    x = x + control.width + pad
---    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstLoadChr",text="Load CHR"}
+    x = x + control.width + pad
+    control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstImportFromPPUDump",text="Import From PPU Dump"}
+    
+    if devMode() then
+        x = x + control.width + pad
+        control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstTest",text="test"}
+
+    end
     
     y,x=pop(2)
     
@@ -48,13 +56,34 @@ function plugin.onInit()
     control.helpText = "Click to draw tiles, right-click to select a tile"
     control.setCursor('pencil')
     
+    push(x, y)
+    y = y + control.height + pad
+    --control = NESBuilder:makeLineEdit{x=x,y=y,w=buttonWidth,h=inputHeight, name="nesstBankInput", text="00 01 02 03"}
+    control = NESBuilder:makeComboBox{x=x,y=y,w=buttonWidth * 2, name="nesstCompressionSelect", itemList = {}}
+    y,x = pop(2)
+    
+    control = getControl("nesstCanvas")
+    
     x = x + control.width + pad*2
     y=pop()
     push(left, y+control.height+pad)
     control = NESBuilder:makeCanvasQt{x=x,y=y,w=16*8,h=16*8,name="nesstTileset", scale=2, columns=16, rows=16}
     control.helpText = "Click to select a tile"
     
-    y = y + control.height + pad
+    push(x, y + control.height + pad)
+    
+    x = x + control.width + pad
+    
+    if devMode() then
+        for i = 0,3 do
+            txt = string.format("%02x", i)
+            control = NESBuilder:makeLabelQt{x=x,y=y, name = "nesstChrBank", clear=true, text=txt, index=i-1}
+            y = y + 8 * 4 * 2
+        end
+    end
+    
+    y,x=pop(2)
+--    y = y + control.height + pad
     
     p = {[0]=0x0f,0x0f,0x0f,0x0f}
     palette = {}
@@ -101,7 +130,6 @@ function plugin.onInit()
     control.helpText = "Apply attributes when drawing/selecting"
     y = y + control.height+pad
     
-    --if devMode() then
     if false then
         push(x)
         control = NESBuilder:makeButton{x=x,y=y,w=6*7.5,h=buttonHeight, name="testHand",text="split"}
@@ -116,10 +144,9 @@ function plugin.onInit()
         
         x=pop()
     end
-    control = NESBuilder:makeComboBox{x=x,y=y,w=300, name="nesstCHRSelect", itemList = {'Use current CHR','Use CHR with index','Use loaded custom CHR', 'Use linked custom CHR'}}
+    control = NESBuilder:makeComboBox{x=x,y=y,w=128*2, name="nesstCHRSelect", itemList = {'Use current CHR','Use CHR with index','Use loaded custom CHR', 'Use linked custom CHR'}}
     control.helpText = "Select an option to help determine which CHR to use for the nametable."
     y = y + control.height + pad
-    --control = NESBuilder:makeButton{x=x,y=y,w=6*7.5,h=buttonHeight, name="nesstCHRSelectSet",text="set"}
     control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstCHRSelectSet",text="set"}
     
     y = y + control.height + pad
@@ -130,6 +157,35 @@ function plugin.onInit()
 --    plugin.status = control
     
     plugin.loadDefault()
+end
+
+function nesstCompressionSelect_cmd(t)
+    local control = t.control
+    local index = control.currentIndex()
+    
+    --local index = getControl("nesstCompressionSelect").currentIndex()
+    --print(index)
+    plugin.data.currentCompression = control.currentText()
+    if plugin.data.currentCompression == "None" then plugin.data.currentCompression = nil end
+    print(plugin.data.currentCompression)
+end
+
+function plugin.getCompression()
+    return plugin.data.currentCompression
+end
+
+function plugin.onUpdateCompression()
+    local control = getControl("nesstCompressionSelect")
+    
+    control.itemList = data.compression
+    control.clear()
+    
+    control.addItem("None")
+    for k,v in pairs(data.compression) do
+        control.addItem(k)
+    end
+    
+    if tableIsEmpty(data.compression) then control.hide() else control.show() end
 end
 
 function nesstApplyTiles_cmd(t)
@@ -238,67 +294,45 @@ function plugin.nesstLoad_cmd()
     local getData = NESBuilder:importFunction('plugins.nesst','getData')
     d = getData(f)
     
-    -- Load all palettes
-    p = NESBuilder:hexStringToList(d.Palette)
-    data.project.palettes = {}
-    for i=0,15 do
-        data.project.palettes[i] = {p[i*4+0],p[i*4+1],p[i*4+2],p[i*4+3]}
+    local p = {}
+    for i = 0, 15 do
+        p[i//4+1] = p[i//4+1] or {}
+        p[i//4+1][i % 4+1] = d.Palette[i]
     end
     
-    -- Apply palettes to this tab's palette controls
-    for i=0,3 do
-        plugin.paletteControls[i+1].setAll(data.project.palettes[i])
-        plugin.paletteControls[i+1].index = i
-    end
-    data.project.palettes.index = d.VarPalActive
+    -- add palette set
+    local pSet = {
+      name = "nss session palette import",
+      palettes = p,
+      palettesDesc = {},
+      index = 0,
+    }
+    -- select the new palette set and update
+    data.project.paletteSets[#data.project.paletteSets+1] = pSet
+    updatePaletteSets(#data.project.paletteSets-1)
     
     p = currentPalette()
     
-    -- Load CHR and set selected bank
-    data.project.chr = {[0]=d.CHR[0],d.CHR[1]}
-    data.project.chr.index = d.CHRBank
+    -- load custom chr
+    local pat = 0
+    if d.BtnChrBank2 == 1 then pat = 1 end
+    plugin.data.customChr = makeNp(d.CHR[pat])
     
-    
-    
-    -- create an off-screen drawing surface
-    local surface = NESBuilder:makeNESPixmap(128,128)
-    -- load CHR Data to the surface
-    surface.loadCHR(currentChr())
-    -- apply current palette to it
-    surface.applyPalette(currentPalette())
-    
-    -- paste the surface to the CHR tab and the tileset here
-    NESBuilder:getControl("canvasQt").paste(surface)
-    NESBuilder:getControl("nesstTileset").paste(surface)
+    -- set chr type to custom
+    plugin.data.chrType = 2
     
     control = NESBuilder:getControlNew("nesstCanvas")
-    control.columns = d.VarNameW
-    control.rows = d.VarNameH
+    control.columns = d.VarNameW or 32
+    control.rows = d.VarNameH or 30
     
-    control.chrData = currentChr()
+--    plugin.data.nameTable = NESBuilder:hexToList(d.NameTable)
+--    plugin.data.attrTable = NESBuilder:hexToList(d.AttrTable)
+    plugin.data.nameTable = d.NameTable
+    plugin.data.attrTable = d.AttrTable
+    printf("%04x", len(d.NameTable))
+    printf("%04x", len(d.AttrTable))
     
-    local tile,p, attr,n
-    
-    local nameTable = NESBuilder:hexToList(d.NameTable)
-    local attrTable = NESBuilder:hexToList(d.AttrTable)
-    
-    plugin.data.nameTable = nameTable
-    plugin.data.attrTable = attrTable
-    
-    for y=0, control.rows-1 do
-        for x=0, control.columns-1 do
-            
-            tile=plugin.data.nameTable[y*control.columns+x]
-            attr = attrTable[math.floor(y/4)*8+math.floor(x/4)]
-            
-            n = math.floor(attr/(2^(((math.floor(y/2) % 2)*2 + math.floor(x/2) % 2)*2))) % 4
-            
-            p = data.project.palettes[n]
-            control.drawTile(x*8,y*8, tile, currentChr(), p, 32,32)
-        end
-    end
-    
-    PaletteEntryUpdate()
+    nesstRefreshScreen()
     dataChanged()
 end
 
@@ -312,10 +346,163 @@ function nesstLoadChr()
         print("file: "..f)
     end
     
-    plugin.data.customChr = getChrFromFile(f)
+    plugin.data.customChr = makeNp(getChrFromFile(f))
     nesstRefreshScreen()
     
     return true
+end
+
+function nesstSave_cmd()
+    local filename = "nsst export.nss"
+    local f, ext, filter = NESBuilder:saveFileAs{filetypes={{"NXXT / NES Screen tool Session (.nss)", ".nss"}}, initial=filename}
+    if f == "" then
+        print("Export cancelled.")
+    else
+        print("file: "..f)
+    end
+    
+    
+    local pSet = getPaletteSet()
+    local p = pythonEval("[]")
+    for i = 0,3 do
+        local palette = pSet.palettes[i+1]
+        listAppend(p, palette[1])
+        listAppend(p, palette[2])
+        listAppend(p, palette[3])
+        listAppend(p, palette[4])
+    end
+    
+    local createNss = NESBuilder:importFunction('plugins.nesst','createNss')
+    local chr = NESBuilder:tableToList(plugin.data.customChr, 0)
+    
+    
+    print(type(plugin.data.customChr))
+    print(type(plugin.data.nameTable))
+    print(type(plugin.data.attrTable))
+    print(type(chr))
+    print(type(p))
+    
+    
+    createNss(toDict({
+        filename = f,
+        nameTable = plugin.data.nameTable,
+        attrTable = plugin.data.attrTable,
+        chr = chr,
+        palette = p,
+    }))
+    print("done.")
+end
+
+function nesstTest_cmd()
+--    print(compress('Konami RLE'))
+--    print(decompress('Konami RLE'))
+--    if true then return end
+    
+    local nt = NESBuilder:toList(plugin.data.nameTable)
+    local at = NESBuilder:toList(plugin.data.attrTable)
+    
+    local data = compress('Konami RLE', {data = joinList(nt, at)})
+    local data2 = decompress('Konami RLE', {data = data['data']})
+    
+    print(data['length'])
+    print(data2['length'])
+--    print(len(data['data']))
+--    print(len(data2['data']))
+    print(len(data2['ppu']['palette']))
+    print(len(data2['ppu']['nameTable'][0]))
+    
+    
+    if true then return end
+    
+--[[
+     types of data:
+       * static/fixed - data doesn't change
+       * loaded - use loaded romdata
+       * external - data is linked to external file
+       * current - use something selected elsewhere
+       * set/specific - use a set index/selection
+       * none
+
+     some options:
+       * compression/decompression methods
+       * file/romdata offsets
+     
+     example:
+        Castlevania III
+        palette:
+            type: set/specific
+            palSet: (index)
+        chr:
+            type: set/specific
+            banks: 0x41, 0x70, 0x71, 0x72
+        nametable:
+            type: loaded
+            file offset: 0xb580
+            compression/decompression: Konami RLE
+]]--
+
+    
+--    local screen = {
+--        nameTable = {},
+--        attrTable = {},
+--        chr = {},
+--        palette = {},
+--    }
+    
+    
+    
+    
+    local banks = {0x41, 0x70, 0x71, 0x72}
+    local chr = list()
+    local t = {}
+    
+    for i, bank in ipairs(banks) do
+        local l = NESBuilder:toList(sliceList(currentChr(bank // 4), 0 + 0x400 * (bank % 4), 0 + 0x400 * (bank % 4) + 0x400))
+        chr = joinList(chr, l)
+    end
+    
+    plugin.data.customChr = makeNp(chr)
+    nesstRefreshScreen()
+end
+
+function nesstImportFromPPUDump_cmd()
+    local f = NESBuilder:openFile{filetypes={{"ppu dump", ".bin"}}}
+    if f == "" then
+        print("Open cancelled.")
+        return
+    end
+    print("file: "..f)
+    
+    local fileData = NESBuilder:getFileContents(f)
+    
+    local chr0 = makeNp(sliceList(fileData, 0, 0 + 0x1000))
+    local chr1 = makeNp(sliceList(fileData, 0x1000, 0x1000 + 0x1000))
+--    local nt1 = makeNp(sliceList(fileData, 0x2000, 0x2000 + 0x3c0))
+--    local attr1 = makeNp(sliceList(fileData, 0x23c0, 0x23c0 + 0x40))
+    local nt1 = sliceList(fileData, 0x2000, 0x2000 + 0x3c0)
+    local attr1 = sliceList(fileData, 0x23c0, 0x23c0 + 0x40)
+    local palettes = sliceList(fileData, 0x3f00, 0x3f00 + 0x20)
+    
+    local p = {}
+    for i = 0,3 do
+        p[i+1] = NESBuilder:listToTable(sliceList(palettes, 0 + i * 4, 0 + i * 4 + 4))
+    end
+    
+    local pSet = {
+      name = "test ppu dump palette import",
+      palettes = p,
+      palettesDesc = {},
+      index = 0,
+    }
+    data.project.paletteSets[#data.project.paletteSets+1] = pSet
+    updatePaletteSets(#data.project.paletteSets-1)
+    
+    --plugin.data.customChr = chr0
+    plugin.data.customChr = chr1
+    plugin.data.nameTable = nt1
+    plugin.data.attrTable = attr1
+    
+    nesstRefreshScreen()
 end
 
 function nesstImportFromRom_cmd()
@@ -325,7 +512,9 @@ function nesstImportFromRom_cmd()
     end
     
     
-    local defaultText = "0x9010" -- default for zombie nation title screen
+    plugin.data.defaultImportFromRomOffset = defaultImportFromRomOffset or 0x9010 -- default for zombie nation title screen
+    
+    local defaultText = string.format("0x%04x", plugin.data.defaultImportFromRomOffset)
     local txt = askText('Import nametable from rom data', 'Enter a file offset of nametable data.', defaultText)
     
     -- cancelled
@@ -333,6 +522,8 @@ function nesstImportFromRom_cmd()
     
     local address = tonumber(txt)
     if not address then return end
+    
+    plugin.data.defaultImportFromRomOffset = address
     
     if data.project.rom.filename and not data.project.rom.data then
         loadRom(data.project.rom.filename)
@@ -343,8 +534,20 @@ function nesstImportFromRom_cmd()
     -- we use toList to make sure the elements are regular ints
     -- to avoid issues when converting from np arrays
     local romData = NESBuilder:toList(getRomData())
-    plugin.data.nameTable = sliceList(romData, address, address + 0x3c0)
-    plugin.data.attrTable = sliceList(romData, address + 0x3c0, address + 0x3c0 + 0x40)
+    
+    local compression = plugin.getCompression()
+    printf("Compression: %s", compression or "None")
+    
+    if compression then
+        -- for now, compression assumes combined nt+attr
+        local d = decompress(compression, {data = romData, offset = address})
+        plugin.data.nameTable = d["ppu"]["nameTable"][0]
+        plugin.data.attrTable = d["ppu"]["attrTable"][0]
+        --printf("length: %s", d['length'])
+    else
+        plugin.data.nameTable = sliceList(romData, address, address + 0x3c0)
+        plugin.data.attrTable = sliceList(romData, address + 0x3c0, address + 0x3c0 + 0x40)
+    end
     
     nesstRefreshScreen()
 end
@@ -367,7 +570,6 @@ function nesstRefreshScreen()
     elseif index == 3 then
         control.setText('Specify external CHR')
     end
-    
     
     plugin.refresh = true
     control = NESBuilder:getControlNew("nesstCanvas")
@@ -440,7 +642,7 @@ end
 function plugin.getSelectedCHR()
     local index = plugin.getSelectedCHRType()
     
-    printf("getSelectedCHR %s", index)
+    --printf("getSelectedCHR %s", index)
     
     if index == 0 then
         -- current CHR
@@ -684,44 +886,91 @@ function plugin.onBuild()
     local nameTable = NESBuilder:listToTable(plugin.data.nameTable)
     local attrTable = NESBuilder:listToTable(plugin.data.attrTable)
     
-    control = NESBuilder:getControlNew("nesstCanvas")
-    
-    out=out.. "nametable_data:\n"
-    for i,v in ipairs(nameTable) do
-        if (i-1) % 16 == 0 then
-            out=out.."    .db "
+    if false then
+        out=out.. "nametable_data:\n"
+        for i,v in ipairs(nameTable) do
+            if (i-1) % 16 == 0 then
+                out=out.."    .db "
+            end
+            
+            out=out..string.format("$%02x",v or "????")
+            if (i-1) % 16 == 15 then
+                out=out.."\n"
+            else
+                out=out..", "
+            end
         end
         
-        out=out..string.format("$%02x",v or "????")
-        if (i-1) % 16 == 15 then
-            out=out.."\n"
-        else
-            out=out..", "
+        out=out.. "; attribute data\n"
+        for i,v in ipairs(attrTable) do
+            if (i-1) % 16 == 0 then
+                out=out.."    .db "
+            end
+            out=out..string.format("$%02x",v or "????")
+            if (i-1) % 16 == 15 then
+                out=out.."\n"
+            else
+                out=out..", "
+            end
         end
+        
+        out=out..string.format("; NT length = %s\n; AT length = %s\n",#nameTable, #attrTable)
+        
+        print("File created "..filename)
+        util.writeToFile(filename,0, out, true)
     end
     
-    out=out.. "; attribute data\n"
-    for i,v in ipairs(attrTable) do
-        if (i-1) % 16 == 0 then
-            out=out.."    .db "
-        end
-        out=out..string.format("$%02x",v or "????")
-        if (i-1) % 16 == 15 then
-            out=out.."\n"
-        else
-            out=out..", "
-        end
+    -- make sure nametable folder exists
+    NESBuilder:makeDir(data.folders.projects..projectFolder.."nametable")
+    
+    local compression = plugin.getCompression()
+    printf("Compression: %s", compression or "None")
+    
+    if compression then
+        -- for now, compression assumes combined nt+attr
+        local d = compress(compression, {data = joinList(plugin.data.nameTable, plugin.data.attrTable)})
+        
+        filename = data.folders.projects..projectFolder.."nametable/screenTool.compressed.nt"
+        NESBuilder:saveArrayToFile(filename, d['data'])
+        out = string.format('screenToolCompression="%s"\n\n', compression)
+        out = out .. 'incbin "screenTool.compressed.nt"\n'
+    else
+        filename = data.folders.projects..projectFolder.."nametable/screenTool.nt"
+        NESBuilder:saveArrayToFile(filename, nameTable)
+        filename = data.folders.projects..projectFolder.."nametable/screenTool.attr"
+        NESBuilder:saveArrayToFile(filename, attrTable)
+        out = 'incbin "screenTool.nt"\nincbin "screenTool.attr"\n'
     end
     
-    out=out..string.format("; NT length = %s\n; AT length = %s\n",#nameTable, #attrTable)
+    filename = data.folders.projects..projectFolder.."nametable/screenTool.nametable.asm"
     
     print("File created "..filename)
     util.writeToFile(filename,0, out, true)
     
     if (plugin.getSelectedCHRType() == 2) and plugin.data.customChr then
-        filename = data.folders.projects..data.project.folder.."chr/custom.chr"
+        filename = data.folders.projects..data.project.folder.."chr/screenTool.custom.chr"
         NESBuilder:saveArrayToFile(filename, plugin.data.customChr)
     end
+    
+    
+    filename = data.folders.projects..data.project.folder.."code/screenTool.palette.asm"
+    out = ""
+    
+    local pSet = getPaletteSet()
+    
+    out=out..string.format("; %s\n", pSet.name)
+    if pSet.desc then
+        out=out..string.format("; %s\n", pSet.desc)
+    end
+    
+    for i = 0,3 do
+        local palette = pSet.palettes[i+1]
+        out=out..string.format("screenToolPal%s = $%02x, $%02x, $%02x, $%02x\n", i, palette[1], palette[2], palette[3], palette[4])
+    end
+    
+    print("File created "..filename)
+    util.writeToFile(filename,0, out, true)
+    
 end
 
 function plugin.onAutoSave()
@@ -738,10 +987,14 @@ function plugin.onSaveProject()
         customChr = plugin.data.customChr,
         chrIndex = plugin.data.chrIndex,
         chrType = plugin.data.chrType,
+        compression = plugin.data.currentCompression,
+        
     }
 end
 
-function plugin.onLoadProject()
+function plugin.onEnablePlugin()
+    local control
+    
     plugin.data.nameTable = nil
     plugin.data.attrTable = nil
     plugin.data.selectedTile = 0
@@ -750,6 +1003,34 @@ function plugin.onLoadProject()
     plugin.data.customChr = nil
     plugin.data.chrIndex = nil
     plugin.data.chrType = 0
+    plugin.data.currentCompression = nil
+    control = NESBuilder:getControlNew("nesstCanvas")
+    control.clear()
+    
+    control = getControl("nesstCompressionSelect")
+    for i = 0, control.count() do
+        if control.itemText(i) == plugin.getCompression() then
+            control.setCurrentIndex(i)
+            break
+        end
+    end
+    getControl("nesstCHRSelect").setCurrentIndex(plugin.getSelectedCHRType())
+    getControl('nesstApplyTiles').setChecked(bool(plugin.data.applyTiles))
+    getControl('nesstApplyAttr').setChecked(bool(plugin.data.applyAttr))
+end
+
+function plugin.onLoadProject()
+    local control
+    
+    plugin.data.nameTable = nil
+    plugin.data.attrTable = nil
+    plugin.data.selectedTile = 0
+    plugin.data.applyTiles = true
+    plugin.data.applyAttr = true
+    plugin.data.customChr = nil
+    plugin.data.chrIndex = nil
+    plugin.data.chrType = 0
+    plugin.data.currentCompression = nil
     control = NESBuilder:getControlNew("nesstCanvas")
     control.clear()
 
@@ -762,12 +1043,17 @@ function plugin.onLoadProject()
         plugin.data.customChr = data.project.screenTool.customChr
         plugin.data.chrIndex = data.project.screenTool.chrIndex
         plugin.data.chrType = data.project.screenTool.chrType or 0
+        plugin.data.currentCompression = data.project.screenTool.compression
     end
     
-    
+    control = getControl("nesstCompressionSelect")
+    for i = 0, control.count() do
+        if control.itemText(i) == plugin.getCompression() then
+            control.setCurrentIndex(i)
+            break
+        end
+    end
     getControl("nesstCHRSelect").setCurrentIndex(plugin.getSelectedCHRType())
-    
-    
     getControl('nesstApplyTiles').setChecked(bool(plugin.data.applyTiles))
     getControl('nesstApplyAttr').setChecked(bool(plugin.data.applyAttr))
 end

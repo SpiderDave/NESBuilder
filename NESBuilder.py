@@ -795,7 +795,16 @@ class ForLua:
         dir = fixPath(script_path + "/" + dir)
         print('makedir:',dir, end='')
         if not os.path.exists(dir):
-            os.makedirs(dir)
+            
+            try:
+                original_umask = os.umask(0)
+                os.makedirs(dir)
+            except OSError as error:
+                print(f"Directory can't be created: {dir}")
+            finally:
+                os.umask(original_umask)
+            
+#            os.makedirs(dir)
 
         for _ in range(10):
             if os.path.exists(dir):
@@ -806,7 +815,6 @@ class ForLua:
         else:
             print('\ntimeout.')
         print('')
-
     def openFolder(self, initial=None):
         initial = fixPath(script_path + "/" + initial)
         m = QtDave.Dialog()
@@ -1036,6 +1044,11 @@ class ForLua:
         if type(a) == np.ndarray:
             return a.tolist()
         return list(a)
+    def joinLists(self, *args):
+        l = []
+        for arg in enumerate(args):
+            l.extend(list(arg))
+        return l
     def saveArrayToFile(self, f, fileData):
         fileData = self.tableToList(self, fileData, base=0)
         f = fixPath2(f)
@@ -1089,6 +1102,8 @@ class ForLua:
         return unhexlify(str(s))
     def hexStringToList(self, s):
         return list(unhexlify(s))
+    def listToHexString(self, l):
+        return hexlify(bytes(l))
     def makeData(self, data, indent=0, nItems=16):
         def chunker(seq, size):
             res = []
@@ -1612,6 +1627,17 @@ class ForLua:
         ctrl.mousePressEvent = openUrl
         
         controlsNew.update({ctrl.name:ctrl})
+        return ctrl
+    @lupa.unpacks_lua_table
+    def makeLabel(self, t):
+        ctrl = QtDave.Label(t.text, self.tabQt)
+        t.control = ctrl
+        ctrl.init(t)
+        ctrl.onMouseMove = makeCmdNew(t)
+        ctrl.onMousePress = makeCmdNew(t)
+        ctrl.onMouseRelease = makeCmdNew(t)
+        controlsNew.update({ctrl.name:ctrl})
+        ctrl.update()
         return ctrl
     @lupa.unpacks_lua_table
     def makeLabelQt(self, t):

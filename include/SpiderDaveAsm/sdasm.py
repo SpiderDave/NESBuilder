@@ -3245,6 +3245,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 
                 for v in [getValue(x) >>8 for x in values]:
                     b = b + makeList(v)
+            elif k == 'lineContinueComma':
+                v = line.split(' ',1)
+                if len(v) == 1:
+                    lineContinueComma = True
+                else:
+                    v = v[1].strip()
+                    if (v.lower() in ['on','true']) or (getValue(v) == 1):
+                        lineContinueComma = True
+                    else:
+                        lineContinueComma = False
             elif k == 'mapdb':
                 v = line.split(' ',1)
                 if len(v) == 1:

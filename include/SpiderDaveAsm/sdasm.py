@@ -940,7 +940,7 @@ superglobals = [
 ]
 
 specialSymbols = [
-    'sdasm','bank','banksize','chrsize','randbyte','randword','fileoffset',
+    'sdasm','bank','banksize','chrsize','randbyte','randword','fileoffset','filesize',
     'prgbanks','chrbanks','lastbank','lastchr','mapper','binfile','namespace',
     'vectornmi','vectorreset','vectorirq','warnings',
 ]
@@ -1215,12 +1215,16 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             return str(out[4])
         elif s == 'lastbank':
             return str(out[4]-1)
-        elif s == 'chrbanks' or s == 'lastchr':
+        elif s == 'chrbanks':
             return str(out[5])
+        elif s == 'lastchr':
+            return str(out[5]-1)
         elif s == 'mapper':
             return str((out[7] & 0xf0) + (out[6]>>4))
         elif s == 'warnings':
             return str(assembler.warnings)
+        elif s == 'filesize':
+            return str(len(out))
         elif s == 'fileoffset':
             if bank != None:
                 #return str(addr + bank * bankSize + headerSize)
@@ -2457,7 +2461,7 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                         print('Not found')
                     print()
             
-            elif k == 'insert':
+            elif k == 'insert' and (passNum == lastPass):
                 v = getValue(line.split(" ", 1)[1].strip())
                 fv = fillValue
                 if type(v) == list:
@@ -2470,8 +2474,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 # This is used for display in list file
                 assembler.insert = (v, fv)
                 
-                if debug or True:
-                    print('insert', v, 'bytes.')
+                if debug:
+                    print('insert', hex(v), 'bytes at ', hex(fileOffset))
             elif k == 'truncate':
                 #fileOffset = addr + bank * bankSize + headerSize
                 fileOffset = int(getSpecial('fileoffset'))

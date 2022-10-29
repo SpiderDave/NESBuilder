@@ -376,11 +376,11 @@ function nesstSave_cmd()
     local chr = NESBuilder:tableToList(plugin.data.customChr, 0)
     
     
-    print(type(plugin.data.customChr))
-    print(type(plugin.data.nameTable))
-    print(type(plugin.data.attrTable))
-    print(type(chr))
-    print(type(p))
+--    print(type(plugin.data.customChr))
+--    print(type(plugin.data.nameTable))
+--    print(type(plugin.data.attrTable))
+--    print(type(chr))
+--    print(type(p))
     
     
     createNss(toDict({
@@ -497,8 +497,8 @@ function nesstImportFromPPUDump_cmd()
     data.project.paletteSets[#data.project.paletteSets+1] = pSet
     updatePaletteSets(#data.project.paletteSets-1)
     
-    --plugin.data.customChr = chr0
-    plugin.data.customChr = chr1
+    plugin.data.customChr = chr0
+    --plugin.data.customChr = chr1
     plugin.data.nameTable = nt1
     plugin.data.attrTable = attr1
     
@@ -541,6 +541,10 @@ function nesstImportFromRom_cmd()
     if compression then
         -- for now, compression assumes combined nt+attr
         local d = decompress(compression, {data = romData, offset = address})
+        if not d then
+            print("invalid data.")
+            return
+        end
         plugin.data.nameTable = d["ppu"]["nameTable"][0]
         plugin.data.attrTable = d["ppu"]["attrTable"][0]
         --printf("length: %s", d['length'])
@@ -929,12 +933,17 @@ function plugin.onBuild()
     if compression then
         -- for now, compression assumes combined nt+attr
         local d = compress(compression, {data = joinList(plugin.data.nameTable, plugin.data.attrTable)})
-        
-        filename = data.folders.projects..projectFolder.."nametable/screenTool.compressed.nt"
-        NESBuilder:saveArrayToFile(filename, d['data'])
-        out = string.format('screenToolCompression="%s"\n\n', compression)
-        out = out .. 'incbin "screenTool.compressed.nt"\n'
-    else
+        if d then
+            filename = data.folders.projects..projectFolder.."nametable/screenTool.compressed.nt"
+            NESBuilder:saveArrayToFile(filename, d['data'])
+            out = string.format('screenToolCompression="%s"\n\n', compression)
+            out = out .. 'incbin "screenTool.compressed.nt"\n'
+        else
+            print("compression failed. falling back to uncompressed.")
+            compression = false
+        end
+    end
+    if not compression then
         filename = data.folders.projects..projectFolder.."nametable/screenTool.nt"
         NESBuilder:saveArrayToFile(filename, nameTable)
         filename = data.folders.projects..projectFolder.."nametable/screenTool.attr"

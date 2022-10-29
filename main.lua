@@ -1434,7 +1434,7 @@ function NewProject_cmd()
     
     -- check if the project folder already exists
     f = data.folders.projects..n
-    if NESBuilder:pathExists(f) then
+    if NESBuilder:folderExists(f) then
          local q= NESBuilder:askYesNoCancel("", string.format('The project folder "%s" already exists.  Load it instead?', n))
          -- cancel
         if q==nil then return end
@@ -1898,7 +1898,7 @@ function SaveAs_cmd()
     
     -- check if the project folder already exists
     f = data.folders.projects..n
-    if NESBuilder:pathExists(f) then
+    if NESBuilder:folderExists(f) then
         NESBuilder:showError("Error", string.format('The project folder "%s" already exists.',n))
         return
     end
@@ -1931,7 +1931,7 @@ function loadTemplate(templateFileName)
     
     -- check if the project folder already exists
     f = data.folders.projects..n
-    if NESBuilder:pathExists(f) then
+    if NESBuilder:folderExists(f) then
         NESBuilder:showError("Error", string.format('The project folder "%s" already exists.',n))
         return
     end

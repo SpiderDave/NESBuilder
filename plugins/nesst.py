@@ -173,12 +173,15 @@ def createNss(arg={}):
     at =  arg.get('attrTable', [0] * 0x40)
     chr = arg.get('chr', [0] * 0x2000)
     
+    chr = list(chr)
+    
     if len(chr) == 0x1000:
         chr = chr + chr
     
     palette = arg.get('palette', [0x0f, 0x01, 0x11, 0x20] * 4 * 4)
     if len(chr) == 2:
         chr = chr[0] + chr[1]
+    
     
     out = nssTemplate
     out = out.replace('Palette=', 'Palette=' + RLE(palette))

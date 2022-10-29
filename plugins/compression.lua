@@ -21,6 +21,10 @@ function plugin.onInit()
             compress = NESBuilder:importFunction('plugins.compression','compressKemkoRLE'),
             decompress = NESBuilder:importFunction('plugins.compression','decompressKemkoRLE'),
         },
+        ["Natsume"] = {
+            name = "Natsume",
+            decompress = NESBuilder:importFunction('plugins.compression','decompressNatsume'),
+        },
     }
 end
 
@@ -37,8 +41,8 @@ function plugin.compress(method, arg)
     arg = arg or {}
     for k, v in pairs(plugin.compression) do
         if method == k then
+            if not v.compress then return end
             printf("compress %s", method)
-            --return v.compress()
             return v.compress(toDict(arg))
         end
     end
@@ -48,6 +52,7 @@ function plugin.decompress(method, arg)
     arg = arg or {}
     for k, v in pairs(plugin.compression) do
         if method == k then
+            if not v.decompress then return end
             printf("decompress %s", method)
             return v.decompress(toDict(arg))
         end

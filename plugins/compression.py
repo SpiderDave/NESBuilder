@@ -59,12 +59,12 @@ def writeToFile(filename, data):
         print(f'file "{filename}" written.')
 
 # list to int
-def toInt(data):
-    return int.from_bytes(bytes(data), 'little', signed=False)
+def toInt(data, endian='little'):
+    return int.from_bytes(bytes(data), endian, signed=False)
 
 # address to list
-def addrToList(n):
-    return list((n).to_bytes(2, 'little'))
+def addrToList(n, endian='little'):
+    return list((n).to_bytes(2, endian))
 
 # get the consecutive repetitions of the first element in a list
 def getRep(l):
@@ -390,6 +390,119 @@ def decompressKemkoRLE(arg = {}):
         data = originalData[:dataLength],
         )
     return d
+
+def compressNatsume(arg = {}):
+    pass
+
+def decompressNatsume(arg = {}):
+    data = arg.get('data')
+    offset = arg.get('offset', 0)
+    dictOffset = arg.get('dictOffset', 0x9700)
+    dictEntries = arg.get('dictEntries', 0x15)
+    
+    # initial ppu address
+    address = arg.get('address', 0x2000)
+    
+    txtOut = ""
+    txtOut += "\n* * decompress * *\n\n"
+    
+    data = list(data)
+    
+    originalData = data[:]
+    data = data[offset:]
+    
+    # get dictionary
+    dictionary = []
+    a = dictOffset
+    for i in range(dictEntries):
+        l = originalData[a]
+        dictionary.append(originalData[a+1:a+1+l])
+        a = a + l + 1
+    
+    ppu = [0] * 0x4000
+    
+    # track the length of compressed data
+    dataLength = 0
+
+    while data:
+        op = data.pop(0)
+        dataLength += 1
+        l = 0
+        vertical = False
+        
+        if op == 0:
+            # end of data
+            txtOut += "end: {:02x}\n".format(0x00)
+            dataLength += 1
+            break
+        
+        if op & 0x80:
+            # vertical
+            vertical = True
+        
+        if op & 0x40:
+            # ppu address
+            address = toInt(data[:2], 'big')
+            txtOut += "address (0x{:04x}): {:02x} {:02x}\n".format(address, data[0], data[1])
+            data = data[2:]
+            dataLength += 2
+            
+        if op & 0x20:
+            # dict entry
+            entry = op & ~0xe0
+            if entry > len(dictionary):
+                # invalid entry
+                return
+            d = dictionary[entry]
+            l = len(d)
+            txtOut += "dict ({:d}): {:02x} ".format(entry, l)
+            txtOut += ' '.join(['{:02x}'.format(x) for x in d])
+            txtOut += '\n'
+            
+            if vertical:
+                for byte in d:
+                    ppu[address] = byte
+                    address += 0x20
+            else:
+                ppu[address:address + l] = d
+                address += l
+        else:
+            # copy bytes
+            l = op & ~0xe0
+            
+            d = data[:l]
+            
+            txtOut += "copy ({:d}): ".format(l)
+            txtOut += ' '.join(['{:02x}'.format(x) for x in d])
+            txtOut += '\n'
+            
+            if vertical:
+                for byte in d:
+                    ppu[address] = byte
+                    address += 0x20
+            else:
+                ppu[address:address + l] = d
+                address += l
+            
+            data = data[l:]
+            dataLength += l
+    d = dict(
+        offset = offset,
+        length = dataLength,
+        inputLength=dataLength,
+        ppu = dict(
+            full = ppu,
+            patternTable = [ppu[0:0+0x1000], ppu[0x1000:0x1000+0x1000]],
+            nameTable = [ppu[0x2000:0x2000+0x3c0], ppu[0x2400:0x2400+0x3c0], ppu[0x2800:0x2800+0x3c0], ppu[0x2c00:0x2c00+0x3c0]],
+            attrTable = [ppu[0x23c0:0x23c0+0x40], ppu[0x27c0:0x27c0+0x40], ppu[0x2bc0:0x2bc0+0x40], ppu[0x2fc0:0x2fc0+0x40]],
+            palette = ppu[0x3f00:0x3f00+0x20],
+            ),
+        details=txtOut,
+        dictionary = dictionary[:],
+        data = originalData[:dataLength],
+        )
+    return d
+
 
 if __name__ == '__main__':
     import argparse

@@ -611,6 +611,9 @@ class ForLua:
     def pathExists(self, f):
         f = fixPath(script_path+"/"+f)
         return os.path.exists(f)
+    def folderExists(self, f):
+        f = fixPath(script_path+"/"+f)
+        return os.path.exists(f) and os.path.isdir(f)
     def setWorkingFolder(self, f=""):
         workingFolder = fixPath2(f)
         os.chdir(workingFolder)
@@ -799,8 +802,12 @@ class ForLua:
             try:
                 original_umask = os.umask(0)
                 os.makedirs(dir)
-            except OSError as error:
+            except OSError as e:
                 print(f"Directory can't be created: {dir}")
+                print(e)
+            except Exception as e:
+                print(f"Directory can't be created: {dir}")
+                print(e)
             finally:
                 os.umask(original_umask)
             

@@ -79,7 +79,6 @@ data.projectTypes = {
 _print = print
 print = function(...) NESBuilder:print(...) end
 
-
 makeHex = function(n)
     if NESBuilder:cfgGetValue("main", "upperhex")==1 then
         return string.format("%02X",n)
@@ -3196,9 +3195,9 @@ function updateSquareoid()
     --local p = currentPalette()
     local pSetIndex = m.pSet or 0
     
-    print(string.format("pSetIndex=%s", pSetIndex))
-    print(string.format("m.palette=%s", m.palette))
-    print(getPaletteSet(pSetIndex))
+--    print(string.format("pSetIndex=%s", pSetIndex))
+--    print(string.format("m.palette=%s", m.palette))
+--    print(getPaletteSet(pSetIndex))
     
     local p
     if not pcall(function()

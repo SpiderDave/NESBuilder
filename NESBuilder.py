@@ -32,6 +32,8 @@ parser.add_argument('mainfile', nargs='?', type=str,
                     help='use external main file')
 parser.add_argument('-asm', action='store_true',
                     help='Assemble file with sdasm and exit')
+parser.add_argument('-diagnose', action='store_true',
+                    help='Temporary option to help diagnose issues')
 cmdArgs = parser.parse_args()
 
 if cmdArgs.asm:
@@ -2162,6 +2164,64 @@ def onHoverWidget(widget):
         handlePythonError(err)
 main.onHoverWidget = onHoverWidget
 
+
+if cmdArgs.diagnose:
+    import platform
+
+    print('-------------------- diagnose --------------------')
+    print('Python version: ', platform.python_version())
+    print(f'OS: {os.name} {platform.system()} {platform.release()} {platform.platform()}')
+    
+    print(f'script_path = {script_path}')
+    print(f'initialFolder = {initialFolder}')
+    
+    print('w =', cfg.getValue('main', 'w'))
+    print('h =', cfg.getValue('main', 'h'))
+    
+    print('Plugins:')
+    for p in cfg.getValue("plugins","list"):
+        print(f'    {p}')
+    
+    print('cfg:')
+    for section in cfg.sections():
+        print(f'    [{section}]')
+        for k,v in cfg[section].items():
+            print(f'        {k} = {v}')
+    
+    print('file write test 1:')
+    filename = 'write_test_1.txt'
+    try:
+        print(f'    {fixPath2(filename)}')
+        with open(fixPath2(filename), 'w') as f:
+            f.write('test')
+        print('    pass')
+    except Exception as e:
+        print(f'    fail: {e}')
+    
+    print('file write test 2:')
+    filename = 'write_test_2.txt'
+    try:
+        print(f'    {filename}')
+        with open(filename, 'w') as f:
+            f.write('test')
+        print('    pass')
+    except Exception as e:
+        print(f'    fail: {e}')
+    
+    print('file write test 3:')
+    dir = 'write_test_3'
+    try:
+        print(f'    {dir}')
+        ForLua.makeDir(ForLua, dir)
+        print('    pass')
+    except Exception as e:
+        print(f'    fail: {e}')
+    
+    print('------------------ end diagnose ------------------')
+    print('press a key to exit.')
+    
+    getKeyPress()
+    sys.exit()
 
 main.show()
 try:

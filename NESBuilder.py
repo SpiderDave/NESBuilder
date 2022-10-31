@@ -2182,7 +2182,10 @@ if cmdArgs.diagnose:
     for p in cfg.getValue("plugins","list"):
         print(f'    {p}')
     
-    print('cfg:')
+    print(f'cfg folder = {cfg.folder}')
+    print(f'cfg filename = {cfg.filename}')
+    
+    print('cfg data:')
     for section in cfg.sections():
         print(f'    [{section}]')
         for k,v in cfg[section].items():
@@ -2216,6 +2219,15 @@ if cmdArgs.diagnose:
         print('    pass')
     except Exception as e:
         print(f'    fail: {e}')
+    
+    print('cfg.save() test')
+    try:
+        cfg.save()
+        print('    pass')
+    except Exception as e:
+        print(f'    fail: {e}')
+
+    
     
     print('------------------ end diagnose ------------------')
     print('press a key to exit.')

@@ -1030,7 +1030,7 @@ class ClipOperations():
         Copy pixmap to a "clipboard" type thing to later be
         pasted.  Also returns the pixmap to use directly.
         """
-        pix = self.pixmap().scaled(self.width/self.scale, self.height/self.scale)
+        pix = self.pixmap().scaled(int(self.width/self.scale), int(self.height/self.scale))
         
         if w == False:
             w = self.width

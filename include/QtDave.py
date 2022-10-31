@@ -1022,7 +1022,7 @@ class ClipOperations():
         super().__init__(*args, **kw)
     def save(self, f, fmt="PNG"):
         if hasattr(self, 'scale'):
-            self.pixmap().scaled(self.width/self.scale, self.height/self.scale).save(f, fmt)
+            self.pixmap().scaled(int(self.width/self.scale), int(self.height/self.scale)).save(f, fmt)
         else:
             self.pixmap().scaled(self.width, self.height).save(f, fmt)
     def copy(self, x=0, y=0, w=False, h=False):

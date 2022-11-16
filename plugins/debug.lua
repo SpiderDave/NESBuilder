@@ -14,7 +14,8 @@ function plugin.onInit()
         {name="forceClose", text="\u{274e} Force Close"},
         {name="openMainFolder", text="\u{1f4c2} Open Main Folder"},
         {name="openPluginFolder", text="\u{1f4c2} Open Plugins Folder"},
-        {name="copySdasm", text="\u{1f4cb} Copy sdasm for standalone project"}
+        {name="copySdasm", text="\u{1f4cb} Copy sdasm for standalone project"},
+        {name="saveCfg", text="\u{1f4be} Save config"},
     }
     control = NESBuilder:makeMenuQt{name="debugMenu", text="Debug", menuItems=items, prefix=true}
 end
@@ -37,6 +38,11 @@ debugMenu_openProjectFolder_cmd = OpenProjectFolder_cmd
 function debugMenu_openPluginFolder_cmd()
     local workingFolder = data.folders.projects..data.project.folder
     NESBuilder:shellOpen(workingFolder, data.folders.plugins)
+end
+
+function debugMenu_saveCfg_cmd()
+    -- Save configuration and do cleanup
+    NESBuilder:cfgSave(true)
 end
 
 function debugMenu_copySdasm_cmd()

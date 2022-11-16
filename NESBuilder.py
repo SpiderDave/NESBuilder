@@ -427,7 +427,20 @@ class ForLua:
     # so we'll define some methods here too.
     def cfgLoad(self, filename = "NESBuilder.ini"):
         return cfg.load(filename)
-    def cfgSave(self):
+    def cfgSave(self, doCleanup=False):
+        
+        if doCleanup:
+            x = main.x()
+            y = main.y()
+            w = main.width
+            h = main.height
+            
+            if w>=500 and h>=400 and x>0 and y>0:
+                cfg.setValue('main','x', x)
+                cfg.setValue('main','y', y)
+                cfg.setValue('main','w', w)
+                cfg.setValue('main','h', h)
+        
         return cfg.save()
     def cfgMakeSections(self, *sections):
         return cfg.makeSections(*sections)
@@ -2226,7 +2239,6 @@ if cmdArgs.diagnose:
         print('    pass')
     except Exception as e:
         print(f'    fail: {e}')
-
     
     
     print('------------------ end diagnose ------------------')
@@ -2234,6 +2246,17 @@ if cmdArgs.diagnose:
     
     getKeyPress()
     sys.exit()
+
+
+w = cfg.getValue("main","fixWidth", False)
+h = cfg.getValue("main","fixHeight", False)
+if w and h:
+    if str(w).lower() == "max":
+        w = 16777215
+    if str(h).lower() == "max":
+        h = 16777215
+    #main.setFixedSize(1000, 1000)
+    main.setFixedSize(w,h)
 
 main.show()
 try:

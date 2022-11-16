@@ -70,6 +70,22 @@ def addrToList(n, endian='little'):
 def getRep(l):
     return [sum(1 for x in group) for x, group in groupby(l)][0]
 
+# split a list into chunks of size n
+def chunk(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+# make a data table
+def makeData(data, comment=False, perLine = 8, commentCol = 0, directive = 'db'):
+    out = ''
+    for i, item in enumerate(chunk(data, perLine)):
+        line = f'{directive} ' + ', '.join(['${:02x}'.format(x) for x in item])
+        if i == 0 and comment:
+            line = line.ljust(commentCol, ' ') + f'; {comment}'
+        out += line + '\n'
+    return out
+
+
 # decompress data compressed with Konami RLE format
 #
 # arguments are supplied in the form of a dict
@@ -391,6 +407,114 @@ def decompressKemkoRLE(arg = {}):
         )
     return d
 
+# decompress data compressed SMB format
+#
+# arguments are supplied in the form of a dict
+#   data:       data to decompress
+#   offset:     decompress data at the given offset
+#
+# returns a dict:
+#   details:            text details of decompression
+#   ppu:                dict containing elements of generated ppu
+#       full            full ppu
+#       patternTable    a list containing pattern tables
+#       nameTable       a list containing name tables (without attributes)
+#       attrTable       a list containing attribute tables
+#       palettes        palettes
+def decompressSMB(arg = {}):
+    data = arg.get('data')
+    offset = arg.get('offset', 0)
+    
+    # initial ppu address
+    address = arg.get('address', 0x2000)
+    
+    txtOut = ""
+    txtOut += "\n* * decompress * *\n\n"
+    
+    data = list(data)
+    
+    data = data[offset:]
+    originalData = data[:]
+    
+    ppu = [0] * 0x4000
+    
+    # fill each nametable (but not attributes) with clear tile 0x24
+    for nt in range(4):
+        ppu[0x2000+nt*0x400:0x2000+nt*0x400+0x3c0] = [0x24] * 0x3c0
+    
+    # track the length of compressed data
+    dataLength = 0
+    
+    d = 0 # initialize for scope
+    
+    while data:
+        if data[0] == 0x00:
+            dataLength += 1
+            txtOut += "db ${:02x}{}; end of data\n".format(data[0], ' '*38)
+            break
+        
+        # Read PPU address
+        address = toInt(data[:2], 'big')
+        txtOut += "db ${:02x}, ${:02x}{}; PPU address (${:04x})\n".format(data[0], data[1], ' '*33, address)
+        data = data[2:]
+        dataLength += 2
+        
+        op = data.pop(0)
+        dataLength += 1
+        l = op & 0x3f
+        vertical = op & 0x80
+        rep = op & 0x40
+        
+        if rep:
+            d = [data.pop(0)] * l
+            dataLength += 1
+        else:
+            d = data[:l]
+            data = data[l:]
+            dataLength += l
+            
+        if vertical:
+            for byte in d:
+                ppu[address] = byte
+                address += 0x20
+        else:
+            ppu[address:address + l] = d
+            address += l
+            
+        if rep:
+            txtOut += "db ${:02x}{}; repeat {}x".format(op, ' '*38, l)
+            if vertical:
+                txtOut += ", vertical "
+            txtOut += "\n"
+            txtOut += "db ${:02x}{}; data\n".format(d[0], ' '*38)
+        else:
+            
+            txtOut += "db ${:02x}{}; copy {} bytes".format(op, ' '*38, l)
+            
+            if vertical:
+                txtOut += ", vertical"
+            txtOut += '\n'
+            txtOut += makeData(d, comment='data', perLine=8, commentCol = 44)
+        txtOut += '\n'
+        
+        txtOut = txtOut.replace('1 bytes', '1 byte')
+        
+    d = dict(
+        offset = offset,
+        length = dataLength,
+        inputLength=dataLength,
+        ppu = dict(
+            full = ppu,
+            patternTable = [ppu[0:0+0x1000], ppu[0x1000:0x1000+0x1000]],
+            nameTable = [ppu[0x2000:0x2000+0x3c0], ppu[0x2400:0x2400+0x3c0], ppu[0x2800:0x2800+0x3c0], ppu[0x2c00:0x2c00+0x3c0]],
+            attrTable = [ppu[0x23c0:0x23c0+0x40], ppu[0x27c0:0x27c0+0x40], ppu[0x2bc0:0x2bc0+0x40], ppu[0x2fc0:0x2fc0+0x40]],
+            palette = ppu[0x3f00:0x3f00+0x20],
+            ),
+        details=txtOut,
+        data = originalData[:dataLength],
+        )
+    return d
+
 def compressNatsume(arg = {}):
     pass
 
@@ -556,10 +680,15 @@ if __name__ == '__main__':
 #        d = decompressKonamiRLE(dict(data=data, offset=offset))
 #    else:
 #        d = compressKonamiRLE(dict(data=data, offset=offset))
+#    if args.d:
+#        d = decompressKemkoRLE(dict(data=data, offset=offset))
+#    else:
+#        d = compressKemkoRLE(dict(data=data, offset=offset))
     if args.d:
-        d = decompressKemkoRLE(dict(data=data, offset=offset))
+        d = decompressSMB(dict(data=data, offset=offset))
     else:
-        d = compressKemkoRLE(dict(data=data, offset=offset))
+        pass
+#        d = compressSMB(dict(data=data, offset=offset))
     
     print(f'    input filename: "{args.inputfile}"')
     print('    file offset: {}'.format(hex(offset)))

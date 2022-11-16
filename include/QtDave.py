@@ -839,6 +839,13 @@ class MainWindow(Base, QMainWindow):
         self.closing = False
         self.onKeyPress = False
         
+        #self.setFixedSize(1000,1000)
+        #self.setFixedSize(16777215,16777215)
+        #self.setFixedSize(Qt.QWIDGETSIZE_MAX(), Qt.QWIDGETSIZE_MAX())
+        #self.setFixedSize(self.sizeHint())
+        #minimumSizeHint()
+        
+        
         QTimer.singleShot(1,self.onDisplay)
     def setHoveredWidget(self, widget):
         self.hoveredWidget = widget
@@ -854,6 +861,7 @@ class MainWindow(Base, QMainWindow):
             self.onResize(width, height, oldWidth, oldHeight)
     def onDisplay(self):
         self.loaded = True
+        
     def hideMenuItem(self, menuName, menuItem=None):
         if not self.menus.get(menuName, False):
             return

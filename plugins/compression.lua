@@ -25,6 +25,10 @@ function plugin.onInit()
             name = "Natsume",
             decompress = NESBuilder:importFunction('plugins.compression','decompressNatsume'),
         },
+        ["SMB"] = {
+            name = "SMB",
+            decompress = NESBuilder:importFunction('plugins.compression','decompressSMB'),
+        },
     }
 end
 

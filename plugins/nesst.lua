@@ -1,6 +1,10 @@
 -- NESBuilder plugin
 -- nesst.lua
 
+-- To Do:
+--     * save a checksum for linked chr
+
+
 local plugin = {
     author = "SpiderDave",
     name = "nesst",
@@ -50,6 +54,19 @@ function plugin.onInit()
     
     y,x=pop(2)
     
+    if devMode() then
+        control = NESBuilder:makeLabel{x=x,y=y, clear=true, text="Screen / Session"}
+        y = y + control.height + pad
+        
+        push(x)
+        control = NESBuilder:makeComboBox{x=x,y=y,w=buttonWidth * 2, name="nesstScreenSelect", itemList = {"foo", "bar", "baz"}}
+        x = x + control.width + pad
+        control = NESBuilder:makeButton{x=x,y=y,w=buttonWidth,h=buttonHeight, name="nesstAddScreen", text="Add"}
+        x = pop()
+        
+        
+        y = y + control.height + pad
+    end
     
     push(y)
     control = NESBuilder:makeCanvasQt{x=x,y=y,w=32*8,h=30*8,name="nesstCanvas", scale=2, columns=32, rows=30}
@@ -157,6 +174,63 @@ function plugin.onInit()
 --    plugin.status = control
     
     plugin.loadDefault()
+end
+
+
+function plugin.makeScreen(name)
+    local nt = makeNp0(0x3c0)
+    local at = makeNp0(0x40)
+    local chr0 = makeNp0(0x1000)
+    local chr1 = makeNp0(0x1000)
+    local pal = makeNp0(0x20)
+    
+    local screen = {
+        index = n,
+        name = name or "screen",
+        nameTable = {data = nt},
+        attrTable = {data = at},
+        chr0 = {data = chr0},
+        chr1 = {data = chr1},
+        pal = {data = pal},
+        compression = "None",
+    }
+    
+    return screen
+end
+
+function nesstAddScreen_cmd(t)
+    local index = #plugin.data.screens+1
+    
+    local screen = plugin.makeScreen(string.format("screen %s", index))
+    plugin.data.screens[index] = screen
+    
+    local control = getControl("nesstScreenSelect")
+    control.addItem(screen.name)
+end
+
+function plugin.getScreen()
+    return plugin.data.screens[plugin.data.currentScreen+1]
+end
+
+function nesstScreenSelect_cmd(t)
+    local control = t.control
+    local index = control.currentIndex()
+    
+    print(index)
+    
+    if index == plugin.data.currentScreen then return end
+    
+    plugin.data.currentScreen = index
+    local screen = plugin.getScreen()
+    
+    plugin.data.nameTable = screen.nameTable.data
+    plugin.data.attrTable = screen.attrTable.data
+    
+    plugin.setCompressionSelect(screen.compression or "None")
+    
+    nesstRefreshScreen()
+    dataChanged()
+    
 end
 
 function nesstCompressionSelect_cmd(t)
@@ -336,20 +410,22 @@ function plugin.nesstLoad_cmd()
     dataChanged()
 end
 
----function nesstLoadChr_cmd()
-function nesstLoadChr()
-    local f = NESBuilder:openFile{filetypes={{"All valid types", ".chr", ".png"}, {"CHR", ".chr"}, {"Images", ".png"}}}
-    if f == "" then
-        print("Open cancelled.")
-        return
+function nesstLoadChr(filename)
+    local f
+    if filename then
+        f = filename
     else
-        print("file: "..f)
+        f = NESBuilder:openFile{filetypes={{"All valid types", ".chr", ".png"}, {"CHR", ".chr"}, {"Images", ".png"}}}
+        if f == "" then
+            print("Open cancelled.")
+            return
+        end
     end
-    
+    print("file: "..f)
     plugin.data.customChr = makeNp(getChrFromFile(f))
     nesstRefreshScreen()
     
-    return true
+    return f
 end
 
 function nesstSave_cmd()
@@ -657,6 +733,9 @@ function plugin.getSelectedCHR()
     elseif index == 2 then
         -- custom CHR
         return plugin.data.customChr or currentChr(0)
+    elseif index == 3 then
+        -- linked CHR
+        return plugin.data.customChr or currentChr(0)
     end
 end
 
@@ -681,10 +760,12 @@ function nesstCHRSelect_cmd(t)
     local index = t.control.currentIndex()
     print(index)
     
-    if index == 3 then
-        notImplemented()
-        t.control.setCurrentIndex(plugin.data.chrType)
-        return
+    if not devMode() then
+        if index == 3 then
+            notImplemented()
+            t.control.setCurrentIndex(plugin.data.chrType)
+            return
+        end
     end
     
     
@@ -725,6 +806,11 @@ function nesstCHRSelectSet_cmd(t)
     elseif index == 2 then
         -- custom CHR
         nesstLoadChr()
+        plugin.data.chrFilename = nil
+    elseif index == 3 then
+        -- linked CHR
+        local f = nesstLoadChr()
+        plugin.data.chrFilename = f
     end
 end
 
@@ -890,6 +976,11 @@ function plugin.onBuild()
     local nameTable = NESBuilder:listToTable(plugin.data.nameTable)
     local attrTable = NESBuilder:listToTable(plugin.data.attrTable)
     
+    if (plugin.getSelectedCHRType() == 3) and plugin.data.chrFilename then
+        -- update linked file
+        nesstLoadChr(plugin.data.chrFilename)
+    end
+    
     if false then
         out=out.. "nametable_data:\n"
         for i,v in ipairs(nameTable) do
@@ -997,8 +1088,31 @@ function plugin.onSaveProject()
         chrIndex = plugin.data.chrIndex,
         chrType = plugin.data.chrType,
         compression = plugin.data.currentCompression,
-        
+        chrFilename = plugin.data.chrFilename,
     }
+end
+
+
+--local screen = {
+--    nameTable = false,
+--    attrTable = false,
+--    selectedTile = false,
+--    applyTiles = false,
+--    applyAttr = false,
+    
+--}
+
+function plugin.setCompressionSelect(compression)
+    control = getControl("nesstCompressionSelect")
+    
+    compression = compression or plugin.getCompression()
+    
+    for i = 0, control.count() do
+        if control.itemText(i) == compression then
+            control.setCurrentIndex(i)
+            return
+        end
+    end
 end
 
 function plugin.onEnablePlugin()
@@ -1013,16 +1127,11 @@ function plugin.onEnablePlugin()
     plugin.data.chrIndex = nil
     plugin.data.chrType = 0
     plugin.data.currentCompression = nil
+    plugin.data.chrFilename = nil
     control = NESBuilder:getControlNew("nesstCanvas")
     control.clear()
     
-    control = getControl("nesstCompressionSelect")
-    for i = 0, control.count() do
-        if control.itemText(i) == plugin.getCompression() then
-            control.setCurrentIndex(i)
-            break
-        end
-    end
+    plugin.setCompressionSelect()
     getControl("nesstCHRSelect").setCurrentIndex(plugin.getSelectedCHRType())
     getControl('nesstApplyTiles').setChecked(bool(plugin.data.applyTiles))
     getControl('nesstApplyAttr').setChecked(bool(plugin.data.applyAttr))
@@ -1040,6 +1149,7 @@ function plugin.onLoadProject()
     plugin.data.chrIndex = nil
     plugin.data.chrType = 0
     plugin.data.currentCompression = nil
+    plugin.data.chrFilename = nil
     control = NESBuilder:getControlNew("nesstCanvas")
     control.clear()
 
@@ -1053,18 +1163,30 @@ function plugin.onLoadProject()
         plugin.data.chrIndex = data.project.screenTool.chrIndex
         plugin.data.chrType = data.project.screenTool.chrType or 0
         plugin.data.currentCompression = data.project.screenTool.compression
+        plugin.data.chrFilename = data.project.screenTool.chrFilename
     end
     
-    control = getControl("nesstCompressionSelect")
-    for i = 0, control.count() do
-        if control.itemText(i) == plugin.getCompression() then
-            control.setCurrentIndex(i)
-            break
-        end
-    end
+    plugin.setCompressionSelect()
     getControl("nesstCHRSelect").setCurrentIndex(plugin.getSelectedCHRType())
     getControl('nesstApplyTiles').setChecked(bool(plugin.data.applyTiles))
     getControl('nesstApplyAttr').setChecked(bool(plugin.data.applyAttr))
+    
+    if (plugin.getSelectedCHRType() == 3) and plugin.data.chrFilename then
+        -- update linked file
+        nesstLoadChr(plugin.data.chrFilename)
+    end
+    
+    plugin.data.screens = {}
+    
+    local control = getControl("nesstScreenSelect")
+    --control.itemList = t
+    control.clear()
+--    for k,v in pairs(t) do
+--        control.addItem(k)
+--    end
+--    if tableIsEmpty(data.compression) then control.hide() else control.show() end
+
+    
 end
 
 function plugin.onTabChanged(t)

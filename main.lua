@@ -3884,6 +3884,8 @@ tableAppend = function(...) util.tableAppendSparse(...) end
 maxTableIndex = function(...) util.maxTableIndex(...) end
 makeLabel = pythonEval("lambda x:x.replace(' ','_')")
 makeNp = pythonEval("lambda x: np.array(x)")
+makeNp0 = pythonEval("lambda x: np.zeros(x, dtype = int)")
+makeList0 = pythonEval("lambda x: [0] * x")
 dictGet = pythonEval('lambda x,y:x.get(y, False)')
 toDict = pythonEval("lambda x:dict(x)")
 startsWith = pythonEval('lambda x,y:x.startswith(tuple(y))')

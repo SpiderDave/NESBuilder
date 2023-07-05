@@ -649,6 +649,9 @@ if __name__ == '__main__':
     parser.add_argument('-offset', type=strToInt, nargs='?',
                         help='Input file offset')
     
+    parser.add_argument('-m', type=str, metavar="<method>",
+                        help='Compression method')
+
     parser.add_argument('inputfile', type=str, metavar="<input file>",
                         help='Input file')
     parser.add_argument('outputfile', type=str, metavar="<output file>",
@@ -676,19 +679,26 @@ if __name__ == '__main__':
 #    filename = r"J:\svn\NESBuilder\projects\BugsBunnyCrazyCastle\Bugs Bunny Crazy Castle, The (USA).nes"
 #    offset = 0xd7e6
     
-#    if args.d:
-#        d = decompressKonamiRLE(dict(data=data, offset=offset))
-#    else:
-#        d = compressKonamiRLE(dict(data=data, offset=offset))
-#    if args.d:
-#        d = decompressKemkoRLE(dict(data=data, offset=offset))
-#    else:
-#        d = compressKemkoRLE(dict(data=data, offset=offset))
-    if args.d:
-        d = decompressSMB(dict(data=data, offset=offset))
-    else:
-        pass
-#        d = compressSMB(dict(data=data, offset=offset))
+    d = False
+    
+    method = args.m or 'konami'
+    
+    if method == 'smb':
+        if args.d:
+            d = decompressSMB(dict(data=data, offset=offset))
+        else:
+            pass
+    #        d = compressSMB(dict(data=data, offset=offset))
+    elif method == 'konami':
+        if args.d:
+            d = decompressKonamiRLE(dict(data=data, offset=offset))
+        else:
+            d = compressKonamiRLE(dict(data=data, offset=offset))
+    elif method == 'kemko':
+        if args.d:
+            d = decompressKemkoRLE(dict(data=data, offset=offset))
+        else:
+            d = compressKemkoRLE(dict(data=data, offset=offset))
     
     print(f'    input filename: "{args.inputfile}"')
     print('    file offset: {}'.format(hex(offset)))

@@ -303,7 +303,7 @@ org
 ```
 
 base
-
+    
         Set the program address.  This is useful for relocatable code,
         multiple code banks, etc.
     
@@ -424,7 +424,7 @@ truncate
 ```
 
 enum
-ende
+ende / endenum
 
     Reassign PC and suppress assembly output.  Useful for defining
     variables in RAM.
@@ -433,7 +433,7 @@ ende
     enum $200
     foo:    db 0
     foo2:   db 0
-    enum
+    ende
 ```
 
 db / byte / byt / dc.b

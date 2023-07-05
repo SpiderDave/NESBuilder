@@ -2004,7 +2004,7 @@ function BuildProject()
     
     -- make sure folders exist for this project
     NESBuilder:makeDir(folder)
-    NESBuilder:makeDir(folder.."chr")
+    --NESBuilder:makeDir(folder.."chr")
     NESBuilder:makeDir(folder.."code")
     
     -- remove old binary
@@ -2045,7 +2045,7 @@ function BuildProject()
     if data.project.assembler == 'bB' then
         -- dont make a bunch of default stuff for bB
     else
-        if not NESBuilder:fileExists(folder.."project.asm") and templateData("code") then
+        if not NESBuilder:fileExists(folder..getProjectFilename("project.asm")) and templateData("code") then
             -- Copy entire folder
             local src = data.folders.templates..templateData("code")
             local dst = data.folders.projects..data.project.folder
@@ -2055,7 +2055,7 @@ function BuildProject()
         
         
         -- create default code
-        if not NESBuilder:fileExists(folder.."project.asm") then
+        if not NESBuilder:fileExists(folder..getProjectFilename("project.asm")) then
             print("project.asm not found, extracting code template...")
             --NESBuilder:extractAll('templates/romhack_xkasplus1.zip',folder)
             NESBuilder:extractAll("templates/romhack_sdasm1.zip",folder)
@@ -2178,7 +2178,7 @@ function BuildProject()
     
     if data.project.assembler == 'asm6' then
         local cmd = data.folders.tools.."asm6.exe"
-        local args = string.format("-L project.asm %s list.txt", getOutputBinaryFilename())
+        local args = string.format("-L %s %s list.txt", getProjectFilename("project.asm"), getOutputBinaryFilename())
         print("Starting asm 6...")
         
         NESBuilder:run(folder, cmd, args)
@@ -2186,7 +2186,9 @@ function BuildProject()
         local bBFolder = data.folders.tools..'bB/'
         cmd = data.folders.tools.."bB/2600bas.bat"
         
-        local args = string.format("project.bas %s", getOutputBinaryFilename())
+        local projectFilename = getProjectFilename("default.bas")
+        
+        local args = string.format("%s %s", projectFilename, getOutputBinaryFilename())
         print("Starting bB...")
         
         NESBuilder:run(folder, cmd, args)
@@ -2195,27 +2197,28 @@ function BuildProject()
             "bB.asm",
             "2600basic_variable_redefs.h",
             "includes.bB",
-            "project.bas.sym",
-            "project.bas.lst",
+            projectFilename..".sym",
         }
+        
+        --projectFilename..".lst",
+        
+        cleanupFiles = {}
         
         for _, file in ipairs(cleanupFiles) do
             file = fixPath(data.folders.projects..data.project.folder..file)
             NESBuilder:delete(file)
         end
         
-        NESBuilder:rename(data.folders.projects..data.project.folder.."project.bas.bin", getOutputBinaryFilename(true))
+        -- delete all .tmp files
+        for file in python.iter(NESBuilder:files(fixPath(data.folders.projects..data.project.folder.."*.tmp"))) do
+            NESBuilder:delete(file)
+        end
         
+        NESBuilder:rename(data.folders.projects..data.project.folder..projectFilename..".bin", getOutputBinaryFilename(true))
         
-        
---        local cmd = data.folders.tools.."bB/2600basic.exe"
---        local args = "project.bas"
---        print("Starting bB...")
-        
---        NESBuilder:run(folder, cmd, args)
     elseif data.project.assembler == 'xkasplus' then
         local cmd = data.folders.tools.."xkas-plus/xkas.exe"
-        local args = string.format("-o %s project.asm", getOutputBinaryFilename())
+        local args = string.format("-o %s %s", getOutputBinaryFilename(), getProjectFilename("project.asm"))
         print("Starting xkas plus...")
         
         NESBuilder:run(folder, cmd, args)
@@ -2241,7 +2244,7 @@ function BuildProject()
         -- Start assembling with sdasm
         print("Assembling with sdasm...")
         
-        local success, errorText = sdasm.assemble('project.asm', getOutputBinaryFilename(), 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'), romData, nil, nil, nil, "NESBuilder")
+        local success, errorText = sdasm.assemble(getProjectFilename("project.asm"), getOutputBinaryFilename(), 'output.txt', fixPath(data.folders.projects..data.project.folder..'config.ini'), romData, nil, nil, nil, "NESBuilder")
         if not success then
             data.buildFail = true
             print(errorText)
@@ -2272,6 +2275,11 @@ function getOutputBinaryFilename(includePath)
     if includePath then
         return data.folders.projects..data.project.folder..f
     end
+    return f
+end
+
+function getProjectFilename(default)
+    local f = ppGet('projectFilename') or default
     return f
 end
 

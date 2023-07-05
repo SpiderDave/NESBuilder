@@ -733,7 +733,7 @@ directives = [
     'rept','endr','endrept','sprite8x16','export','diff','diff2',
     'assemble', 'exportchr', 'ips','makeips', 'gg','echo','function','endf', 'endfunction',
     'return','namespace','break','expected',
-    'findtext','lastpass', 'endoffunction', '_wipe',
+    'findtext', 'find', 'lastpass', 'endoffunction', '_wipe',
     'loadld65cfg','loadld65cfg?','segment',
     'start','end','exportmap','importmap','_test','_shatterhand_import',
     'pushpc','pullpc','pushbase','pullbase',
@@ -1532,6 +1532,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             else:
                 return 0, 1
         
+        if v.startswith(assembler.quotes) and v.endswith(assembler.quotes):
+            if mode == 'textmap':
+                v = assembler.mapText(assembler.stripQuotes(v))
+            else:
+                v = list(bytes(assembler.stripQuotes(v), 'utf-8'))
+            l=len(v)
+            return v, l
         
         if '=' in v:
             v = v.replace('==', '=')
@@ -1546,13 +1553,13 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             else:
                 return 0, 1
         
-        if v.startswith(assembler.quotes) and v.endswith(assembler.quotes):
-            if mode == 'textmap':
-                v = assembler.mapText(assembler.stripQuotes(v))
-            else:
-                v = list(bytes(assembler.stripQuotes(v), 'utf-8'))
-            l=len(v)
-            return v, l
+#        if v.startswith(assembler.quotes) and v.endswith(assembler.quotes):
+#            if mode == 'textmap':
+#                v = assembler.mapText(assembler.stripQuotes(v))
+#            else:
+#                v = list(bytes(assembler.stripQuotes(v), 'utf-8'))
+#            l=len(v)
+#            return v, l
         
         if v.startswith('-'):
             label = v.split(' ',1)[0]
@@ -2430,6 +2437,37 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
             elif k == 'lastpass':
                 print('Skipping to final pass')
                 lastPass = passNum
+            elif k == 'find':
+                # This find assumes a byte or array of bytes.
+                # eventually it should have some switches and guess what's being searched.
+                
+                findValue = flattenList(getValue(line.split(" ", 1)[1]))
+                fileOffset = int(getSpecial('fileoffset'))
+                
+                index = fileOffset - 1
+                while True:
+                    try:
+                        index = out.index(findValue[0], index+1)
+                        if out[index:index+len(findValue)] == findValue:
+                            break
+                    except:
+                        index = False
+                        break
+                
+                symbols['resultbank'] = False
+                symbols['resultaddress'] = False
+                if passNum == lastPass:
+                    print('\nSearching for: {}'.format(' '.join([makeHex(x) for x in findValue])))
+                    if index:
+                        a = (index-headerSize)
+                        resultBank = math.floor(a/bankSize)
+                        a = a % bankSize + 0x8000
+                        print('Found at: {:02x}:{:05x}'.format(resultBank, a))
+                        symbols['resultbank'] = resultBank
+                        symbols['resultaddress'] = a
+                    else:
+                        print('Not found')
+                    print()
             elif k == 'findtext':
                 txt = line.split(" ", 1)[1]
                 txt = getString(getValue(txt), strip = False) or getString(txt)
@@ -2460,7 +2498,6 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     else:
                         print('Not found')
                     print()
-            
             elif k == 'insert' and (passNum == lastPass):
                 v = getValue(line.split(" ", 1)[1].strip())
                 fv = fillValue
@@ -2503,6 +2540,8 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                     data = data.split()
                     if data[0].lower() == 'space':
                         data[0] = ' '
+                    elif data[0].lower() == 'equals':
+                        data[0] = '='
                     elif '...' in data[0]:
                         c1,c2 = data[0].split('...')
                         data[0] = ''.join([chr(c) for c in range(ord(c1), ord(c2)+1)])
@@ -3122,6 +3161,9 @@ def _assemble(filename, outputFilename, listFilename, cfg, fileData, binFile, sy
                 assembler.namespace.push(k)
                 lines = lines[:i]+['']+macros[k].lines+[assembler.hidePrefix+'namespace _pop_']+lines[i+1:]
             if kf: # keyword function
+                if len(kfdata) < len(functions[kf].params):
+                    kfdata = kfdata + ['0'] * (len(functions[kf].params) - len(kfdata))
+                
                 for item in mergeList(functions[kf].params, kfdata):
                     symbols[kf + namespaceSymbol + assembler.lower(item[0])] = getValue(item[1])
                 

@@ -112,7 +112,7 @@ NSTssTXT
 BtnTiles=1
 BtnChecker=0
 BtnSelTiles=0
-BtnChrBank1=1
+BtnChrBank1=0
 BtnChrBank2=0
 BtnGridAll=0
 BtnGridTile=0
@@ -138,7 +138,7 @@ MenuSaveRLE=0
 VarBgPalCur=1
 VarPalActive=0
 VarTileActive=83
-VarBankActive=4096
+VarBankActive=0
 VarPPUMask=0
 VarPPUMaskSet0=0
 VarPPUMaskSet1=128
@@ -172,6 +172,7 @@ def createNss(arg={}):
     nt =  arg.get('nameTable', [0] * 0x3c0)
     at =  arg.get('attrTable', [0] * 0x40)
     chr = arg.get('chr', [0] * 0x2000)
+    chrNum = arg.get('chrNum', 0)
     
     chr = list(chr)
     
@@ -189,6 +190,8 @@ def createNss(arg={}):
     out = out.replace('CHRMain=', 'CHRMain=' + RLE(chr))
     out = out.replace('NameTable=', 'NameTable=' + RLE(nt))
     out = out.replace('AttrTable=', 'AttrTable=' + RLE(at))
+    out = out.replace(f'BtnChrBank{chrNum+1}=0', f'BtnChrBank{chrNum+1}=1')
+    out = out.replace(f'VarBankActive=0', f'VarBankActive={chrNum*4096}')
     
     with open(arg.get('filename'), "w") as file:
         file.write(out)
@@ -208,17 +211,89 @@ def getFileContentsAsHex(filename):
     return str(hexlify(data), 'utf8')
 
 if __name__ == '__main__':
+    import argparse
     
-    filename = r"J:\svn\NESBuilder\cv3test.nss"
-    nt = getFileContentsAsList(r"J:\svn\NESBuilder\projects\Castlevania3\nametable\screenTool.nt")
-    at = getFileContentsAsList(r"J:\svn\NESBuilder\projects\Castlevania3\nametable\screenTool.attr")
-    chr = getFileContentsAsList(r"J:\svn\NESBuilder\projects\Castlevania3\chr\screenTool.custom.chr")
-    palette = list(unhexlify("0f1605200f1302200f14033b0f162710" * 4))
-    chr = chr + [0] * 0x1000
+    def writeToFile(filename, data):
+        with open(filename, 'wb') as file:
+            file.write(bytes(data))
+            print(filename, "created.")
     
-    arg = dict(filename = filename, nt=nt, at=at, chr=chr, palette=palette)
+    parser = argparse.ArgumentParser(description='NSS')
     
-    createNss(arg)
+#    group = parser.add_mutually_exclusive_group(required = True)
+#    group.add_argument('-c', action='store_true',
+#                        help='Create')
+#    group.add_argument('-e', action='store_true',
+#                        help='Extract')
+    
+    parser.add_argument('-i', type=str, metavar="<file>",
+                        help='Input file')
+    parser.add_argument('-saveCHR', type=str, metavar="<file>",
+                        help='CHR file')
+    parser.add_argument('-saveCHR0', type=str, metavar="<file>",
+                        help='CHR file')
+    parser.add_argument('-saveCHR1', type=str, metavar="<file>",
+                        help='CHR file')
+    parser.add_argument('-saveNtNoAttr', type=str, metavar="<file>",
+                        help='NameTable (without AttrTable) output file')
+    parser.add_argument('-saveNt', type=str, metavar="<file>",
+                        help='NameTable output file')
+    parser.add_argument('-saveAttr', type=str, metavar="<file>",
+                        help='AttrTable output file')
+    parser.add_argument('-savePal', type=str, metavar="<file>",
+                        help='Palette output file')
+    
+    version = dict(
+        name = 'NSS Tool',
+        version = '2022.12.19',
+        author = 'SpiderDave',
+    )
+    print('\n{} {} by {}\n'.format(version.get('name'), version.get('version'), version.get('author')))
+    
+    args = parser.parse_args()
+    
+    filename = args.i
+    
+    print(args)
+    
+    data = getData(filename)
+    print('\n'.join(data.keys()))
+#    print(len(data.get('NameTable'))+len(data.get('AttrTable')))
+#    print(hex(len(data.get('CHRMain'))))
+    
+    # save current selected chr
+    if args.saveCHR:
+        offset = data.get('BtnChrBank2') * 0x1000
+        chr = data.get('CHRMain')[offset:offset+0x1000]
+        writeToFile(args.saveCHR, chr)
+    if args.saveCHR0:
+        offset = 0 * 0x1000
+        chr = data.get('CHRMain')[offset:offset+0x1000]
+        writeToFile(args.saveCHR0, chr)
+    if args.saveCHR1:
+        offset = 1 * 0x1000
+        chr = data.get('CHRMain')[offset:offset+0x1000]
+        writeToFile(args.saveCHR1, chr)
+    if args.saveNt:
+        writeToFile(args.saveNt, data.get('NameTable') + data.get('AttrTable'))
+    if args.saveNtNoAttr:
+        writeToFile(args.saveNtNoAttr, data.get('NameTable'))
+    if args.saveAttr:
+        writeToFile(args.saveAttr, data.get('AttrTable'))
+    if args.savePal:
+        writeToFile(args.savePal, data.get('Palette')[:16])
+    
+    
+#    filename = r"J:\svn\NESBuilder\cv3test.nss"
+#    nt = getFileContentsAsList(r"J:\svn\NESBuilder\projects\Castlevania3\nametable\screenTool.nt")
+#    at = getFileContentsAsList(r"J:\svn\NESBuilder\projects\Castlevania3\nametable\screenTool.attr")
+#    chr = getFileContentsAsList(r"J:\svn\NESBuilder\projects\Castlevania3\chr\screenTool.custom.chr")
+#    palette = list(unhexlify("0f1605200f1302200f14033b0f162710" * 4))
+#    chr = chr + [0] * 0x1000
+    
+#    arg = dict(filename = filename, nt=nt, at=at, chr=chr, palette=palette)
+    
+#    createNss(arg)
     
     
     
@@ -248,5 +323,5 @@ if __name__ == '__main__':
 #    print(data)
 #    print()
 #    print(str(hexlify(bytes(unRLE(data))), 'utf8'))
-    
+    print("Done.")
 

@@ -1559,6 +1559,8 @@ class ListWidget(Base, QListWidget):
         self.clear()
         for item in fix(items):
             super().addItem(QListWidgetItem(item))
+    def setCurrentRow(self, row):
+        return super().setCurrentRow(int(row))
     def getIndex(self):
         return super().currentRow()
     def getItem(self):
@@ -1591,6 +1593,8 @@ class Table(Base, QTableWidget):
     def setHorizontalHeaderLabels(self, *args):
         args = fix(args)
         super().setHorizontalHeaderLabels(args)
+    def setColumnWidth(self, column, width):
+        super().setColumnWidth(column, int(width))
     def getRow(self, row=0):
         l=[]
         for i in range(self.columnCount()):

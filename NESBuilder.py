@@ -674,7 +674,6 @@ class ForLua:
             os.rename(filename, newFilename)
             print("Rename "+filename + " --> "+newFilename)
     def delete(self, filename):
-        #filename = fixPath(script_path+"/"+filename)
         filename = fixPath2(filename)
         try:
             if os.path.exists(filename):
@@ -1065,6 +1064,10 @@ class ForLua:
     def toList(self, a):
         if type(a) == np.ndarray:
             return a.tolist()
+        
+        if a.__class__.__name__ == '_LuaTable':
+            return self.tableToList(self, a, 0)
+        
         return list(a)
     def joinLists(self, *args):
         l = []
@@ -1358,7 +1361,7 @@ class ForLua:
             x=x-1000
         controls[c].place(x=x)
     def makeNESPixmap(self, width=128,height=128):
-        return QtDave.NESPixmap(width, height)
+        return QtDave.NESPixmap(int(width), int(height))
     @lupa.unpacks_lua_table
     def makeCanvasQt(self, t):
         t.scale = t.scale or 3
@@ -1914,12 +1917,24 @@ def doCommandNew(*args, ev=False, extra = False):
 def handlePythonError(err=None, exit=False):
     print("-"*79)
     e = traceback.format_exc().splitlines()
+    e = [x for x in e if 'lupa\\lua54.pyx' not in x]
+    e = [x for x in e if 'lua54.pyx' not in x]
     e = "\n".join([x for x in e if "lupa\_lupa.pyx" not in x])
-
+    
     lua_func = lua.eval("function(e) if handlePythonError then handlePythonError(e) end end")
-    if lua_func(e) != True:
+    
+    res = False
+    try:
+        res = lua_func(e)
+    except:
+        pass
+    if res !=True:
         print(e)
         print("-"*79)
+    
+#    if lua_func(e) != True:
+#        print(e)
+#        print("-"*79)
     
     if exit or cfg.getValue("main","breakonpythonerrors"):
         sys.exit(1)
